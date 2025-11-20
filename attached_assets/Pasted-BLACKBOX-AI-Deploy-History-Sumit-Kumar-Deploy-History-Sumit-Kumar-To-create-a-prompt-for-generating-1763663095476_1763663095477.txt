@@ -1,0 +1,40 @@
+BLACKBOX AI
+
+Deploy
+History
+Sumit Kumar
+Deploy History Sumit Kumar To create a prompt for generating this UI, you should focus on describing the layout, elements, dark mode theme, and specific content structure.
+
+Here is a detailed, structured prompt you can use:
+
+UI Generation Prompt "Design a mobile application screen for a assigmnet and quiz deadlinerwith the following specifications:
+
+Overall Theme and Layout Theme: Use a dark mode color scheme (black background, white/light gray text). Structure: The screen should be divided into a header, a date selector, and a main list of schedule items.
+
+Footer: Include a bottom navigation bar (Upcoming, completed ,add Quiz, Settings).
+
+Welcome user Header Title: "Task" centered at the top. Style: Use rounded rectangular tabs.
+
+Schedule List (The Main Content) The list should contain four identical assigment and quizitem cards followed by a 'Free Time' marker. Each Lecture Card Structure (Must-Haves):
+
+Left Tag: A small tag reading "assigment/quiz" (e.g., in a light blue background).
+
+Status Tag: A tag reading "COMPLETED" (e.g., in a white/light gray background) aligned to the right.
+
+assigmentTitle: Large, bold text (e.g., Calculus for Engineers).
+
+Details Row (Iconography):
+
+assigment/quiz deadline:date
+
+Time remaining: No of days
+
+Course Codes/Identifiers (Right Aligned):
+
+A hashtag icon followed by the Course Code (e.g., #MAT1001).
+
+A small file/document icon followed by a Section ID (e.g., C1).
+
+Footer/Bottom Navigation Design: Use a subtle separating line above the navigation bar. Icons and Labels: Include icons and labels for: Upcoming (selected), quiz,add, Completed, and Settings.
+
+Highlight: The Upcoming icon should be highlighted/selected." Functinality : add quiz and assigment subject name remarks and deadline and completed tab show all submited assigment and upcoming will show the upcoming assigmnet and it has button if it has been submitted before deadline so it will move to completed and quiz will have syllabus date time option to add make an app kotlin file
