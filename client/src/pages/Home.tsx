@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { TaskCard, TaskProps } from "@/components/TaskCard";
-import { DateSelector } from "@/components/DateSelector";
 import { AddTaskDrawer } from "@/components/AddTaskDrawer";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -78,9 +77,6 @@ export default function Home() {
             <h1 className="text-sm font-bold tracking-wide uppercase">{pageTitle}</h1>
           </div>
         </div>
-        
-        {/* Only show date selector on main views, maybe hide on completed? keeping for now */}
-        <DateSelector />
       </header>
 
       {/* Main Content */}
@@ -114,18 +110,6 @@ export default function Home() {
                   />
                 </motion.div>
               ))
-            )}
-            
-            {!location.includes("completed") && filteredTasks.length > 0 && (
-               <motion.div 
-                 initial={{ opacity: 0 }}
-                 animate={{ opacity: 1 }}
-                 className="flex items-center justify-center py-8 opacity-30"
-               >
-                <div className="h-px w-12 bg-current" />
-                <span className="px-3 text-xs font-medium uppercase tracking-widest">Free Time</span>
-                <div className="h-px w-12 bg-current" />
-              </motion.div>
             )}
           </div>
         </AnimatePresence>
