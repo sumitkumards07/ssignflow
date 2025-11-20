@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { TaskType } from "./TaskCard";
+import { Paperclip } from "lucide-react";
 
 const formSchema = z.object({
   title: z.string().min(2, "Title is required"),
@@ -17,6 +18,7 @@ const formSchema = z.object({
   sectionId: z.string().optional(),
   remarks: z.string().optional(),
   deadline: z.string().min(1, "Date required"),
+  attachment: z.any().optional(),
 });
 
 interface AddTaskDrawerProps {
@@ -34,12 +36,26 @@ export function AddTaskDrawer({ open, onOpenChange, onAdd }: AddTaskDrawerProps)
     },
   });
 
+  const taskType = form.watch("type");
+
   const onSubmit = (data: z.infer<typeof formSchema>) => {
+    let attachmentData = undefined;
+    
+    // Mock handling of file upload - in a real app this would upload to server
+    if (data.attachment && data.attachment.length > 0) {
+      const file = data.attachment[0];
+      attachmentData = {
+        name: file.name,
+        url: URL.createObjectURL(file) // Create a local URL for preview
+      };
+    }
+
     onAdd({
       ...data,
       id: Math.random().toString(36).substr(2, 9),
       deadline: new Date(data.deadline),
       completed: false,
+      attachment: attachmentData
     });
     form.reset();
     onOpenChange(false);
@@ -89,6 +105,22 @@ export function AddTaskDrawer({ open, onOpenChange, onAdd }: AddTaskDrawerProps)
                 <Input id="deadline" type="date" {...form.register("deadline")} />
               </div>
             </div>
+
+            {taskType === "assignment" && (
+              <div className="space-y-2">
+                <Label htmlFor="attachment">Attachment (PDF)</Label>
+                <div className="relative">
+                  <Input 
+                    id="attachment" 
+                    type="file" 
+                    accept=".pdf" 
+                    className="pl-9 file:text-foreground" 
+                    {...form.register("attachment")} 
+                  />
+                  <Paperclip className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="remarks">Remarks / Syllabus</Label>

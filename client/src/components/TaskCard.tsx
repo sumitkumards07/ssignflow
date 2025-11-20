@@ -1,6 +1,6 @@
 import React from "react";
 import { cn } from "@/lib/utils";
-import { Clock, Calendar, Hash, FileText, CheckCircle2 } from "lucide-react";
+import { Clock, Calendar, Hash, FileText, CheckCircle2, Paperclip, Download } from "lucide-react";
 
 export type TaskType = "assignment" | "quiz";
 
@@ -12,6 +12,10 @@ export interface TaskProps {
   sectionId: string;
   deadline: Date;
   completed?: boolean;
+  attachment?: {
+    name: string;
+    url: string;
+  };
   onComplete?: (id: string) => void;
 }
 
@@ -23,6 +27,7 @@ export function TaskCard({
   sectionId, 
   deadline, 
   completed,
+  attachment,
   onComplete 
 }: TaskProps) {
   const daysRemaining = Math.ceil((deadline.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
@@ -66,6 +71,28 @@ export function TaskCard({
       <h3 className="mb-4 text-xl font-bold leading-tight tracking-tight text-foreground">
         {title}
       </h3>
+
+      {/* Attachment (if exists) */}
+      {attachment && (
+        <div className="mb-4">
+          <a 
+            href={attachment.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 rounded-lg border border-border/50 bg-secondary/30 p-3 transition-colors hover:bg-secondary/50 hover:border-primary/20"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex h-8 w-8 items-center justify-center rounded bg-red-500/10 text-red-500">
+              <Paperclip className="h-4 w-4" />
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <p className="truncate text-xs font-medium">{attachment.name}</p>
+              <p className="text-[10px] text-muted-foreground">PDF Document</p>
+            </div>
+            <Download className="h-4 w-4 text-muted-foreground" />
+          </a>
+        </div>
+      )}
 
       {/* Details Grid */}
       <div className="grid grid-cols-2 gap-y-3 text-xs text-muted-foreground">

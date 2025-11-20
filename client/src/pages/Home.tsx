@@ -15,6 +15,10 @@ const INITIAL_TASKS: TaskProps[] = [
     sectionId: "C1",
     deadline: new Date(Date.now() + 86400000 * 2), // 2 days from now
     completed: false,
+    attachment: {
+      name: "Calculus_Homework_3.pdf",
+      url: "#"
+    }
   },
   {
     id: "2",
