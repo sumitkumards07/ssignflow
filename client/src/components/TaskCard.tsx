@@ -1,7 +1,6 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 import { Clock, Calendar, Hash, FileText, CheckCircle2 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
 
 export type TaskType = "assignment" | "quiz";
 
@@ -31,7 +30,7 @@ export function TaskCard({
   return (
     <div 
       className={cn(
-        "group relative overflow-hidden rounded-2xl border border-white/5 bg-card p-5 transition-all hover:border-white/10 active:scale-[0.98]",
+        "group relative overflow-hidden rounded-2xl border border-border bg-card p-5 transition-all hover:border-primary/20 active:scale-[0.98]",
         completed && "opacity-75 grayscale-[0.5]"
       )}
       data-testid={`task-card-${id}`}
@@ -41,21 +40,21 @@ export function TaskCard({
         <span className={cn(
           "inline-flex items-center rounded-md px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider",
           type === "assignment" 
-            ? "bg-blue-500/10 text-blue-400" 
-            : "bg-purple-500/10 text-purple-400"
+            ? "bg-blue-500/10 text-blue-600 dark:text-blue-400" 
+            : "bg-purple-500/10 text-purple-600 dark:text-purple-400"
         )}>
           {type}
         </span>
         
         {completed ? (
-          <span className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2 py-1 text-[10px] font-bold uppercase text-white/70">
+          <span className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-[10px] font-bold uppercase text-muted-foreground">
             <CheckCircle2 className="h-3 w-3" />
             Completed
           </span>
         ) : (
           <button 
             onClick={() => onComplete?.(id)}
-            className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-[10px] font-bold uppercase text-muted-foreground transition-colors hover:bg-white/10 hover:text-white"
+            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-bold uppercase text-muted-foreground transition-colors hover:bg-primary hover:text-primary-foreground"
             data-testid={`task-complete-${id}`}
           >
             Mark Done
@@ -74,14 +73,14 @@ export function TaskCard({
         {/* Left Column: Time info */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Calendar className="h-3.5 w-3.5 text-white/40" />
+            <Calendar className="h-3.5 w-3.5 opacity-50" />
             <span className="font-mono">{deadline.toLocaleDateString()}</span>
           </div>
           <div className={cn(
             "flex items-center gap-2 font-medium",
-            !completed && daysRemaining <= 2 ? "text-red-400" : "text-muted-foreground"
+            !completed && daysRemaining <= 2 ? "text-red-500 dark:text-red-400" : "text-muted-foreground"
           )}>
-            <Clock className="h-3.5 w-3.5 text-white/40" />
+            <Clock className="h-3.5 w-3.5 opacity-50" />
             <span>{completed ? "Ended" : `${daysRemaining} days left`}</span>
           </div>
         </div>
@@ -89,12 +88,12 @@ export function TaskCard({
         {/* Right Column: Course info */}
         <div className="flex flex-col items-end space-y-2">
           <div className="flex items-center gap-1.5">
-            <span className="font-mono text-white/60">{courseCode}</span>
-            <Hash className="h-3.5 w-3.5 text-white/20" />
+            <span className="font-mono opacity-70">{courseCode}</span>
+            <Hash className="h-3.5 w-3.5 opacity-30" />
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="font-mono text-white/60">{sectionId}</span>
-            <FileText className="h-3.5 w-3.5 text-white/20" />
+            <span className="font-mono opacity-70">{sectionId}</span>
+            <FileText className="h-3.5 w-3.5 opacity-30" />
           </div>
         </div>
       </div>

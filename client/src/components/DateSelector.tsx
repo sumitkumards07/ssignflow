@@ -19,8 +19,8 @@ export function DateSelector() {
               className={cn(
                 "flex min-w-[60px] flex-col items-center justify-center rounded-2xl border py-3 transition-all",
                 isSelected 
-                  ? "border-primary bg-primary text-primary-foreground shadow-[0_0_20px_-5px_rgba(255,255,255,0.3)]" 
-                  : "border-white/5 bg-card/50 text-muted-foreground hover:border-white/20 hover:bg-card"
+                  ? "border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                  : "border-border bg-card/50 text-muted-foreground hover:border-primary/20 hover:bg-card"
               )}
             >
               <span className="text-[10px] font-medium uppercase opacity-60">
