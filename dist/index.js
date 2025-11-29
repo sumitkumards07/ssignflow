@@ -125,9 +125,6 @@ var insertTaskSchema = createInsertSchema(tasks).pick({
 // server/routes.ts
 import multer from "multer";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { createRequire } from "module";
-var require2 = createRequire(import.meta.url);
-var pdfParse = require2("pdf-parse");
 async function registerRoutes(app2) {
   app2.use("/api", (req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
@@ -218,6 +215,9 @@ async function registerRoutes(app2) {
         return;
       }
       const dataBuffer = req.file.buffer;
+      const { createRequire } = await import("module");
+      const require2 = createRequire(import.meta.url);
+      const pdfParse = require2("pdf-parse");
       const data = await pdfParse(dataBuffer);
       const text2 = data.text;
       if (!text2 || text2.length < 50) {

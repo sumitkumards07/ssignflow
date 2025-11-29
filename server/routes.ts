@@ -5,9 +5,7 @@ import { insertTaskSchema } from "@shared/schema";
 import { randomUUID } from "crypto";
 import multer from "multer";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const pdfParse = require("pdf-parse");
+// pdf-parse is dynamically imported in the upload route to avoid loading it at server startup
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Add CORS headers for mobile app
@@ -109,6 +107,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const dataBuffer = req.file.buffer;
+
+      // Dynamically import pdf-parse to avoid loading it at server startup
+      const { createRequire } = await import("module");
+      const require = createRequire(import.meta.url);
+      const pdfParse = require("pdf-parse");
+
       const data = await pdfParse(dataBuffer);
       const text = data.text;
 
