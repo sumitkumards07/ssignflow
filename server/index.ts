@@ -1,6 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import { serveStatic, log } from "./utils";
 
 const app = express();
 
@@ -20,9 +20,9 @@ app.use(express.json({
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   if (err instanceof SyntaxError && 'body' in err) {
     console.error("JSON parsing error:", err);
-    res.status(400).json({ 
+    res.status(400).json({
       message: "Invalid JSON in request body",
-      error: err.message 
+      error: err.message
     });
     return;
   }
@@ -75,6 +75,7 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
+    const { setupVite } = await import("./vite");
     await setupVite(app, server);
   } else {
     serveStatic(app);
