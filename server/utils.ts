@@ -1,4 +1,3 @@
-```typescript
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
@@ -16,18 +15,18 @@ export function log(message: string, source = "express") {
     hour12: true,
   });
 
-  console.log(`${ formattedTime } [${ source }] ${ message } `);
+  console.log(`${formattedTime} [${source}] ${message}`);
 }
 
 export function serveStatic(app: Express) {
   const distPath = path.resolve(__dirname, "public");
-  
+
   console.log("Serving static files from:", distPath);
   console.log("Current directory:", __dirname);
 
   if (!fs.existsSync(distPath)) {
     throw new Error(
-      `Could not find the build directory: ${ distPath }, make sure to build the client first`,
+      `Could not find the build directory: ${distPath}, make sure to build the client first`,
     );
   }
 
@@ -38,4 +37,3 @@ export function serveStatic(app: Express) {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
-```
