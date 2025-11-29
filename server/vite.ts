@@ -1,9 +1,9 @@
 import { type Express } from "express";
 import { type Server } from "http";
-import viteConfig from "../vite.config";
 
 export async function setupVite(app: Express, server: Server) {
   const { createServer: createViteServer, createLogger } = await import("vite");
+  const viteConfig = (await import("../vite.config.js")).default;
   const viteLogger = createLogger();
 
   const serverOptions = {
