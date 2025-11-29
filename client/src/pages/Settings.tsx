@@ -1,13 +1,27 @@
 import React from "react";
 import { BottomNav } from "@/components/layout/BottomNav";
-import { Moon, Sun, Monitor, Info, Linkedin, ExternalLink, Bell, BrainCircuit } from "lucide-react";
+import { Moon, Sun, Monitor, Info, Linkedin, ExternalLink, Bell, BrainCircuit, LogOut, User, MessageSquare } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Settings() {
   const { theme, setTheme } = useTheme();
+  const { toast } = useToast();
+  const [user, setUser] = React.useState(JSON.parse(localStorage.getItem("user") || "{}"));
+
+  const handleUserChange = (key: string, value: string) => {
+    const newUser = { ...user, [key]: value };
+    setUser(newUser);
+    localStorage.setItem("user", JSON.stringify(newUser));
+  };
 
   return (
     <div className="min-h-screen bg-background pb-24 text-foreground">
@@ -120,6 +134,94 @@ export default function Settings() {
           </div>
         </section>
 
+        <div className="space-y-6 pb-24">
+          <section className="space-y-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <User className="w-5 h-5" />
+              Profile
+            </h2>
+            <Card>
+              <CardContent className="pt-6 space-y-4">
+                <div className="flex items-center gap-4">
+                  <Avatar className="w-16 h-16 border-2 border-primary/10">
+                    <AvatarImage src={user?.photoUrl} />
+                    <AvatarFallback className="text-lg bg-primary/5 text-primary">
+                      {user?.displayName?.charAt(0) || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 space-y-1">
+                    <h3 className="font-medium text-lg">{user?.displayName || "User"}</h3>
+                    <p className="text-sm text-muted-foreground">{user?.email || "No email"}</p>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary capitalize">
+                      {user?.role || "user"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 pt-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">Display Name</Label>
+                    <Input
+                      id="name"
+                      defaultValue={user?.displayName}
+                      onChange={(e) => handleUserChange("displayName", e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="photo">Photo URL</Label>
+                    <Input
+                      id="photo"
+                      defaultValue={user?.photoUrl}
+                      placeholder="https://..."
+                      onChange={(e) => handleUserChange("photoUrl", e.target.value)}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+        </div>
+
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <MessageSquare className="w-5 h-5" />
+            Feedback
+          </h2>
+          <Card>
+            <CardContent className="pt-6 space-y-4">
+              <p className="text-sm text-muted-foreground">
+                We'd love to hear your thoughts! Let us know how we can improve AssignFlow.
+              </p>
+              <Textarea
+                placeholder="Type your feedback here..."
+                className="min-h-[100px]"
+                id="feedback-input"
+              />
+              <Button
+                className="w-full"
+                onClick={() => {
+                  const input = document.getElementById('feedback-input') as HTMLTextAreaElement;
+                  if (input && input.value.trim()) {
+                    toast({
+                      title: "Feedback Sent",
+                      description: "Thank you for your feedback!",
+                    });
+                    input.value = "";
+                  } else {
+                    toast({
+                      title: "Empty Feedback",
+                      description: "Please enter some text before sending.",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+              >
+                Send Feedback
+              </Button>
+            </CardContent>
+          </Card>
+        </section>
+
         <section className="space-y-4">
           <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">AI Configuration</h2>
           <div className="overflow-hidden rounded-3xl border border-border bg-card">
@@ -135,15 +237,28 @@ export default function Settings() {
               </div>
               <Input
                 type="password"
-                placeholder="Paste your API Key here"
-                defaultValue={localStorage.getItem('gemini_api_key') || "AIzaSyBpZ6OWhP2YLl871NRbx_zfWv5c1I642QQ"}
-                onChange={(e) => localStorage.setItem('gemini_api_key', e.target.value)}
-                className="bg-secondary/50 border-0"
+                value="****************"
+                disabled
+                className="bg-secondary/50 border-0 text-muted-foreground cursor-not-allowed"
               />
-              <p className="text-[10px] text-muted-foreground">
-                Get your key from <a href="https://aistudio.google.com/app/apikey" target="_blank" className="underline text-primary">Google AI Studio</a>
+              <p className="text-xs text-muted-foreground">
+                Using default configuration. Contact admin to change.
               </p>
             </div>
+          </div>
+
+          <div className="pt-4">
+            <Button
+              variant="destructive"
+              className="w-full"
+              onClick={() => {
+                localStorage.removeItem("user");
+                window.location.href = "/login";
+              }}
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Log Out
+            </Button>
           </div>
         </section>
 

@@ -5,18 +5,21 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Loader2, LogIn } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function LoginPage() {
     const [, setLocation] = useLocation();
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
     const [name, setName] = useState("");
+    const [email, setEmail] = useState("");
+    const [showWelcome, setShowWelcome] = useState(false);
 
     const handleMockLogin = async () => {
-        if (!name.trim()) {
+        if (!name.trim() || !email.trim()) {
             toast({
-                title: "Name required",
-                description: "Please enter your name to continue.",
+                title: "Details required",
+                description: "Please enter both your name and email to continue.",
                 variant: "destructive",
             });
             return;
@@ -28,7 +31,7 @@ export default function LoginPage() {
             const mockGoogleUser = {
                 id: "mock-user-" + Math.random().toString(36).substr(2, 9),
                 googleId: "mock-google-id-" + Math.random().toString(36).substr(2, 9),
-                email: `${name.toLowerCase().replace(/\s/g, '.')}@gmail.com`,
+                email: email,
                 displayName: name,
                 photoUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
                 role: "user"
@@ -40,12 +43,14 @@ export default function LoginPage() {
             // Store user info
             localStorage.setItem("user", JSON.stringify(mockGoogleUser));
 
-            toast({
-                title: "Welcome back!",
-                description: `Signed in as ${mockGoogleUser.displayName}`,
-            });
+            // Show Welcome Animation
+            setShowWelcome(true);
 
-            setLocation("/todo");
+            // Redirect after animation
+            setTimeout(() => {
+                setLocation("/todo");
+            }, 2500);
+
         } catch (error) {
             console.error("Login error:", error);
             toast({
@@ -53,14 +58,37 @@ export default function LoginPage() {
                 description: "Failed to sign in. Please try again.",
                 variant: "destructive",
             });
-        } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-background p-4">
-            <Card className="w-full max-w-md border-border bg-card">
+        <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+            <AnimatePresence>
+                {showWelcome && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.5, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ type: "spring", damping: 12 }}
+                            className="text-center space-y-4"
+                        >
+                            <div className="w-24 h-24 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <span className="text-4xl">👋</span>
+                            </div>
+                            <h1 className="text-4xl font-bold text-primary">Welcome, {name}!</h1>
+                            <p className="text-xl text-muted-foreground">Getting your workspace ready...</p>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            <Card className="w-full max-w-md border-border bg-card relative z-10">
                 <CardHeader className="text-center space-y-2">
                     <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-2">
                         <LogIn className="w-6 h-6 text-primary" />
@@ -69,17 +97,30 @@ export default function LoginPage() {
                     <CardDescription>Sign in to manage your tasks and quizzes</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                        <Input
-                            placeholder="Enter your name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            className="bg-secondary/50"
-                        />
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Name</label>
+                            <Input
+                                placeholder="Enter your name"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                className="bg-secondary/50"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Email</label>
+                            <Input
+                                type="email"
+                                placeholder="Enter your email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="bg-secondary/50"
+                            />
+                        </div>
                     </div>
 
                     <Button
-                        className="w-full h-11 text-base"
+                        className="w-full h-11 text-base mt-2"
                         onClick={handleMockLogin}
                         disabled={isLoading}
                     >
