@@ -12,8 +12,22 @@ declare module 'http' {
 app.use(express.json({
   verify: (req, _res, buf) => {
     req.rawBody = buf;
-  }
+  },
+  strict: true
 }));
+
+// Error handler for JSON parsing
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err instanceof SyntaxError && 'body' in err) {
+    console.error("JSON parsing error:", err);
+    res.status(400).json({ 
+      message: "Invalid JSON in request body",
+      error: err.message 
+    });
+    return;
+  }
+  next(err);
+});
 app.use(express.urlencoded({ extended: false }));
 
 app.use((req, res, next) => {
@@ -70,11 +84,10 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
+  const port = parseInt(process.env.PORT || '5001', 10);
   server.listen({
     port,
     host: "0.0.0.0",
-    reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
   });
