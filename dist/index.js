@@ -8,63 +8,6 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// vite.config.ts
-var vite_config_exports = {};
-__export(vite_config_exports, {
-  default: () => vite_config_default
-});
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
-import path2 from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
-var vite_config_default;
-var init_vite_config = __esm({
-  async "vite.config.ts"() {
-    "use strict";
-    vite_config_default = defineConfig({
-      plugins: [
-        react(),
-        runtimeErrorOverlay(),
-        tailwindcss(),
-        ...process.env.NODE_ENV !== "production" && process.env.REPL_ID !== void 0 ? [
-          await import("@replit/vite-plugin-cartographer").then(
-            (m) => m.cartographer()
-          ),
-          await import("@replit/vite-plugin-dev-banner").then(
-            (m) => m.devBanner()
-          )
-        ] : []
-      ],
-      resolve: {
-        alias: {
-          "@": path2.resolve(import.meta.dirname, "client", "src"),
-          "@shared": path2.resolve(import.meta.dirname, "shared"),
-          "@assets": path2.resolve(import.meta.dirname, "attached_assets")
-        }
-      },
-      css: {
-        postcss: {
-          plugins: []
-        }
-      },
-      root: path2.resolve(import.meta.dirname, "client"),
-      build: {
-        outDir: path2.resolve(import.meta.dirname, "dist/public"),
-        emptyOutDir: true
-      },
-      server: {
-        host: "0.0.0.0",
-        allowedHosts: true,
-        fs: {
-          strict: true,
-          deny: ["**/.*"]
-        }
-      }
-    });
-  }
-});
-
 // server/vite.ts
 var vite_exports = {};
 __export(vite_exports, {
@@ -72,7 +15,7 @@ __export(vite_exports, {
 });
 async function setupVite(app2, server) {
   const { createServer: createViteServer, createLogger } = await import("vite");
-  const viteConfig = (await init_vite_config().then(() => vite_config_exports)).default;
+  const viteConfig = (await import("../vite.config.js")).default;
   const viteLogger = createLogger();
   const serverOptions = {
     middlewareMode: true,
@@ -97,9 +40,9 @@ async function setupVite(app2, server) {
     const url = req.originalUrl;
     try {
       const fs2 = await import("fs");
-      const path3 = await import("path");
+      const path2 = await import("path");
       const { nanoid } = await import("nanoid");
-      const clientTemplate = path3.resolve(
+      const clientTemplate = path2.resolve(
         import.meta.dirname,
         "..",
         "client",
@@ -434,7 +377,7 @@ app.use((err, req, res, next) => {
 app.use(express2.urlencoded({ extended: false }));
 app.use((req, res, next) => {
   const start = Date.now();
-  const path3 = req.path;
+  const path2 = req.path;
   let capturedJsonResponse = void 0;
   const originalResJson = res.json;
   res.json = function(bodyJson, ...args) {
@@ -443,8 +386,8 @@ app.use((req, res, next) => {
   };
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path3.startsWith("/api")) {
-      let logLine = `${req.method} ${path3} ${res.statusCode} in ${duration}ms`;
+    if (path2.startsWith("/api")) {
+      let logLine = `${req.method} ${path2} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
