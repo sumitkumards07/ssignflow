@@ -33,8 +33,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/auth/google/callback",
     passport.authenticate("google", { failureRedirect: "/login" }),
     (req, res) => {
-      // Successful authentication
-      res.redirect("/");
+      // Check if request is from mobile app (has custom user agent or header)
+      const isMobile = req.get("User-Agent")?.includes("CapacitorApp") ||
+        req.query.platform === "mobile";
+
+      if (isMobile) {
+        // Redirect to custom URL scheme for mobile app
+        res.redirect(`assignflow://auth/callback?success=true&userId=${(req.user as any)?.id}`);
+      } else {
+        // Web: redirect to home page
+        res.redirect("/");
+      }
     }
   );
 

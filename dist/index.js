@@ -211,7 +211,12 @@ async function registerRoutes(app2) {
     "/api/auth/google/callback",
     auth_default.authenticate("google", { failureRedirect: "/login" }),
     (req, res) => {
-      res.redirect("/");
+      const isMobile = req.get("User-Agent")?.includes("CapacitorApp") || req.query.platform === "mobile";
+      if (isMobile) {
+        res.redirect(`assignflow://auth/callback?success=true&userId=${req.user?.id}`);
+      } else {
+        res.redirect("/");
+      }
     }
   );
   app2.get("/api/auth/me", (req, res) => {
