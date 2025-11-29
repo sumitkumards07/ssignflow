@@ -3,7 +3,7 @@ services:
     name: assignflow
     env: node
     plan: free
-    buildCommand: echo "Build skipped"
+    buildCommand: npm install
     startCommand: npm start
     envVars:
       - key: NODE_VERSION
