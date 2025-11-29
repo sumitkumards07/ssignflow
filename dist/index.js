@@ -1,0 +1,447 @@
+// server/index.ts
+import express2 from "express";
+
+// server/routes.ts
+import { createServer } from "http";
+
+// server/storage.ts
+import { randomUUID } from "crypto";
+var MemStorage = class {
+  users;
+  tasks;
+  constructor() {
+    this.users = /* @__PURE__ */ new Map();
+    this.tasks = /* @__PURE__ */ new Map();
+  }
+  async getUser(id) {
+    return this.users.get(id);
+  }
+  async getUserByUsername(username) {
+    return Array.from(this.users.values()).find(
+      (user) => user.username === username
+    );
+  }
+  async getUserByGoogleId(googleId) {
+    return Array.from(this.users.values()).find(
+      (user) => user.googleId === googleId
+    );
+  }
+  async createUser(insertUser) {
+    const id = randomUUID();
+    const user = {
+      ...insertUser,
+      id,
+      googleId: insertUser.googleId ?? null,
+      email: insertUser.email ?? null,
+      displayName: insertUser.displayName ?? null,
+      role: insertUser.role ?? "user"
+    };
+    this.users.set(id, user);
+    return user;
+  }
+  async getAllUsers() {
+    return Array.from(this.users.values());
+  }
+  async getTasks(userId) {
+    const allTasks = Array.from(this.tasks.values());
+    if (userId) {
+      return allTasks.filter((task) => task.userId === userId);
+    }
+    return allTasks;
+  }
+  async getAllTasks() {
+    return Array.from(this.tasks.values());
+  }
+  async createTask(insertTask) {
+    const id = randomUUID();
+    const task = {
+      ...insertTask,
+      id,
+      userId: insertTask.userId ?? null,
+      completed: insertTask.completed ?? false,
+      notificationTime: insertTask.notificationTime ?? 1440
+      // Default 24h
+    };
+    this.tasks.set(id, task);
+    return task;
+  }
+  async updateTask(id, updateData) {
+    const task = this.tasks.get(id);
+    if (!task) return void 0;
+    const updatedTask = { ...task, ...updateData };
+    this.tasks.set(id, updatedTask);
+    return updatedTask;
+  }
+};
+var storage = new MemStorage();
+
+// shared/schema.ts
+import { sql } from "drizzle-orm";
+import { pgTable, text, varchar, boolean, integer } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+var users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  googleId: text("google_id").unique(),
+  email: text("email"),
+  displayName: text("display_name"),
+  role: text("role").default("user")
+  // 'admin' | 'user'
+});
+var insertUserSchema = createInsertSchema(users).pick({
+  username: true,
+  password: true,
+  googleId: true,
+  email: true,
+  displayName: true,
+  role: true
+});
+var tasks = pgTable("tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  type: text("type").notNull(),
+  // 'assignment' | 'quiz'
+  title: text("title").notNull(),
+  courseCode: text("course_code").notNull(),
+  sectionId: text("section_id").notNull(),
+  deadline: text("deadline").notNull(),
+  // Storing as ISO string for simplicity
+  completed: boolean("completed").notNull().default(false),
+  notificationTime: integer("notification_time").default(24 * 60)
+  // Minutes before deadline, default 24h
+});
+var insertTaskSchema = createInsertSchema(tasks).pick({
+  userId: true,
+  type: true,
+  title: true,
+  courseCode: true,
+  sectionId: true,
+  deadline: true,
+  completed: true,
+  notificationTime: true
+});
+
+// server/routes.ts
+import multer from "multer";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { createRequire } from "module";
+var require2 = createRequire(import.meta.url);
+var pdfParse = require2("pdf-parse");
+async function registerRoutes(app2) {
+  app2.use("/api", (req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+  app2.get("/health", (_req, res) => {
+    res.status(200).json({ status: "ok" });
+  });
+  app2.get("/api/tasks", async (_req, res) => {
+    try {
+      const tasks2 = await storage.getTasks();
+      res.setHeader("Content-Type", "application/json");
+      res.status(200).json(tasks2);
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+      res.setHeader("Content-Type", "application/json");
+      res.status(500).json({
+        message: error.message || "Failed to fetch tasks",
+        error: "SERVER_ERROR"
+      });
+    }
+  });
+  app2.post("/api/tasks", async (req, res) => {
+    try {
+      const result = insertTaskSchema.safeParse(req.body);
+      if (!result.success) {
+        res.status(400).json({
+          message: "Invalid request data",
+          errors: result.error.errors
+        });
+        return;
+      }
+      const task = await storage.createTask(result.data);
+      res.setHeader("Content-Type", "application/json");
+      res.status(201).json({
+        success: true,
+        ...task
+      });
+    } catch (error) {
+      console.error("Error creating task:", error);
+      res.setHeader("Content-Type", "application/json");
+      res.status(500).json({
+        message: error.message || "Failed to create task",
+        error: "SERVER_ERROR"
+      });
+    }
+  });
+  app2.patch("/api/tasks/:id", async (req, res) => {
+    try {
+      const id = req.params.id;
+      if (!id) {
+        res.status(400).json({ message: "Task ID is required" });
+        return;
+      }
+      const updatedTask = await storage.updateTask(id, req.body);
+      if (!updatedTask) {
+        res.setHeader("Content-Type", "application/json");
+        res.status(404).json({
+          message: "Task not found",
+          error: "NOT_FOUND"
+        });
+        return;
+      }
+      res.setHeader("Content-Type", "application/json");
+      res.status(200).json({
+        success: true,
+        ...updatedTask
+      });
+    } catch (error) {
+      console.error("Error updating task:", error);
+      res.setHeader("Content-Type", "application/json");
+      res.status(500).json({
+        message: error.message || "Failed to update task",
+        error: "SERVER_ERROR"
+      });
+    }
+  });
+  const upload = multer({ storage: multer.memoryStorage() });
+  app2.post("/api/quiz/generate", upload.single("pdf"), async (req, res) => {
+    try {
+      if (!req.file) {
+        res.status(400).json({ message: "No PDF file uploaded" });
+        return;
+      }
+      const dataBuffer = req.file.buffer;
+      const data = await pdfParse(dataBuffer);
+      const text2 = data.text;
+      if (!text2 || text2.length < 50) {
+        res.status(400).json({ message: "Not enough text found in PDF" });
+        return;
+      }
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        res.status(500).json({ message: "Gemini API Key not configured" });
+        return;
+      }
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+      const prompt = `
+        Generate a quiz with 5 multiple-choice questions based on the following text.
+        Return the result as a JSON array of objects.
+        Each object should have:
+        - "question": string
+        - "options": string[] (4 options)
+        - "correctAnswer": string (the correct option text)
+        
+        Text: ${text2.substring(0, 1e4)}
+      `;
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const quiz = JSON.parse(response.text().replace(/```json/g, "").replace(/```/g, "").trim());
+      res.json(quiz);
+    } catch (error) {
+      console.error("Quiz generation error:", error);
+      res.status(500).json({ message: "Failed to generate quiz" });
+    }
+  });
+  const httpServer = createServer(app2);
+  return httpServer;
+}
+
+// server/vite.ts
+import express from "express";
+import fs from "fs";
+import path2 from "path";
+import { createServer as createViteServer, createLogger } from "vite";
+
+// vite.config.ts
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import path from "path";
+import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+var vite_config_default = defineConfig({
+  plugins: [
+    react(),
+    runtimeErrorOverlay(),
+    tailwindcss(),
+    ...process.env.NODE_ENV !== "production" && process.env.REPL_ID !== void 0 ? [
+      await import("@replit/vite-plugin-cartographer").then(
+        (m) => m.cartographer()
+      ),
+      await import("@replit/vite-plugin-dev-banner").then(
+        (m) => m.devBanner()
+      )
+    ] : []
+  ],
+  resolve: {
+    alias: {
+      "@": path.resolve(import.meta.dirname, "client", "src"),
+      "@shared": path.resolve(import.meta.dirname, "shared"),
+      "@assets": path.resolve(import.meta.dirname, "attached_assets")
+    }
+  },
+  css: {
+    postcss: {
+      plugins: []
+    }
+  },
+  root: path.resolve(import.meta.dirname, "client"),
+  build: {
+    outDir: path.resolve(import.meta.dirname, "dist/public"),
+    emptyOutDir: true
+  },
+  server: {
+    host: "0.0.0.0",
+    allowedHosts: true,
+    fs: {
+      strict: true,
+      deny: ["**/.*"]
+    }
+  }
+});
+
+// server/vite.ts
+import { nanoid } from "nanoid";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+var viteLogger = createLogger();
+function log(message, source = "express") {
+  const formattedTime = (/* @__PURE__ */ new Date()).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  });
+  console.log(`${formattedTime} [${source}] ${message}`);
+}
+async function setupVite(app2, server) {
+  const serverOptions = {
+    middlewareMode: true,
+    hmr: { server },
+    allowedHosts: true
+  };
+  const vite = await createViteServer({
+    ...vite_config_default,
+    configFile: false,
+    customLogger: {
+      ...viteLogger,
+      error: (msg, options) => {
+        viteLogger.error(msg, options);
+        process.exit(1);
+      }
+    },
+    server: serverOptions,
+    appType: "custom"
+  });
+  app2.use(vite.middlewares);
+  app2.use("*", async (req, res, next) => {
+    const url = req.originalUrl;
+    try {
+      const clientTemplate = path2.resolve(
+        import.meta.dirname,
+        "..",
+        "client",
+        "index.html"
+      );
+      let template = await fs.promises.readFile(clientTemplate, "utf-8");
+      template = template.replace(
+        `src="/src/main.tsx"`,
+        `src="/src/main.tsx?v=${nanoid()}"`
+      );
+      const page = await vite.transformIndexHtml(url, template);
+      res.status(200).set({ "Content-Type": "text/html" }).end(page);
+    } catch (e) {
+      vite.ssrFixStacktrace(e);
+      next(e);
+    }
+  });
+}
+var __filename = fileURLToPath(import.meta.url);
+var __dirname = dirname(__filename);
+function serveStatic(app2) {
+  const distPath = path2.resolve(__dirname, "public");
+  console.log("Serving static files from:", distPath);
+  console.log("Current directory:", __dirname);
+  if (!fs.existsSync(distPath)) {
+    throw new Error(
+      `Could not find the build directory: ${distPath}, make sure to build the client first`
+    );
+  }
+  app2.use(express.static(distPath));
+  app2.use("*", (_req, res) => {
+    res.sendFile(path2.resolve(distPath, "index.html"));
+  });
+}
+
+// server/index.ts
+var app = express2();
+app.use(express2.json({
+  verify: (req, _res, buf) => {
+    req.rawBody = buf;
+  },
+  strict: true
+}));
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && "body" in err) {
+    console.error("JSON parsing error:", err);
+    res.status(400).json({
+      message: "Invalid JSON in request body",
+      error: err.message
+    });
+    return;
+  }
+  next(err);
+});
+app.use(express2.urlencoded({ extended: false }));
+app.use((req, res, next) => {
+  const start = Date.now();
+  const path3 = req.path;
+  let capturedJsonResponse = void 0;
+  const originalResJson = res.json;
+  res.json = function(bodyJson, ...args) {
+    capturedJsonResponse = bodyJson;
+    return originalResJson.apply(res, [bodyJson, ...args]);
+  };
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    if (path3.startsWith("/api")) {
+      let logLine = `${req.method} ${path3} ${res.statusCode} in ${duration}ms`;
+      if (capturedJsonResponse) {
+        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      }
+      if (logLine.length > 80) {
+        logLine = logLine.slice(0, 79) + "\u2026";
+      }
+      log(logLine);
+    }
+  });
+  next();
+});
+(async () => {
+  const server = await registerRoutes(app);
+  app.use((err, _req, res, _next) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+    res.status(status).json({ message });
+    throw err;
+  });
+  if (app.get("env") === "development") {
+    await setupVite(app, server);
+  } else {
+    serveStatic(app);
+  }
+  const port = parseInt(process.env.PORT || "5001", 10);
+  server.listen({
+    port,
+    host: "0.0.0.0"
+  }, () => {
+    log(`serving on port ${port}`);
+  });
+})();
