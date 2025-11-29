@@ -21,6 +21,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   });
 
+  app.get("/health", (_req, res) => {
+    res.status(200).json({ status: "ok" });
+  });
+
   app.get("/api/tasks", async (_req, res) => {
     try {
       const tasks = await storage.getTasks();
