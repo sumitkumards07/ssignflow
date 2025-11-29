@@ -1,4 +1,5 @@
 // server/index.prod.ts
+import "dotenv/config";
 import express2 from "express";
 import session from "express-session";
 
@@ -88,52 +89,58 @@ var MemStorage = class {
 var storage = new MemStorage();
 
 // server/auth.ts
-var GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-var GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+var GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
+var GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
 var CALLBACK_URL = process.env.NODE_ENV === "production" ? "https://assignflow-exuc.onrender.com/api/auth/google/callback" : "http://localhost:5001/api/auth/google/callback";
-passport.use(
-  new GoogleStrategy(
-    {
-      clientID: GOOGLE_CLIENT_ID,
-      clientSecret: GOOGLE_CLIENT_SECRET,
-      callbackURL: CALLBACK_URL
-    },
-    async (_accessToken, _refreshToken, profile, done) => {
-      try {
-        const googleId = profile.id;
-        const email = profile.emails?.[0]?.value || "";
-        const displayName = profile.displayName || "";
-        const photoUrl = profile.photos?.[0]?.value || "";
-        let user = await storage.getUserByGoogleId(googleId);
-        if (!user) {
-          user = await storage.createUser({
-            username: email.split("@")[0],
-            password: "",
-            // No password for OAuth users
-            googleId,
-            email,
-            displayName,
-            role: "user"
-          });
+if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: GOOGLE_CLIENT_ID,
+        clientSecret: GOOGLE_CLIENT_SECRET,
+        callbackURL: CALLBACK_URL
+      },
+      async (_accessToken, _refreshToken, profile, done) => {
+        try {
+          const googleId = profile.id;
+          const email = profile.emails?.[0]?.value || "";
+          const displayName = profile.displayName || "";
+          let user = await storage.getUserByGoogleId(googleId);
+          if (!user) {
+            user = await storage.createUser({
+              username: email.split("@")[0],
+              password: "",
+              // No password for OAuth users
+              googleId,
+              email,
+              displayName,
+              role: "user"
+            });
+          }
+          return done(null, user);
+        } catch (error) {
+          return done(error);
         }
-        return done(null, user);
-      } catch (error) {
-        return done(error);
       }
+    )
+  );
+  passport.serializeUser((user, done) => {
+    done(null, user.id);
+  });
+  passport.deserializeUser(async (id, done) => {
+    try {
+      const user = await storage.getUser(id);
+      done(null, user);
+    } catch (error) {
+      done(error);
     }
-  )
-);
-passport.serializeUser((user, done) => {
-  done(null, user.id);
-});
-passport.deserializeUser(async (id, done) => {
-  try {
-    const user = await storage.getUser(id);
-    done(null, user);
-  } catch (error) {
-    done(error);
-  }
-});
+  });
+} else {
+  console.warn("\u26A0\uFE0F  Google OAuth credentials not found. OAuth will not work.");
+  console.warn("   Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to .env file");
+  passport.serializeUser((user, done) => done(null, user));
+  passport.deserializeUser((user, done) => done(null, user));
+}
 var auth_default = passport;
 
 // server/routes.ts
@@ -213,7 +220,15 @@ async function registerRoutes(app2) {
     (req, res) => {
       const isMobile = req.get("User-Agent")?.includes("CapacitorApp") || req.query.platform === "mobile";
       if (isMobile) {
-        res.redirect(`assignflow://auth/callback?success=true&userId=${req.user?.id}`);
+        const user = req.user;
+        const userData = encodeURIComponent(JSON.stringify({
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          displayName: user.displayName,
+          role: user.role
+        }));
+        res.redirect(`assignflow://auth/callback?success=true&user=${userData}`);
       } else {
         res.redirect("/");
       }

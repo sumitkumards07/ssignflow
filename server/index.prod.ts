@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import passport from "./auth";
@@ -5,6 +6,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic, log } from "./utils";
 
 const app = express();
+app.set("trust proxy", 1); // Trust first proxy (Render load balancer)
 
 declare module 'http' {
     interface IncomingMessage {

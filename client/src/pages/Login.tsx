@@ -48,9 +48,14 @@ export default function LoginPage() {
                 // Mobile: Use in-app browser with deep linking
                 const result = await MobileAuth.loginWithGoogle(API_BASE_URL);
 
+                console.log('OAuth succeeded, user data received:', result.user);
+
+                // Store user data locally (received from deep link)
+                localStorage.setItem('user', JSON.stringify(result.user));
+
                 toast({
                     title: "Success!",
-                    description: "Logged in successfully",
+                    description: `Welcome back, ${result.user.displayName}!`,
                 });
 
                 setLocation("/todo");

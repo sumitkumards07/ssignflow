@@ -38,8 +38,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.query.platform === "mobile";
 
       if (isMobile) {
+        // For mobile: Pass user data in the deep link (not secure for production, but works for demo)
+        const user = req.user as any;
+        const userData = encodeURIComponent(JSON.stringify({
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          displayName: user.displayName,
+          role: user.role,
+        }));
+
         // Redirect to custom URL scheme for mobile app
-        res.redirect(`assignflow://auth/callback?success=true&userId=${(req.user as any)?.id}`);
+        res.redirect(`assignflow://auth/callback?success=true&user=${userData}`);
       } else {
         // Web: redirect to home page
         res.redirect("/");
