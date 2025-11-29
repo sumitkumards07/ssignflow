@@ -25,6 +25,18 @@ export class MemStorage implements IStorage {
   constructor() {
     this.users = new Map();
     this.tasks = new Map();
+
+    // Pre-seed admin user
+    const adminId = randomUUID();
+    this.users.set(adminId, {
+      id: adminId,
+      username: "sumitkumar",
+      password: "sk2007@",
+      googleId: "admin_google_id",
+      email: "admin@assignflow.com",
+      displayName: "Sumit Kumar (Admin)",
+      role: "admin"
+    });
   }
 
   async getUser(id: string): Promise<User | undefined> {

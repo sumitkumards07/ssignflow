@@ -12,6 +12,16 @@ var MemStorage = class {
   constructor() {
     this.users = /* @__PURE__ */ new Map();
     this.tasks = /* @__PURE__ */ new Map();
+    const adminId = randomUUID();
+    this.users.set(adminId, {
+      id: adminId,
+      username: "sumitkumar",
+      password: "sk2007@",
+      googleId: "admin_google_id",
+      email: "admin@assignflow.com",
+      displayName: "Sumit Kumar (Admin)",
+      role: "admin"
+    });
   }
   async getUser(id) {
     return this.users.get(id);
