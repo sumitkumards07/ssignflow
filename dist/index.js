@@ -1,8 +1,10 @@
 // server/index.prod.ts
 import express2 from "express";
+import session from "express-session";
 
-// server/routes.ts
-import { createServer } from "http";
+// server/auth.ts
+import passport from "passport";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 
 // server/storage.ts
 import { randomUUID } from "crypto";
@@ -85,6 +87,58 @@ var MemStorage = class {
 };
 var storage = new MemStorage();
 
+// server/auth.ts
+var GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+var GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+var CALLBACK_URL = process.env.NODE_ENV === "production" ? "https://assignflow-exuc.onrender.com/api/auth/google/callback" : "http://localhost:5001/api/auth/google/callback";
+passport.use(
+  new GoogleStrategy(
+    {
+      clientID: GOOGLE_CLIENT_ID,
+      clientSecret: GOOGLE_CLIENT_SECRET,
+      callbackURL: CALLBACK_URL
+    },
+    async (_accessToken, _refreshToken, profile, done) => {
+      try {
+        const googleId = profile.id;
+        const email = profile.emails?.[0]?.value || "";
+        const displayName = profile.displayName || "";
+        const photoUrl = profile.photos?.[0]?.value || "";
+        let user = await storage.getUserByGoogleId(googleId);
+        if (!user) {
+          user = await storage.createUser({
+            username: email.split("@")[0],
+            password: "",
+            // No password for OAuth users
+            googleId,
+            email,
+            displayName,
+            role: "user"
+          });
+        }
+        return done(null, user);
+      } catch (error) {
+        return done(error);
+      }
+    }
+  )
+);
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
+passport.deserializeUser(async (id, done) => {
+  try {
+    const user = await storage.getUser(id);
+    done(null, user);
+  } catch (error) {
+    done(error);
+  }
+});
+var auth_default = passport;
+
+// server/routes.ts
+import { createServer } from "http";
+
 // shared/schema.ts
 import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, boolean, integer } from "drizzle-orm/pg-core";
@@ -140,6 +194,7 @@ async function registerRoutes(app2) {
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.header("Access-Control-Allow-Credentials", "true");
     if (req.method === "OPTIONS") {
       return res.sendStatus(200);
     }
@@ -147,6 +202,32 @@ async function registerRoutes(app2) {
   });
   app2.get("/health", (_req, res) => {
     res.status(200).json({ status: "ok" });
+  });
+  app2.get(
+    "/api/auth/google",
+    auth_default.authenticate("google", { scope: ["profile", "email"] })
+  );
+  app2.get(
+    "/api/auth/google/callback",
+    auth_default.authenticate("google", { failureRedirect: "/login" }),
+    (req, res) => {
+      res.redirect("/");
+    }
+  );
+  app2.get("/api/auth/me", (req, res) => {
+    if (req.isAuthenticated()) {
+      res.json(req.user);
+    } else {
+      res.status(401).json({ message: "Not authenticated" });
+    }
+  });
+  app2.post("/api/auth/logout", (req, res) => {
+    req.logout((err) => {
+      if (err) {
+        return res.status(500).json({ message: "Logout failed" });
+      }
+      res.json({ message: "Logged out successfully" });
+    });
   });
   app2.get("/api/tasks", async (_req, res) => {
     try {
@@ -298,6 +379,19 @@ function serveStatic(app2) {
 
 // server/index.prod.ts
 var app = express2();
+app.use(session({
+  secret: process.env.SESSION_SECRET || "fallback-secret",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1e3
+    // 24 hours
+  }
+}));
+app.use(auth_default.initialize());
+app.use(auth_default.session());
 app.use(express2.json({
   verify: (req, _res, buf) => {
     req.rawBody = buf;
