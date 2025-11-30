@@ -271,6 +271,30 @@ export default function Settings() {
               </CardContent>
             </Card>
           </section>
+
+          {/* Admin Dashboard Link - Only visible to admins */}
+          {user?.role === "admin" && (
+            <section className="space-y-4">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Administration</h2>
+              <div className="overflow-hidden rounded-3xl border border-border bg-card">
+                <a
+                  href="/admin"
+                  className="flex w-full items-center justify-between p-5 transition-colors hover:bg-secondary/30"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400">
+                      <Shield className="h-5 w-5" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="font-bold text-sm">Admin Dashboard</span>
+                      <span className="text-xs text-muted-foreground">Manage users and view stats</span>
+                    </div>
+                  </div>
+                  <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                </a>
+              </div>
+            </section>
+          )}
         </div>
 
         <section className="space-y-4">
