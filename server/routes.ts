@@ -139,7 +139,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(403).json({ message: "Forbidden" });
     }
     const users = await storage.getAllUsers();
-    res.json(users);
+    const tasks = await storage.getAllTasks();
+
+    const usersWithStats = users.map(user => {
+      const userTasks = tasks.filter(t => t.userId === user.id);
+      return {
+        ...user,
+        taskCount: userTasks.length,
+        completedTaskCount: userTasks.filter(t => t.completed).length
+      };
+    });
+
+    res.json(usersWithStats);
   });
 
   app.get("/api/tasks", async (_req, res) => {

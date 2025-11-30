@@ -13,6 +13,8 @@ interface User {
     displayName: string;
     role: string;
     lastActive?: string;
+    taskCount?: number;
+    completedTaskCount?: number;
 }
 
 export default function AdminDashboard() {
@@ -40,6 +42,9 @@ export default function AdminDashboard() {
         );
     }
 
+    const totalTasks = users?.reduce((acc, user) => acc + (user.taskCount || 0), 0) || 0;
+    const totalCompleted = users?.reduce((acc, user) => acc + (user.completedTaskCount || 0), 0) || 0;
+
     return (
         <div className="min-h-screen bg-background pb-20">
             {/* Header */}
@@ -55,7 +60,7 @@ export default function AdminDashboard() {
             </div>
 
             <div className="p-6 space-y-6">
-                <div className="grid gap-4">
+                <div className="grid grid-cols-2 gap-4">
                     <Card className="bg-primary/5 border-primary/20">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground">Total Users</CardTitle>
@@ -63,6 +68,19 @@ export default function AdminDashboard() {
                         <CardContent>
                             <div className="text-3xl font-bold" style={{ color: 'var(--theme-primary)' }}>
                                 {users?.length || 0}
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card className="bg-primary/5 border-primary/20">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Total Tasks</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-3xl font-bold" style={{ color: 'var(--theme-primary)' }}>
+                                {totalTasks}
+                                <span className="text-sm font-normal text-muted-foreground ml-2">
+                                    ({totalCompleted} done)
+                                </span>
                             </div>
                         </CardContent>
                     </Card>
@@ -91,13 +109,20 @@ export default function AdminDashboard() {
                                     )}
                                 </div>
                                 <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                                <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                                    <Clock className="w-3 h-3" />
-                                    <span>
-                                        Last Active: {user.lastActive
-                                            ? format(new Date(user.lastActive), "MMM d, h:mm a")
-                                            : "Never"}
-                                    </span>
+                                <div className="flex items-center gap-4 mt-2">
+                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                        <Clock className="w-3 h-3" />
+                                        <span>
+                                            {user.lastActive
+                                                ? format(new Date(user.lastActive), "MMM d, h:mm a")
+                                                : "Never"}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                        <span className="font-medium text-foreground">{user.taskCount || 0}</span> tasks
+                                        <span className="text-muted-foreground/50">|</span>
+                                        <span className="font-medium text-green-600">{user.completedTaskCount || 0}</span> done
+                                    </div>
                                 </div>
                             </div>
                         </div>
