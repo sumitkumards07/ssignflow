@@ -19,8 +19,13 @@ app.use(session({
     secret: process.env.SESSION_SECRET || "fallback-secret",
     resave: false,
     saveUninitialized: false,
+    store: new (require("connect-pg-simple")(session))({
+        conString: process.env.DATABASE_URL,
+        createTableIfMissing: true,
+    }),
     cookie: {
         secure: process.env.NODE_ENV === "production",
+        sameSite: "none", // Important for mobile
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
@@ -83,6 +88,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+    console.log("Starting PRODUCTION server with Admin Promotion Route...");
     const server = await registerRoutes(app);
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
