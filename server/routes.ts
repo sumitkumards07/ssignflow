@@ -10,11 +10,17 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Add CORS headers for mobile app
-  app.use("/api", (req, res, next) => {
+  app.use("/api", async (req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.header("Access-Control-Allow-Credentials", "true");
+
+    // Track user activity
+    if (req.isAuthenticated() && req.user) {
+      await storage.updateUserActivity((req.user as any).id);
+    }
+
     if (req.method === "OPTIONS") {
       return res.sendStatus(200);
     }
@@ -72,6 +78,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json({ message: "Logged out successfully" });
     });
+  });
+
+  // Admin routes
+  app.get("/api/admin/users", async (req, res) => {
+    if (!req.isAuthenticated() || (req.user as any).role !== "admin") {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    const users = await storage.getAllUsers();
+    res.json(users);
   });
 
   app.get("/api/tasks", async (_req, res) => {

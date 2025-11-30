@@ -1,3 +1,9 @@
+var __defProp = Object.defineProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+
 // server/index.prod.ts
 import "dotenv/config";
 import express2 from "express";
@@ -7,8 +13,78 @@ import session from "express-session";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 
+// shared/schema.ts
+var schema_exports = {};
+__export(schema_exports, {
+  insertTaskSchema: () => insertTaskSchema,
+  insertUserSchema: () => insertUserSchema,
+  tasks: () => tasks,
+  users: () => users
+});
+import { sql } from "drizzle-orm";
+import { pgTable, text, varchar, boolean, integer } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+var users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  googleId: text("google_id").unique(),
+  email: text("email"),
+  displayName: text("display_name"),
+  role: text("role").default("user"),
+  // 'admin' | 'user'
+  lastActive: text("last_active")
+  // ISO string timestamp
+});
+var insertUserSchema = createInsertSchema(users).pick({
+  username: true,
+  password: true,
+  googleId: true,
+  email: true,
+  displayName: true,
+  role: true
+});
+var tasks = pgTable("tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  type: text("type").notNull(),
+  // 'assignment' | 'quiz'
+  title: text("title").notNull(),
+  courseCode: text("course_code").notNull(),
+  sectionId: text("section_id").notNull(),
+  deadline: text("deadline").notNull(),
+  // Storing as ISO string for simplicity
+  completed: boolean("completed").notNull().default(false),
+  notificationTime: integer("notification_time").default(24 * 60)
+  // Minutes before deadline, default 24h
+});
+var insertTaskSchema = createInsertSchema(tasks).pick({
+  userId: true,
+  type: true,
+  title: true,
+  courseCode: true,
+  sectionId: true,
+  deadline: true,
+  completed: true,
+  notificationTime: true
+});
+
 // server/storage.ts
 import { randomUUID } from "crypto";
+
+// server/db.ts
+import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    "DATABASE_URL must be set. Did you forget to provision a database?"
+  );
+}
+var pool = new Pool({ connectionString: process.env.DATABASE_URL });
+var db = drizzle(pool, { schema: schema_exports });
+
+// server/storage.ts
+import { eq } from "drizzle-orm";
 var MemStorage = class {
   users;
   tasks;
@@ -23,7 +99,8 @@ var MemStorage = class {
       googleId: "admin_google_id",
       email: "admin@assignflow.com",
       displayName: "Sumit Kumar (Admin)",
-      role: "admin"
+      role: "admin",
+      lastActive: (/* @__PURE__ */ new Date()).toISOString()
     });
   }
   async getUser(id) {
@@ -47,7 +124,8 @@ var MemStorage = class {
       googleId: insertUser.googleId ?? null,
       email: insertUser.email ?? null,
       displayName: insertUser.displayName ?? null,
-      role: insertUser.role ?? "user"
+      role: insertUser.role ?? "user",
+      lastActive: (/* @__PURE__ */ new Date()).toISOString()
     };
     this.users.set(id, user);
     return user;
@@ -85,13 +163,69 @@ var MemStorage = class {
     this.tasks.set(id, updatedTask);
     return updatedTask;
   }
+  async updateUserActivity(userId) {
+    const user = this.users.get(userId);
+    if (user) {
+      const updatedUser = { ...user, lastActive: (/* @__PURE__ */ new Date()).toISOString() };
+      this.users.set(userId, updatedUser);
+    }
+  }
 };
-var storage = new MemStorage();
+var DatabaseStorage = class {
+  async getUser(id) {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+  async getUserByUsername(username) {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+  async getUserByGoogleId(googleId) {
+    const [user] = await db.select().from(users).where(eq(users.googleId, googleId));
+    return user;
+  }
+  async createUser(insertUser) {
+    const [user] = await db.insert(users).values({
+      ...insertUser,
+      lastActive: (/* @__PURE__ */ new Date()).toISOString()
+    }).returning();
+    return user;
+  }
+  async getAllUsers() {
+    return await db.select().from(users);
+  }
+  async getTasks(userId) {
+    if (userId) {
+      return await db.select().from(tasks).where(eq(tasks.userId, userId));
+    }
+    return await db.select().from(tasks);
+  }
+  async getAllTasks() {
+    return await db.select().from(tasks);
+  }
+  async createTask(insertTask) {
+    const [task] = await db.insert(tasks).values({
+      ...insertTask,
+      completed: insertTask.completed ?? false,
+      notificationTime: insertTask.notificationTime ?? 1440
+    }).returning();
+    return task;
+  }
+  async updateTask(id, updateData) {
+    const [task] = await db.update(tasks).set(updateData).where(eq(tasks.id, id)).returning();
+    return task;
+  }
+  async updateUserActivity(userId) {
+    await db.update(users).set({ lastActive: (/* @__PURE__ */ new Date()).toISOString() }).where(eq(users.id, userId));
+  }
+};
+var storage = process.env.DATABASE_URL ? new DatabaseStorage() : new MemStorage();
 
 // server/auth.ts
 var GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 var GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
-var CALLBACK_URL = process.env.NODE_ENV === "production" ? "https://assignflow-exuc.onrender.com/api/auth/google/callback" : "http://localhost:5001/api/auth/google/callback";
+var CALLBACK_URL = process.env.NODE_ENV === "production" ? `${process.env.PUBLIC_URL}/api/auth/google/callback` : `${process.env.VITE_API_BASE_URL || "http://localhost:5001"}/api/auth/google/callback`;
+console.log("OAuth Callback URL:", CALLBACK_URL);
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   passport.use(
     new GoogleStrategy(
@@ -145,63 +279,17 @@ var auth_default = passport;
 
 // server/routes.ts
 import { createServer } from "http";
-
-// shared/schema.ts
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, boolean, integer } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
-var users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-  googleId: text("google_id").unique(),
-  email: text("email"),
-  displayName: text("display_name"),
-  role: text("role").default("user")
-  // 'admin' | 'user'
-});
-var insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-  googleId: true,
-  email: true,
-  displayName: true,
-  role: true
-});
-var tasks = pgTable("tasks", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
-  type: text("type").notNull(),
-  // 'assignment' | 'quiz'
-  title: text("title").notNull(),
-  courseCode: text("course_code").notNull(),
-  sectionId: text("section_id").notNull(),
-  deadline: text("deadline").notNull(),
-  // Storing as ISO string for simplicity
-  completed: boolean("completed").notNull().default(false),
-  notificationTime: integer("notification_time").default(24 * 60)
-  // Minutes before deadline, default 24h
-});
-var insertTaskSchema = createInsertSchema(tasks).pick({
-  userId: true,
-  type: true,
-  title: true,
-  courseCode: true,
-  sectionId: true,
-  deadline: true,
-  completed: true,
-  notificationTime: true
-});
-
-// server/routes.ts
 import multer from "multer";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 async function registerRoutes(app2) {
-  app2.use("/api", (req, res, next) => {
+  app2.use("/api", async (req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.header("Access-Control-Allow-Credentials", "true");
+    if (req.isAuthenticated() && req.user) {
+      await storage.updateUserActivity(req.user.id);
+    }
     if (req.method === "OPTIONS") {
       return res.sendStatus(200);
     }
@@ -248,6 +336,13 @@ async function registerRoutes(app2) {
       }
       res.json({ message: "Logged out successfully" });
     });
+  });
+  app2.get("/api/admin/users", async (req, res) => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    const users2 = await storage.getAllUsers();
+    res.json(users2);
   });
   app2.get("/api/tasks", async (_req, res) => {
     try {
@@ -399,6 +494,7 @@ function serveStatic(app2) {
 
 // server/index.prod.ts
 var app = express2();
+app.set("trust proxy", 1);
 app.use(session({
   secret: process.env.SESSION_SECRET || "fallback-secret",
   resave: false,

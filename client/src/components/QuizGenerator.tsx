@@ -64,7 +64,7 @@ export function QuizGenerator({ trigger }: { trigger?: React.ReactNode }) {
             }
 
             // 2. Call Gemini API
-            const apiKey = localStorage.getItem('gemini_api_key') || "AIzaSyBpZ6OWhP2YLl871NRbx_zfWv5c1I642QQ";
+            const apiKey = localStorage.getItem('gemini_api_key') || "AIzaSyDtmaA4fpRwigLfQbjMhb3IX5bVC_gYCTA";
             if (!apiKey || apiKey === 'your_api_key_here') {
                 throw new Error("Gemini API Key not configured. Please go to Settings to configure it.");
             }

@@ -1,7 +1,8 @@
 import React from "react";
 import { BottomNav } from "@/components/layout/BottomNav";
-import { Moon, Sun, Monitor, Info, Linkedin, ExternalLink, Bell, BrainCircuit, LogOut, User, MessageSquare } from "lucide-react";
+import { Moon, Sun, Monitor, Info, Linkedin, ExternalLink, Bell, BrainCircuit, LogOut, User, MessageSquare, Volume2, Palette, Play, Shield } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
+import { useThemeColor, themeColors } from "@/components/theme-color-provider";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,16 +12,57 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { alarmSounds, previewAlarm, getSelectedAlarm, setAlarmSound, setSoundsEnabled, areSoundsEnabled } from "@/lib/sounds";
+
+const colorThemes = [
+  { id: "orange", name: "Orange Flame", color: "#ff6b35", description: "Warm and energetic" },
+  { id: "purple", name: "Purple Dream", color: "#a855f7", description: "Creative and modern" },
+  { id: "blue", name: "Ocean Blue", color: "#3b82f6", description: "Calm and focused" },
+  { id: "green", name: "Forest Green", color: "#10b981", description: "Fresh and natural" },
+  { id: "rose", name: "Rose Pink", color: "#f43f5e", description: "Vibrant and bold" },
+  { id: "teal", name: "Teal Mint", color: "#14b8a6", description: "Cool and balanced" }
+];
 
 export default function Settings() {
   const { theme, setTheme } = useTheme();
+  const { themeColor, setThemeColor } = useThemeColor();
   const { toast } = useToast();
-  const [user, setUser] = React.useState(JSON.parse(localStorage.getItem("user") || "{}"));
+  const [user, setUser] = React.useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch (e) {
+      return {};
+    }
+  });
+  const [selectedAlarm, setSelectedAlarm] = React.useState(getSelectedAlarm());
+  const [soundsEnabled, setSounds] = React.useState(areSoundsEnabled());
 
   const handleUserChange = (key: string, value: string) => {
     const newUser = { ...user, [key]: value };
     setUser(newUser);
     localStorage.setItem("user", JSON.stringify(newUser));
+  };
+
+  const handleAlarmChange = (alarmId: string) => {
+    setAlarmSound(alarmId);
+    setSelectedAlarm(alarmId);
+  };
+
+  const handleSoundsToggle = (enabled: boolean) => {
+    setSoundsEnabled(enabled);
+    setSounds(enabled);
+    toast({
+      title: enabled ? "Sounds Enabled" : "Sounds Disabled",
+      description: enabled ? "You'll hear sound effects" : "Sound effects are muted"
+    });
+  };
+
+  const handleThemeColorChange = (colorId: string) => {
+    setThemeColor(colorId as keyof typeof themeColors);
+    toast({
+      title: "Theme Updated",
+      description: `Switched to ${colorThemes.find(t => t.id === colorId)?.name}`
+    });
   };
 
   return (
@@ -34,6 +76,33 @@ export default function Settings() {
       </header>
 
       <main className="mx-auto max-w-md space-y-8 px-4 pt-8">
+        {/* Theme Color Selection */}
+        <section className="space-y-4">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Theme Color</h2>
+          <div className="grid grid-cols-2 gap-3">
+            {colorThemes.map((colorTheme) => (
+              <div
+                key={colorTheme.id}
+                onClick={() => handleThemeColorChange(colorTheme.id)}
+                className={`overflow-hidden rounded-2xl border-2 transition-all cursor-pointer ${themeColor === colorTheme.id ? 'border-primary scale-105' : 'border-border hover:border-primary/50'
+                  }`}
+              >
+                <div className="p-4 bg-card">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div
+                      className="w-8 h-8 rounded-full"
+                      style={{ backgroundColor: colorTheme.color }}
+                    />
+                    <Palette className="w-4 h-4" style={{ color: colorTheme.color }} />
+                  </div>
+                  <h3 className="font-bold text-sm">{colorTheme.name}</h3>
+                  <p className="text-xs text-muted-foreground">{colorTheme.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <section className="space-y-4">
           <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Appearance</h2>
 
@@ -98,38 +167,60 @@ export default function Settings() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Notifications</h2>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Sounds</h2>
+
           <div className="overflow-hidden rounded-3xl border border-border bg-card">
+            {/* Sound Effects Toggle */}
             <div className="flex items-center justify-between p-5 border-b border-border">
               <div className="flex items-center gap-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-green-500 dark:bg-green-500/20 dark:text-green-400">
+                  <Volume2 className="h-5 w-5" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-bold text-sm">Sound Effects</span>
+                  <span className="text-xs text-muted-foreground">Enable app sounds</span>
+                </div>
+              </div>
+              <Switch checked={soundsEnabled} onCheckedChange={handleSoundsToggle} />
+            </div>
+
+            {/* Alarm Sound Selection */}
+            <div className="p-5">
+              <div className="flex items-center gap-4 mb-4">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pink-100 text-pink-500 dark:bg-pink-500/20 dark:text-pink-400">
                   <Bell className="h-5 w-5" />
                 </div>
                 <div className="flex flex-col">
                   <span className="font-bold text-sm">Alarm Sound</span>
-                  <span className="text-xs text-muted-foreground">Select notification sound</span>
+                  <span className="text-xs text-muted-foreground">Choose your wake-up sound</span>
                 </div>
               </div>
-              <Select
-                defaultValue={localStorage.getItem('alarm_sound') || 'default'}
-                onValueChange={(val) => {
-                  localStorage.setItem('alarm_sound', val);
-                  if (val !== 'default') {
-                    const audio = new Audio(`/sounds/${val}.mp3`);
-                    audio.play().catch(e => console.error("Error playing sound:", e));
-                  }
-                }}
-              >
-                <SelectTrigger className="w-[140px] bg-secondary/50 border-0">
-                  <SelectValue placeholder="Select sound" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">Default</SelectItem>
-                  <SelectItem value="chime">Chime</SelectItem>
-                  <SelectItem value="melody">Melody</SelectItem>
-                  <SelectItem value="alert">Alert</SelectItem>
-                </SelectContent>
-              </Select>
+
+              <div className="grid grid-cols-2 gap-2">
+                {alarmSounds.map((alarm) => (
+                  <button
+                    key={alarm.id}
+                    onClick={() => handleAlarmChange(alarm.id)}
+                    className={`p-3 rounded-xl border-2 transition-all text-left relative ${selectedAlarm === alarm.id
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border hover:border-primary/50 bg-secondary/30'
+                      }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold">{alarm.name}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          previewAlarm(alarm.id);
+                        }}
+                        className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center hover:bg-primary/30 transition-colors"
+                      >
+                        <Play className="w-3 h-3 text-primary fill-current" />
+                      </button>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </section>

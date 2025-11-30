@@ -11,6 +11,7 @@ export const users = pgTable("users", {
   email: text("email"),
   displayName: text("display_name"),
   role: text("role").default("user"), // 'admin' | 'user'
+  lastActive: text("last_active"), // ISO string timestamp
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({

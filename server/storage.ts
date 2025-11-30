@@ -1,5 +1,7 @@
-import { type User, type InsertUser, type Task, type InsertTask } from "@shared/schema";
+import { type User, type InsertUser, type Task, type InsertTask, users, tasks } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 // modify the interface with any CRUD methods
 // you might need
@@ -16,6 +18,9 @@ export interface IStorage {
   getAllTasks(): Promise<Task[]>; // For admin
   createTask(task: InsertTask): Promise<Task>;
   updateTask(id: string, task: Partial<InsertTask>): Promise<Task | undefined>;
+
+  // Activity
+  updateUserActivity(userId: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -35,7 +40,8 @@ export class MemStorage implements IStorage {
       googleId: "admin_google_id",
       email: "admin@assignflow.com",
       displayName: "Sumit Kumar (Admin)",
-      role: "admin"
+      role: "admin",
+      lastActive: new Date().toISOString()
     });
   }
 
@@ -63,7 +69,8 @@ export class MemStorage implements IStorage {
       googleId: insertUser.googleId ?? null,
       email: insertUser.email ?? null,
       displayName: insertUser.displayName ?? null,
-      role: insertUser.role ?? "user"
+      role: insertUser.role ?? "user",
+      lastActive: new Date().toISOString()
     };
     this.users.set(id, user);
     return user;
@@ -106,6 +113,86 @@ export class MemStorage implements IStorage {
     this.tasks.set(id, updatedTask);
     return updatedTask;
   }
+
+  async updateUserActivity(userId: string): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      const updatedUser = { ...user, lastActive: new Date().toISOString() };
+      this.users.set(userId, updatedUser);
+    }
+  }
 }
 
-export const storage = new MemStorage();
+export class DatabaseStorage implements IStorage {
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async getUserByGoogleId(googleId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.googleId, googleId));
+    return user;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values({
+        ...insertUser,
+        lastActive: new Date().toISOString()
+      })
+      .returning();
+    return user;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users);
+  }
+
+  async getTasks(userId?: string): Promise<Task[]> {
+    if (userId) {
+      return await db.select().from(tasks).where(eq(tasks.userId, userId));
+    }
+    return await db.select().from(tasks);
+  }
+
+  async getAllTasks(): Promise<Task[]> {
+    return await db.select().from(tasks);
+  }
+
+  async createTask(insertTask: InsertTask): Promise<Task> {
+    const [task] = await db
+      .insert(tasks)
+      .values({
+        ...insertTask,
+        completed: insertTask.completed ?? false,
+        notificationTime: insertTask.notificationTime ?? 1440
+      })
+      .returning();
+    return task;
+  }
+
+  async updateTask(id: string, updateData: Partial<InsertTask>): Promise<Task | undefined> {
+    const [task] = await db
+      .update(tasks)
+      .set(updateData)
+      .where(eq(tasks.id, id))
+      .returning();
+    return task;
+  }
+
+  async updateUserActivity(userId: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ lastActive: new Date().toISOString() })
+      .where(eq(users.id, userId));
+  }
+}
+
+export const storage = process.env.DATABASE_URL ? new DatabaseStorage() : new MemStorage();
+
