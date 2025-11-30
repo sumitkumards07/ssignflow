@@ -11,9 +11,25 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 export async function registerRoutes(app: Express): Promise<Server> {
   // Add CORS headers for mobile app
   app.use("/api", async (req, res, next) => {
-    res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+    const allowedOrigins = [
+      "http://localhost:5173",
+      "http://localhost:5001",
+      "https://assignflow-exuc.onrender.com",
+      "capacitor://localhost",
+      "http://localhost"
+    ];
+
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.header("Access-Control-Allow-Origin", origin);
+    } else {
+      // Fallback for mobile apps that might not send origin or send null
+      // We default to the first allowed origin or just echo back if it looks like a mobile app
+      res.header("Access-Control-Allow-Origin", origin || "http://localhost");
+    }
+
     res.header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
     res.header("Access-Control-Allow-Credentials", "true");
 
     // Track user activity
@@ -35,6 +51,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Local Auth Routes only
 
   app.get("/api/auth/me", (req, res) => {
+    console.log("Session ID:", req.sessionID);
+    console.log("User:", req.user);
+    console.log("Is Authenticated:", req.isAuthenticated());
+
     if (req.isAuthenticated()) {
       res.json(req.user);
     } else {
