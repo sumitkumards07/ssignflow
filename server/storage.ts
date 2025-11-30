@@ -22,6 +22,7 @@ export interface IStorage {
 
   // Activity
   updateUserActivity(userId: string): Promise<void>;
+  updateUserRole(userId: string, role: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -130,6 +131,14 @@ export class MemStorage implements IStorage {
       this.users.set(userId, updatedUser);
     }
   }
+
+  async updateUserRole(userId: string, role: string): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      const updatedUser = { ...user, role };
+      this.users.set(userId, updatedUser);
+    }
+  }
 }
 
 export class DatabaseStorage implements IStorage {
@@ -205,6 +214,13 @@ export class DatabaseStorage implements IStorage {
     await db
       .update(users)
       .set({ lastActive: new Date().toISOString() })
+      .where(eq(users.id, userId));
+  }
+
+  async updateUserRole(userId: string, role: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ role })
       .where(eq(users.id, userId));
   }
 }

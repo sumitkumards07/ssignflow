@@ -271,6 +271,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Temporary route to promote admin
+  app.post("/api/admin/promote-temp", async (req, res) => {
+    try {
+      const { username, secret } = req.body;
+      if (secret !== "temp-secret-123") {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const user = await storage.getUserByUsername(username);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Direct DB update to bypass storage interface if needed, or add method to storage
+      // For now, we'll assume we can use a raw query or just add a method to storage.
+      // But wait, storage interface doesn't have updateUserRole.
+      // Let's add it to storage.ts first or just use db directly here if we import it.
+      // Importing db directly in routes is fine for this temp fix.
+
+      // Actually, let's just use a raw SQL query via db if possible, or add to storage.
+      // Adding to storage is cleaner.
+      await storage.updateUserRole(user.id, "admin");
+
+      res.json({ message: `User ${username} promoted to admin` });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
