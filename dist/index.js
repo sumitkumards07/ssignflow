@@ -12,6 +12,7 @@ import session from "express-session";
 // server/auth.ts
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import { Strategy as LocalStrategy } from "passport-local";
 
 // shared/schema.ts
 var schema_exports = {};
@@ -224,8 +225,24 @@ var storage = process.env.DATABASE_URL ? new DatabaseStorage() : new MemStorage(
 // server/auth.ts
 var GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 var GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
-var CALLBACK_URL = process.env.NODE_ENV === "production" ? `${process.env.PUBLIC_URL}/api/auth/google/callback` : `${process.env.VITE_API_BASE_URL || "http://localhost:5001"}/api/auth/google/callback`;
+var CALLBACK_URL = "https://assignflow-exuc.onrender.com/api/auth/google/callback";
 console.log("OAuth Callback URL:", CALLBACK_URL);
+passport.use(
+  new LocalStrategy(async (username, password, done) => {
+    try {
+      const user = await storage.getUserByUsername(username);
+      if (!user) {
+        return done(null, false, { message: "Incorrect username." });
+      }
+      if (user.password !== password) {
+        return done(null, false, { message: "Incorrect password." });
+      }
+      return done(null, user);
+    } catch (err) {
+      return done(err);
+    }
+  })
+);
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   passport.use(
     new GoogleStrategy(
@@ -258,23 +275,18 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
       }
     )
   );
-  passport.serializeUser((user, done) => {
-    done(null, user.id);
-  });
-  passport.deserializeUser(async (id, done) => {
-    try {
-      const user = await storage.getUser(id);
-      done(null, user);
-    } catch (error) {
-      done(error);
-    }
-  });
-} else {
-  console.warn("\u26A0\uFE0F  Google OAuth credentials not found. OAuth will not work.");
-  console.warn("   Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to .env file");
-  passport.serializeUser((user, done) => done(null, user));
-  passport.deserializeUser((user, done) => done(null, user));
 }
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
+passport.deserializeUser(async (id, done) => {
+  try {
+    const user = await storage.getUser(id);
+    done(null, user);
+  } catch (error) {
+    done(error);
+  }
+});
 var auth_default = passport;
 
 // server/routes.ts
@@ -336,6 +348,33 @@ async function registerRoutes(app2) {
       }
       res.json({ message: "Logged out successfully" });
     });
+  });
+  app2.post("/api/register", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      if (!username || !password) {
+        return res.status(400).json({ message: "Username and password are required" });
+      }
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(400).json({ message: "Username already exists" });
+      }
+      const user = await storage.createUser({
+        username,
+        password,
+        role: "user",
+        displayName: username
+      });
+      req.login(user, (err) => {
+        if (err) return res.status(500).json({ message: "Login failed after registration" });
+        return res.json(user);
+      });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+  app2.post("/api/login", auth_default.authenticate("local"), (req, res) => {
+    res.json(req.user);
   });
   app2.get("/api/admin/users", async (req, res) => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {

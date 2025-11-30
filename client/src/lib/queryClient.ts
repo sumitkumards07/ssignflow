@@ -4,16 +4,13 @@ async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     let errorMessage = res.statusText;
     try {
-      // Clone the response so we can read it without consuming it
       const clonedRes = res.clone();
       const text = await clonedRes.text();
       if (text) {
-        // Try to parse as JSON for better error messages
         try {
           const json = JSON.parse(text);
           errorMessage = json.message || json.error || text;
         } catch {
-          // If not JSON, use the text as is (but truncate if too long)
           errorMessage = text.length > 100 ? text.substring(0, 100) + "..." : text;
         }
       }
@@ -41,14 +38,13 @@ export async function apiRequest(
   }
 
   try {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+    const baseUrl = "https://assignflow-exuc.onrender.com";
     const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
 
     const res = await fetch(fullUrl, {
       method,
       headers: {
         "Content-Type": "application/json",
-        ...(data ? {} : {}),
       },
       body,
       credentials: "include",
@@ -75,7 +71,7 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
     async ({ queryKey }) => {
       const url = queryKey.join("/") as string;
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+      const baseUrl = "https://assignflow-exuc.onrender.com";
       const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
 
       try {
@@ -92,7 +88,6 @@ export const getQueryFn: <T>(options: {
 
         await throwIfResNotOk(res);
 
-        // Check content type
         const contentType = res.headers.get("content-type");
         const isJson = contentType && contentType.includes("application/json");
 
@@ -103,7 +98,6 @@ export const getQueryFn: <T>(options: {
             return null;
           }
 
-          // If content type says JSON or we can parse it as JSON
           if (isJson) {
             try {
               return JSON.parse(text);
@@ -112,12 +106,10 @@ export const getQueryFn: <T>(options: {
               throw new Error(`Invalid JSON response from server`);
             }
           } else {
-            // If it's not JSON, check if it looks like HTML (error page)
             if (text.trim().startsWith("<")) {
               console.error("Received HTML instead of JSON:", text.substring(0, 200));
               throw new Error("Server returned an error page. Please try again.");
             }
-            // Try to parse anyway
             try {
               return JSON.parse(text);
             } catch {

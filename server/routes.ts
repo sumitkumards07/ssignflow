@@ -11,7 +11,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 export async function registerRoutes(app: Express): Promise<Server> {
   // Add CORS headers for mobile app
   app.use("/api", async (req, res, next) => {
-    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
     res.header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.header("Access-Control-Allow-Credentials", "true");
