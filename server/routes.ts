@@ -80,6 +80,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // Local Auth Routes
+  app.post("/api/register", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      if (!username || !password) {
+        return res.status(400).json({ message: "Username and password are required" });
+      }
+
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(400).json({ message: "Username already exists" });
+      }
+
+      const user = await storage.createUser({
+        username,
+        password,
+        role: "user",
+        displayName: username,
+      });
+
+      req.login(user, (err) => {
+        if (err) return res.status(500).json({ message: "Login failed after registration" });
+        return res.json(user);
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/login", passport.authenticate("local"), (req, res) => {
+    res.json(req.user);
+  });
+
   // Admin routes
   app.get("/api/admin/users", async (req, res) => {
     if (!req.isAuthenticated() || (req.user as any).role !== "admin") {

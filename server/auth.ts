@@ -1,5 +1,6 @@
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import { Strategy as LocalStrategy } from "passport-local";
 import { storage } from "./storage";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
@@ -8,7 +9,26 @@ const CALLBACK_URL = "https://assignflow-exuc.onrender.com/api/auth/google/callb
 
 console.log("OAuth Callback URL:", CALLBACK_URL);
 
-// Only configure OAuth if credentials are provided
+// Local Strategy
+passport.use(
+    new LocalStrategy(async (username, password, done) => {
+        try {
+            const user = await storage.getUserByUsername(username);
+            if (!user) {
+                return done(null, false, { message: "Incorrect username." });
+            }
+            // Simple plain text comparison for now
+            if (user.password !== password) {
+                return done(null, false, { message: "Incorrect password." });
+            }
+            return done(null, user);
+        } catch (err) {
+            return done(err);
+        }
+    })
+);
+
+// Google Strategy
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
     passport.use(
         new GoogleStrategy(
@@ -45,26 +65,19 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
             }
         )
     );
-
-    passport.serializeUser((user: any, done) => {
-        done(null, user.id);
-    });
-
-    passport.deserializeUser(async (id: string, done) => {
-        try {
-            const user = await storage.getUser(id);
-            done(null, user);
-        } catch (error) {
-            done(error);
-        }
-    });
-} else {
-    console.warn("⚠️  Google OAuth credentials not found. OAuth will not work.");
-    console.warn("   Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to .env file");
-
-    // Provide dummy serialization to prevent passport errors
-    passport.serializeUser((user: any, done) => done(null, user));
-    passport.deserializeUser((user: any, done) => done(null, user));
 }
+
+passport.serializeUser((user: any, done) => {
+    done(null, user.id);
+});
+
+passport.deserializeUser(async (id: string, done) => {
+    try {
+        const user = await storage.getUser(id);
+        done(null, user);
+    } catch (error) {
+        done(error);
+    }
+});
 
 export default passport;
