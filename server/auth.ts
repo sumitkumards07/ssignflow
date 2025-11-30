@@ -4,9 +4,7 @@ import { storage } from "./storage";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
-const CALLBACK_URL = process.env.NODE_ENV === "production"
-    ? "https://assignflow-exuc.onrender.com/api/auth/google/callback"
-    : `${process.env.VITE_API_BASE_URL || "http://localhost:5001"}/api/auth/google/callback`;
+const CALLBACK_URL = "https://assignflow-exuc.onrender.com/api/auth/google/callback";
 
 console.log("OAuth Callback URL:", CALLBACK_URL);
 
