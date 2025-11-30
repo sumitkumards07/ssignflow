@@ -11,7 +11,6 @@ import session from "express-session";
 
 // server/auth.ts
 import passport from "passport";
-import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as LocalStrategy } from "passport-local";
 
 // shared/schema.ts
@@ -223,10 +222,6 @@ var DatabaseStorage = class {
 var storage = process.env.DATABASE_URL ? new DatabaseStorage() : new MemStorage();
 
 // server/auth.ts
-var GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
-var GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
-var CALLBACK_URL = "https://assignflow-exuc.onrender.com/api/auth/google/callback";
-console.log("OAuth Callback URL:", CALLBACK_URL);
 passport.use(
   new LocalStrategy(async (username, password, done) => {
     try {
@@ -243,39 +238,6 @@ passport.use(
     }
   })
 );
-if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
-  passport.use(
-    new GoogleStrategy(
-      {
-        clientID: GOOGLE_CLIENT_ID,
-        clientSecret: GOOGLE_CLIENT_SECRET,
-        callbackURL: CALLBACK_URL
-      },
-      async (_accessToken, _refreshToken, profile, done) => {
-        try {
-          const googleId = profile.id;
-          const email = profile.emails?.[0]?.value || "";
-          const displayName = profile.displayName || "";
-          let user = await storage.getUserByGoogleId(googleId);
-          if (!user) {
-            user = await storage.createUser({
-              username: email.split("@")[0],
-              password: "",
-              // No password for OAuth users
-              googleId,
-              email,
-              displayName,
-              role: "user"
-            });
-          }
-          return done(null, user);
-        } catch (error) {
-          return done(error);
-        }
-      }
-    )
-  );
-}
 passport.serializeUser((user, done) => {
   done(null, user.id);
 });
@@ -310,30 +272,6 @@ async function registerRoutes(app2) {
   app2.get("/health", (_req, res) => {
     res.status(200).json({ status: "ok" });
   });
-  app2.get(
-    "/api/auth/google",
-    auth_default.authenticate("google", { scope: ["profile", "email"] })
-  );
-  app2.get(
-    "/api/auth/google/callback",
-    auth_default.authenticate("google", { failureRedirect: "/login" }),
-    (req, res) => {
-      const isMobile = req.get("User-Agent")?.includes("CapacitorApp") || req.query.platform === "mobile";
-      if (isMobile) {
-        const user = req.user;
-        const userData = encodeURIComponent(JSON.stringify({
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          displayName: user.displayName,
-          role: user.role
-        }));
-        res.redirect(`assignflow://auth/callback?success=true&user=${userData}`);
-      } else {
-        res.redirect("/");
-      }
-    }
-  );
   app2.get("/api/auth/me", (req, res) => {
     if (req.isAuthenticated()) {
       res.json(req.user);
