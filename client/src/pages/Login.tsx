@@ -36,16 +36,21 @@ export default function Login() {
 
         try {
             if (isRegistering) {
-                await apiRequest("POST", "/api/register", { username: email, password });
+                const res = await apiRequest("POST", "/api/register", { username: email, password });
+                const user = await res.json();
+                localStorage.setItem("user", JSON.stringify(user));
             } else {
-                await apiRequest("POST", "/api/login", { username: email, password });
+                const res = await apiRequest("POST", "/api/login", { username: email, password });
+                const user = await res.json();
+                localStorage.setItem("user", JSON.stringify(user));
             }
 
             // Fetch user data to confirm login and get details
-            const res = await apiRequest("GET", "/api/auth/me");
-            const user = await res.json();
+            // We can skip this now since login/register returns the user object with token
+            // const res = await apiRequest("GET", "/api/auth/me");
+            // const user = await res.json();
 
-            localStorage.setItem("user", JSON.stringify(user));
+            // localStorage.setItem("user", JSON.stringify(user));
             setLocation("/todo");
         } catch (error) {
             console.error("Login error:", error);

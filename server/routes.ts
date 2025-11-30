@@ -32,8 +32,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
     res.header("Access-Control-Allow-Credentials", "true");
 
+    // Token Authentication Middleware
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      const user = await storage.getUserByToken(token);
+      if (user) {
+        req.user = user;
+      }
+    }
+
     // Track user activity
-    if (req.isAuthenticated() && req.user) {
+    if (req.isAuthenticated() || req.user) {
       await storage.updateUserActivity((req.user as any).id);
     }
 
@@ -56,11 +66,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Local Auth Routes only
 
   app.get("/api/auth/me", (req, res) => {
-    console.log("Session ID:", req.sessionID);
-    console.log("User:", req.user);
-    console.log("Is Authenticated:", req.isAuthenticated());
-
-    if (req.isAuthenticated()) {
+    if (req.user) {
       res.json(req.user);
     } else {
       res.status(401).json({ message: "Not authenticated" });
@@ -103,7 +109,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (err) return res.status(500).json({ message: "Login failed after registration" });
 
         // Explicitly save session before response
-        req.session.save((err) => {
+        req.session.save(async (err) => {
           if (err) {
             console.error("Session save error:", err);
             return res.status(500).json({ message: "Session save failed" });

@@ -12,6 +12,7 @@ export const users = pgTable("users", {
   displayName: text("display_name"),
   role: text("role").default("user"), // 'admin' | 'user'
   lastActive: text("last_active"), // ISO string timestamp
+  apiToken: text("api_token").unique(),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({

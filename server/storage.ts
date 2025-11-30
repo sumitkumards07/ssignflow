@@ -10,6 +10,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByGoogleId(googleId: string): Promise<User | undefined>;
+  getUserByToken(token: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   getAllUsers(): Promise<User[]>;
 
@@ -41,7 +42,8 @@ export class MemStorage implements IStorage {
       email: "admin@assignflow.com",
       displayName: "Sumit Kumar (Admin)",
       role: "admin",
-      lastActive: new Date().toISOString()
+      lastActive: new Date().toISOString(),
+      apiToken: "admin_token"
     });
   }
 
@@ -61,6 +63,12 @@ export class MemStorage implements IStorage {
     );
   }
 
+  async getUserByToken(token: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.apiToken === token,
+    );
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
     const user: User = {
@@ -70,7 +78,8 @@ export class MemStorage implements IStorage {
       email: insertUser.email ?? null,
       displayName: insertUser.displayName ?? null,
       role: insertUser.role ?? "user",
-      lastActive: new Date().toISOString()
+      lastActive: new Date().toISOString(),
+      apiToken: randomUUID()
     };
     this.users.set(id, user);
     return user;
@@ -139,12 +148,18 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getUserByToken(token: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.apiToken, token));
+    return user;
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
       .values({
         ...insertUser,
-        lastActive: new Date().toISOString()
+        lastActive: new Date().toISOString(),
+        apiToken: randomUUID()
       })
       .returning();
     return user;

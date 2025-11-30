@@ -41,11 +41,29 @@ export async function apiRequest(
     const baseUrl = "https://assignflow-exuc.onrender.com";
     const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
 
+    // Get token from localStorage
+    const userStr = localStorage.getItem("user");
+    let token = "";
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        token = user.apiToken || "";
+      } catch (e) {
+        console.error("Error parsing user from localStorage", e);
+      }
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
     const res = await fetch(fullUrl, {
       method,
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers,
       body,
       credentials: "include",
     });
@@ -74,12 +92,30 @@ export const getQueryFn: <T>(options: {
       const baseUrl = "https://assignflow-exuc.onrender.com";
       const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
 
+      // Get token from localStorage
+      const userStr = localStorage.getItem("user");
+      let token = "";
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          token = user.apiToken || "";
+        } catch (e) {
+          console.error("Error parsing user from localStorage", e);
+        }
+      }
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       try {
         const res = await fetch(fullUrl, {
           credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers,
         });
 
         if (unauthorizedBehavior === "returnNull" && res.status === 401) {
