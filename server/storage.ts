@@ -19,6 +19,7 @@ export interface IStorage {
   getAllTasks(): Promise<Task[]>; // For admin
   createTask(task: InsertTask): Promise<Task>;
   updateTask(id: string, task: Partial<InsertTask>): Promise<Task | undefined>;
+  deleteTask(id: string): Promise<void>;
 
   // Feedback methods
   createFeedback(feedback: InsertFeedback): Promise<Feedback>;
@@ -127,7 +128,12 @@ export class MemStorage implements IStorage {
 
     const updatedTask = { ...task, ...updateData };
     this.tasks.set(id, updatedTask);
+    this.tasks.set(id, updatedTask);
     return updatedTask;
+  }
+
+  async deleteTask(id: string): Promise<void> {
+    this.tasks.delete(id);
   }
 
   async createFeedback(insertFeedback: InsertFeedback): Promise<Feedback> {
@@ -230,6 +236,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(tasks.id, id))
       .returning();
     return task;
+  }
+
+  async deleteTask(id: string): Promise<void> {
+    await db.delete(tasks).where(eq(tasks.id, id));
   }
 
   async createFeedback(insertFeedback: InsertFeedback): Promise<Feedback> {

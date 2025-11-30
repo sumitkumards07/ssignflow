@@ -38,8 +38,8 @@ export async function apiRequest(
   }
 
   try {
-    const baseUrl = "https://assignflow-exuc.onrender.com";
-    const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
+    // Use relative URL to allow proxying in dev and same-origin in prod
+    const fullUrl = url.startsWith("http") ? url : url;
 
     // Get token from localStorage
     const userStr = localStorage.getItem("user");
@@ -89,8 +89,8 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
     async ({ queryKey }) => {
       const url = queryKey.join("/") as string;
-      const baseUrl = "https://assignflow-exuc.onrender.com";
-      const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
+      // Use relative URL to allow proxying in dev and same-origin in prod
+      const fullUrl = url.startsWith("http") ? url : url;
 
       // Get token from localStorage
       const userStr = localStorage.getItem("user");

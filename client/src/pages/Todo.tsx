@@ -150,7 +150,7 @@ export default function TodoPage() {
         }
     };
 
-    const handleDeleteTodo = (id: string) => {
+    const handleDeleteTodo = async (id: string) => {
         const updatedTodos = todos.filter(t => t.id !== id);
         updateTodosInStorage(updatedTodos);
         setTodos(updatedTodos);
@@ -160,6 +160,14 @@ export default function TodoPage() {
         import("@/lib/widgetBridge").then(({ updateTodoWidget }) => {
             updateTodoWidget(updatedTodos);
         });
+
+        // Sync with server
+        try {
+            const { apiRequest } = await import("@/lib/queryClient");
+            await apiRequest("DELETE", `/api/tasks/${id}`);
+        } catch (error) {
+            console.error("Failed to delete task from server:", error);
+        }
     };
 
     // Get todos for selected date

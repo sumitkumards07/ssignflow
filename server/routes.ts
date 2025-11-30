@@ -230,6 +230,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/tasks/:id", async (req, res) => {
+    try {
+      const id = req.params.id;
+      if (!id) {
+        res.status(400).json({ message: "Task ID is required" });
+        return;
+      }
+
+      await storage.deleteTask(id);
+      res.sendStatus(204);
+    } catch (error: any) {
+      console.error("Error deleting task:", error);
+      res.status(500).json({
+        message: error.message || "Failed to delete task",
+        error: "SERVER_ERROR"
+      });
+    }
+  });
+
   // Feedback Routes
   app.post("/api/feedback", async (req, res) => {
     try {
