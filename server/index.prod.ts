@@ -14,12 +14,16 @@ declare module 'http' {
     }
 }
 
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const PostgresqlStore = require("connect-pg-simple")(session);
+
 // Session middleware
 app.use(session({
     secret: process.env.SESSION_SECRET || "fallback-secret",
     resave: false,
     saveUninitialized: false,
-    store: new (require("connect-pg-simple")(session))({
+    store: new PostgresqlStore({
         conString: process.env.DATABASE_URL,
         createTableIfMissing: true,
     }),
