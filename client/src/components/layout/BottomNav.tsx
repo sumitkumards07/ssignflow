@@ -9,7 +9,7 @@ export function BottomNav({ onAddClick }: { onAddClick?: () => void }) {
   const navItems = [
     { icon: ListTodo, label: "Todo", path: "/todo" },
     { icon: Timer, label: "Pomodoro", path: "/pomodoro" },
-    { icon: BrainCircuit, label: "AI Quiz", path: "/quiz" },
+    { icon: BrainCircuit, label: "AI Quiz", path: "/ai-quiz" },
     { icon: Plus, label: "Add", path: "#", action: onAddClick, highlight: true },
     { icon: CalendarClock, label: "Upcoming", path: "/upcoming" },
     { icon: Calendar, label: "Analytics", path: "/analytics" },
