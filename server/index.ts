@@ -5,8 +5,15 @@ import passport from "./auth";
 import { registerRoutes } from "./routes";
 import { setupVite } from "./vite";
 import { log } from "./utils";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
+app.set("trust proxy", 1); // Trust first proxy (Render/Cloudflare)
 
 declare module 'http' {
   interface IncomingMessage {
@@ -19,8 +26,13 @@ app.use(session({
   secret: process.env.SESSION_SECRET || "dev-secret",
   resave: false,
   saveUninitialized: false,
+  store: new (require("connect-pg-simple")(session))({
+    conString: process.env.DATABASE_URL,
+    createTableIfMissing: true,
+  }),
   cookie: {
-    secure: false, // false for development (http)
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
@@ -114,3 +126,20 @@ app.use((req, res, next) => {
     log(`serving on port ${port}`);
   });
 })();
+
+function serveStatic(app: express.Express) {
+  const distPath = path.resolve(__dirname, "public");
+
+  if (!fs.existsSync(distPath)) {
+    throw new Error(
+      `Could not find the build directory: ${distPath}, make sure to build the client first`
+    );
+  }
+
+  app.use(express.static(distPath));
+
+  // Fallback to index.html for SPA
+  app.use("*", (_req, res) => {
+    res.sendFile(path.resolve(distPath, "index.html"));
+  });
+}
