@@ -37,6 +37,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateUserActivity((req.user as any).id);
     }
 
+    // Log headers for debugging
+    console.log(`[${req.method}] ${req.path}`);
+    console.log("Origin:", req.headers.origin);
+    console.log("Cookie:", req.headers.cookie ? "Present" : "Missing");
+
     if (req.method === "OPTIONS") {
       return res.sendStatus(200);
     }
@@ -67,7 +72,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (err) {
         return res.status(500).json({ message: "Logout failed" });
       }
-      res.json({ message: "Logged out successfully" });
+      req.session.destroy((err) => {
+        if (err) console.error("Session destroy error:", err);
+        res.json({ message: "Logged out successfully" });
+      });
     });
   });
 
@@ -93,7 +101,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       req.login(user, (err) => {
         if (err) return res.status(500).json({ message: "Login failed after registration" });
-        return res.json(user);
+
+        // Explicitly save session before response
+        req.session.save((err) => {
+          if (err) {
+            console.error("Session save error:", err);
+            return res.status(500).json({ message: "Session save failed" });
+          }
+          return res.json(user);
+        });
       });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -101,7 +117,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/login", passport.authenticate("local"), (req, res) => {
-    res.json(req.user);
+    // Explicitly save session before response
+    req.session.save((err) => {
+      if (err) {
+        console.error("Session save error:", err);
+        return res.status(500).json({ message: "Session save failed" });
+      }
+      res.json(req.user);
+    });
   });
 
   // Admin routes
