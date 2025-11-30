@@ -295,7 +295,7 @@ import multer from "multer";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 async function registerRoutes(app2) {
   app2.use("/api", async (req, res, next) => {
-    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
     res.header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.header("Access-Control-Allow-Credentials", "true");

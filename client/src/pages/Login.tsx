@@ -5,12 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, LogIn } from "lucide-react";
-import { Capacitor } from "@capacitor/core";
-import { Browser } from "@capacitor/browser";
+
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
-const IS_MOBILE = Capacitor.isNativePlatform();
+
 
 export default function Login() {
     const [, setLocation] = useLocation();

@@ -31,37 +31,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(200).json({ status: "ok" });
   });
 
-  // Google OAuth routes
-  app.get("/api/auth/google",
-    passport.authenticate("google", { scope: ["profile", "email"] })
-  );
-
-  app.get("/api/auth/google/callback",
-    passport.authenticate("google", { failureRedirect: "/login" }),
-    (req, res) => {
-      // Check if request is from mobile app (has custom user agent or header)
-      const isMobile = req.get("User-Agent")?.includes("CapacitorApp") ||
-        req.query.platform === "mobile";
-
-      if (isMobile) {
-        // For mobile: Pass user data in the deep link (not secure for production, but works for demo)
-        const user = req.user as any;
-        const userData = encodeURIComponent(JSON.stringify({
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          displayName: user.displayName,
-          role: user.role,
-        }));
-
-        // Redirect to custom URL scheme for mobile app
-        res.redirect(`assignflow://auth/callback?success=true&user=${userData}`);
-      } else {
-        // Web: redirect to home page
-        res.redirect("/");
-      }
-    }
-  );
+  // Google OAuth routes removed
+  // Local Auth Routes only
 
   app.get("/api/auth/me", (req, res) => {
     if (req.isAuthenticated()) {
