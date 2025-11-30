@@ -28,7 +28,7 @@ export default function TodoPage() {
         setTodos(getTodosFromStorage());
     }, []);
 
-    const handleAddTodo = (todoData: Omit<Todo, 'id' | 'createdAt'>) => {
+    const handleAddTodo = async (todoData: Omit<Todo, 'id' | 'createdAt'>) => {
         const newTodo: Todo = {
             id: crypto.randomUUID(),
             createdAt: Date.now(),
@@ -45,6 +45,23 @@ export default function TodoPage() {
             scheduleDate.setHours(hours, minutes, 0, 0);
             const notificationId = Math.abs(newTodo.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0));
             scheduleNotification(notificationId, "Task Reminder", newTodo.text, scheduleDate);
+        }
+
+        // Sync with server
+        try {
+            const { apiRequest } = await import("@/lib/queryClient");
+            await apiRequest("POST", "/api/tasks", {
+                userId: user.id,
+                type: "todo",
+                title: newTodo.text,
+                courseCode: newTodo.category || "General",
+                sectionId: "default",
+                deadline: newTodo.date ? `${newTodo.date}T${newTodo.time || "00:00"}` : new Date().toISOString(),
+                completed: newTodo.completed,
+                notificationTime: 24 * 60
+            });
+        } catch (error) {
+            console.error("Failed to sync todo to server:", error);
         }
 
         setIsDrawerOpen(false);
