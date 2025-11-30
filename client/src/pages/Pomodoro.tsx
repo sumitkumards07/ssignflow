@@ -23,6 +23,7 @@ export default function PomodoroPage() {
     const [timeLeft, setTimeLeft] = useState(25 * 60);
     const [totalTime, setTotalTime] = useState(25 * 60);
     const [isRunning, setIsRunning] = useState(false);
+    const [isBreak, setIsBreak] = useState(false); // New state for break mode
     const [selectedTask, setSelectedTask] = useState<string>("focus");
     const [todos, setTodos] = useState<Todo[]>([]);
     const [sessionsCompleted, setSessionsCompleted] = useState(0);
@@ -44,7 +45,9 @@ export default function PomodoroPage() {
         // Restore timer state from localStorage
         const savedState = localStorage.getItem('pomodoro_state');
         if (savedState) {
-            const { timeLeft: saved, totalTime: savedTotal, isRunning: savedRunning, backgroundStart } = JSON.parse(savedState);
+            const { timeLeft: saved, totalTime: savedTotal, isRunning: savedRunning, backgroundStart, isBreak: savedIsBreak } = JSON.parse(savedState);
+            if (savedIsBreak !== undefined) setIsBreak(savedIsBreak);
+
             if (savedRunning && backgroundStart) {
                 const elapsed = Math.floor((Date.now() - backgroundStart) / 1000);
                 const remaining = Math.max(0, saved - elapsed);
@@ -82,13 +85,31 @@ export default function PomodoroPage() {
             intervalRef.current = setInterval(() => {
                 setTimeLeft(prev => {
                     const newTime = prev - 1;
+                    const minutes = Math.floor(newTime / 60);
+                    const seconds = newTime % 60;
+                    const timeString = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                    const progress = ((totalTime - newTime) / totalTime) * 100;
+
                     // Save state for background sync
+                    const backgroundStart = Date.now() - ((totalTime - newTime) * 1000);
                     localStorage.setItem('pomodoro_state', JSON.stringify({
                         timeLeft: newTime,
                         totalTime,
                         isRunning: true,
-                        backgroundStart: Date.now() - ((totalTime - newTime) * 1000)
+                        backgroundStart,
+                        isBreak
                     }));
+
+                    // Update Widget
+                    // We send the absolute target time (when timer ends) for Chronometer
+                    const targetTime = Date.now() + (newTime * 1000);
+
+                    if (newTime % 5 === 0) { // Update widget every 5 seconds to save battery
+                        import("@/lib/widgetBridge").then(({ updatePomodoroWidget }) => {
+                            updatePomodoroWidget(timeString, true, progress, targetTime);
+                        });
+                    }
+
                     return newTime;
                 });
             }, 1000);
@@ -101,29 +122,18 @@ export default function PomodoroPage() {
         return () => {
             if (intervalRef.current) clearInterval(intervalRef.current);
         };
-    }, [isRunning, timeLeft, totalTime]);
+    }, [isRunning, timeLeft, totalTime, isBreak]);
 
     const scheduleBackgroundNotification = async () => {
         try {
-            // Create a channel for the alarm
-            await LocalNotifications.createChannel({
-                id: 'pomodoro_alarm',
-                name: 'Pomodoro Alarm',
-                description: 'Alarm for Pomodoro timer',
-                importance: 5, // High importance
-                visibility: 1, // Public
-                sound: 'beep.wav', // Ensure this file exists in android/app/src/main/res/raw or use default
-                vibration: true,
-            });
-
             await LocalNotifications.schedule({
                 notifications: [{
-                    title: "Pomodoro Complete!",
-                    body: "Your focus session has ended. Time for a break!",
+                    title: isBreak ? "Break Over!" : "Pomodoro Complete!",
+                    body: isBreak ? "Time to focus again." : "Your focus session has ended. Time for a break!",
                     id: Date.now(),
                     schedule: {
                         at: new Date(Date.now() + (timeLeft * 1000)),
-                        allowWhileIdle: true // Critical for background execution on Android
+                        allowWhileIdle: true
                     },
                     channelId: 'pomodoro_alarm',
                     sound: 'beep.wav',
@@ -139,33 +149,57 @@ export default function PomodoroPage() {
     const handlePomodoroComplete = async () => {
         setIsRunning(false);
         localStorage.removeItem('pomodoro_state');
-
-        // Play alarm sound
         playAlarmSound();
 
-        // Save session
-        const sessions = JSON.parse(localStorage.getItem("pomodoro_sessions") || "[]");
-        const newSession: PomodoroSession = {
-            taskId: selectedTask,
-            taskName: selectedTask === "focus" ? "Focus" : todos.find(t => t.id === selectedTask)?.text || "Focus",
-            duration: customMinutes,
-            date: format(new Date(), "yyyy-MM-dd"),
-            timestamp: Date.now()
-        };
-        sessions.push(newSession);
-        localStorage.setItem("pomodoro_sessions", JSON.stringify(sessions));
-        setSessionsCompleted(prev => prev + 1);
+        if (!isBreak) {
+            // Focus Session Completed
+            // Save session - Use totalTime for accurate duration (convert seconds to minutes)
+            const actualDurationMinutes = Math.floor(totalTime / 60);
 
-        // Celebrate
-        confetti({
-            particleCount: 100,
-            spread: 70,
-            origin: { y: 0.6 },
-            colors: ['#ff6b35', '#f7931e', '#ff8c42']
-        });
+            const sessions = JSON.parse(localStorage.getItem("pomodoro_sessions") || "[]");
+            const newSession: PomodoroSession = {
+                taskId: selectedTask,
+                taskName: selectedTask === "focus" ? "Focus" : todos.find(t => t.id === selectedTask)?.text || "Focus",
+                duration: actualDurationMinutes, // Fix: Use actual configured time
+                date: format(new Date(), "yyyy-MM-dd"),
+                timestamp: Date.now()
+            };
+            sessions.push(newSession);
+            localStorage.setItem("pomodoro_sessions", JSON.stringify(sessions));
+            setSessionsCompleted(prev => prev + 1);
 
-        // Reset for next session
-        setTimeLeft(totalTime);
+            // Celebrate
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#ff6b35', '#f7931e', '#ff8c42']
+            });
+
+            // Start Break Automatically
+            setIsBreak(true);
+            setTotalTime(5 * 60); // 5 minute break
+            setTimeLeft(5 * 60);
+            setIsRunning(true); // Auto start break
+
+            // Update Widget for Break
+            import("@/lib/widgetBridge").then(({ updatePomodoroWidget }) => {
+                updatePomodoroWidget("05:00", true, 0, Date.now() + (5 * 60 * 1000));
+            });
+
+        } else {
+            // Break Completed
+            setIsBreak(false);
+            const focusTime = customMinutes * 60;
+            setTotalTime(focusTime);
+            setTimeLeft(focusTime);
+            // Don't auto-start focus, let user decide
+
+            // Update Widget
+            import("@/lib/widgetBridge").then(({ updatePomodoroWidget }) => {
+                updatePomodoroWidget(String(customMinutes).padStart(2, '0') + ":00", false, 100);
+            });
+        }
     };
 
     const toggleTimer = async () => {
@@ -176,7 +210,8 @@ export default function PomodoroPage() {
                 timeLeft,
                 totalTime,
                 isRunning: true,
-                backgroundStart: Date.now() - ((totalTime - timeLeft) * 1000)
+                backgroundStart: Date.now() - ((totalTime - timeLeft) * 1000),
+                isBreak
             }));
         } else {
             // Pausing timer
@@ -184,7 +219,8 @@ export default function PomodoroPage() {
                 timeLeft,
                 totalTime,
                 isRunning: false,
-                backgroundStart: null
+                backgroundStart: null,
+                isBreak
             }));
         }
         setIsRunning(!isRunning);
@@ -192,14 +228,26 @@ export default function PomodoroPage() {
 
     const resetTimer = () => {
         setIsRunning(false);
-        setTimeLeft(totalTime);
+        if (isBreak) {
+            setTimeLeft(5 * 60);
+        } else {
+            setTimeLeft(customMinutes * 60);
+        }
         localStorage.removeItem('pomodoro_state');
     };
 
     const skipBreak = () => {
-        setTimeLeft(totalTime);
+        setIsBreak(false);
         setIsRunning(false);
+        const focusTime = customMinutes * 60;
+        setTotalTime(focusTime);
+        setTimeLeft(focusTime);
         localStorage.removeItem('pomodoro_state');
+
+        // Update Widget
+        import("@/lib/widgetBridge").then(({ updatePomodoroWidget }) => {
+            updatePomodoroWidget(String(customMinutes).padStart(2, '0') + ":00", false, 100);
+        });
     };
 
     const updateTimer = () => {
@@ -208,6 +256,7 @@ export default function PomodoroPage() {
         setTimeLeft(newTotal);
         setShowSettings(false);
         localStorage.removeItem('pomodoro_state');
+        setIsBreak(false); // Reset to focus mode on settings change
     };
 
     const minutes = Math.floor(timeLeft / 60);
@@ -221,7 +270,7 @@ export default function PomodoroPage() {
     return (
         <div className="min-h-screen bg-background text-foreground flex flex-col pb-24">
             {/* Header */}
-            <div className="px-6 pt-8 pb-6 flex items-center justify-between">
+            <div className="px-6 pb-6 flex items-center justify-between" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 2rem)' }}>
                 <h1 className="text-2xl font-medium">Pomodoro Timer</h1>
                 <button
                     onClick={() => setShowSettings(true)}
@@ -238,7 +287,7 @@ export default function PomodoroPage() {
                         <h3 className="text-lg font-semibold mb-4">Timer Settings</h3>
                         <div className="space-y-4">
                             <div>
-                                <label className="text-sm text-muted-foreground mb-2 block">Minutes</label>
+                                <label className="text-sm text-muted-foreground mb-2 block">Focus Minutes</label>
                                 <input
                                     type="number"
                                     value={customMinutes}
@@ -300,7 +349,7 @@ export default function PomodoroPage() {
                     {/* Glow Effect */}
                     <div
                         className="absolute inset-0 rounded-full blur-3xl scale-110 opacity-20"
-                        style={{ backgroundColor: 'var(--theme-primary)' }}
+                        style={{ backgroundColor: isBreak ? '#4CAF50' : 'var(--theme-primary)' }}
                     />
 
                     {/* SVG Circle */}
@@ -320,7 +369,7 @@ export default function PomodoroPage() {
                             cx="160"
                             cy="160"
                             r="145"
-                            stroke="var(--theme-primary)"
+                            stroke={isBreak ? '#4CAF50' : "var(--theme-primary)"}
                             strokeWidth="12"
                             fill="none"
                             strokeDasharray={`${2 * Math.PI * 145}`}
@@ -328,7 +377,7 @@ export default function PomodoroPage() {
                             className="transition-all duration-1000"
                             strokeLinecap="round"
                             style={{
-                                filter: 'drop-shadow(0 0 12px rgba(var(--theme-primary-rgb), 0.6))'
+                                filter: `drop-shadow(0 0 12px ${isBreak ? 'rgba(76, 175, 80, 0.6)' : 'rgba(var(--theme-primary-rgb), 0.6)'})`
                             }}
                         />
                     </svg>
@@ -343,7 +392,7 @@ export default function PomodoroPage() {
                             {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
                         </motion.div>
                         <div className="text-sm text-muted-foreground mt-2 font-medium">
-                            Focus Session
+                            {isBreak ? "Break Time" : "Focus Session"}
                         </div>
                     </div>
                 </div>
@@ -353,8 +402,7 @@ export default function PomodoroPage() {
                     {/* Reset Button */}
                     <button
                         onClick={resetTimer}
-                        disabled={!isRunning && timeLeft === 25 * 60}
-                        className="w-14 h-14 rounded-2xl bg-secondary/80 backdrop-blur-xl border border-border flex items-center justify-center hover:bg-secondary transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="w-14 h-14 rounded-2xl bg-secondary/80 backdrop-blur-xl border border-border flex items-center justify-center hover:bg-secondary transition-all"
                     >
                         <RotateCcw className="w-5 h-5" />
                     </button>
@@ -365,8 +413,8 @@ export default function PomodoroPage() {
                         disabled={timeLeft === 0}
                         className="w-20 h-20 rounded-3xl shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
                         style={{
-                            backgroundColor: 'var(--theme-primary)',
-                            boxShadow: '0 10px 15px -3px rgba(var(--theme-primary-rgb), 0.3)'
+                            backgroundColor: isBreak ? '#4CAF50' : 'var(--theme-primary)',
+                            boxShadow: `0 10px 15px -3px ${isBreak ? 'rgba(76, 175, 80, 0.3)' : 'rgba(var(--theme-primary-rgb), 0.3)'}`
                         }}
                     >
                         {isRunning ? (
@@ -377,12 +425,15 @@ export default function PomodoroPage() {
                     </button>
 
                     {/* Skip Break Button */}
-                    <button
-                        onClick={skipBreak}
-                        className="w-14 h-14 rounded-2xl bg-secondary/80 backdrop-blur-xl border border-border flex items-center justify-center hover:bg-secondary transition-all"
-                    >
-                        <SkipForward className="w-5 h-5" />
-                    </button>
+                    {isBreak && (
+                        <button
+                            onClick={skipBreak}
+                            className="w-14 h-14 rounded-2xl bg-secondary/80 backdrop-blur-xl border border-border flex items-center justify-center hover:bg-secondary transition-all"
+                            title="Skip Break"
+                        >
+                            <SkipForward className="w-5 h-5" />
+                        </button>
+                    )}
                 </div>
 
                 {/* Progress Dots */}

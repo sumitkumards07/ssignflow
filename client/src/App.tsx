@@ -16,7 +16,7 @@ import Upcoming from "@/pages/Upcoming";
 import Pomodoro from "@/pages/Pomodoro";
 import Analytics from "@/pages/Analytics";
 import { useEffect } from "react";
-import { App as AppPlugin } from "@capacitor/app";
+import { App as CapacitorApp } from "@capacitor/app"; // Changed alias from AppPlugin to CapacitorApp
 
 function Router() {
   const [location, setLocation] = useLocation();
@@ -48,10 +48,16 @@ function Router() {
 function App() {
   useEffect(() => {
     // Handle deep links (OAuth callback)
-    AppPlugin.addListener('appUrlOpen', (data) => {
-      if (data.url.includes('assignflow://auth')) {
+    // Handle deep links (OAuth callback and Widgets)
+    CapacitorApp.addListener('appUrlOpen', (data) => {
+      console.log('App opened with URL:', data.url);
+
+      if (data.url.includes('pomodoro')) {
+        window.location.href = '/pomodoro';
+      } else if (data.url.includes('todo')) {
+        window.location.href = '/todo';
+      } else if (data.url.includes('assignflow://auth')) {
         // Parse user data from URL params
-        // Format: assignflow://auth?user={...json...}
         try {
           const url = new URL(data.url);
           const userParam = url.searchParams.get('user');

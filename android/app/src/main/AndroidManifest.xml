@@ -23,15 +23,33 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Deep link for OAuth callback -->
+            <!-- Deep link for OAuth callback and Widgets -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="assignflow" android:host="auth" />
+                <data android:scheme="assignflow" android:host="pomodoro" />
+                <data android:scheme="assignflow" android:host="todo" />
             </intent-filter>
 
         </activity>
+
+        <receiver android:name=".TodoWidget" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/todo_widget_info" />
+        </receiver>
+
+        <service android:name=".TodoWidgetService" android:permission="android.permission.BIND_REMOTEVIEWS" />
+
+        <receiver android:name=".PomodoroWidget" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/pomodoro_widget_info" />
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -11,7 +11,7 @@ export function BottomNav({ onAddClick }: { onAddClick?: () => void }) {
     { icon: Timer, label: "Pomodoro", path: "/pomodoro" },
     { icon: BrainCircuit, label: "AI Quiz", path: "/ai-quiz" },
     { icon: Plus, label: "Add", path: "#", action: onAddClick, highlight: true },
-    { icon: CalendarClock, label: "Upcoming", path: "/upcoming" },
+    { icon: CalendarClock, label: "Assignment", path: "/upcoming" },
     { icon: Calendar, label: "Analytics", path: "/analytics" },
     { icon: Settings, label: "Settings", path: "/settings" },
   ];

@@ -25,7 +25,59 @@ export default function TodoPage() {
     const initials = username.split(" ").map((n: string) => n[0]).join("").toUpperCase().substring(0, 2);
 
     useEffect(() => {
-        setTodos(getTodosFromStorage());
+        const syncTasks = async () => {
+            try {
+                // 1. Load from local storage first for immediate display
+                const localTodos = getTodosFromStorage();
+                setTodos(localTodos);
+
+                // 2. Fetch from server to restore/sync
+                const { apiRequest } = await import("@/lib/queryClient");
+                const res = await apiRequest("GET", "/api/tasks");
+                const serverTasks = await res.json();
+
+                if (serverTasks && Array.isArray(serverTasks)) {
+                    // Convert server tasks to local Todo format
+                    const convertedTasks: Todo[] = serverTasks.map(t => ({
+                        id: t.id,
+                        text: t.title,
+                        completed: t.completed,
+                        date: t.deadline.split('T')[0],
+                        time: t.deadline.split('T')[1]?.substring(0, 5) || "00:00",
+                        category: t.courseCode,
+                        createdAt: new Date(t.deadline).getTime(), // Approximated
+                        hasAlarm: false // Server doesn't store this yet, default to false
+                    }));
+
+                    // 3. Update local storage with server data (Server is source of truth for restoration)
+                    // We merge: if server has more tasks, we use server. 
+                    // Simple strategy: If local is empty and server has data, use server.
+                    // If both have data, we might want to merge by ID.
+
+                    // For now, let's merge by ID, preferring server for status
+                    const mergedMap = new Map<string, Todo>();
+                    localTodos.forEach(t => mergedMap.set(t.id, t));
+                    convertedTasks.forEach(t => mergedMap.set(t.id, t)); // Server overwrites local if ID matches
+
+                    const mergedTodos = Array.from(mergedMap.values());
+
+                    // If we restored data (server had data we didn't), update storage
+                    if (mergedTodos.length > localTodos.length || JSON.stringify(mergedTodos) !== JSON.stringify(localTodos)) {
+                        updateTodosInStorage(mergedTodos);
+                        setTodos(mergedTodos);
+
+                        // Update Widget
+                        import("@/lib/widgetBridge").then(({ updateTodoWidget }) => {
+                            updateTodoWidget(mergedTodos);
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to sync tasks from server:", error);
+            }
+        };
+
+        syncTasks();
     }, []);
 
     const handleAddTodo = async (todoData: Omit<Todo, 'id' | 'createdAt'>) => {
@@ -64,6 +116,12 @@ export default function TodoPage() {
             console.error("Failed to sync todo to server:", error);
         }
 
+        // Update Widget
+        console.log("Syncing new todo to widget:", newTodo);
+        import("@/lib/widgetBridge").then(({ updateTodoWidget }) => {
+            updateTodoWidget([...todos, newTodo]);
+        });
+
         setIsDrawerOpen(false);
     };
 
@@ -76,6 +134,11 @@ export default function TodoPage() {
 
         updateTodosInStorage(updatedTodos);
         setTodos(updatedTodos);
+
+        // Update Widget
+        import("@/lib/widgetBridge").then(({ updateTodoWidget }) => {
+            updateTodoWidget(updatedTodos);
+        });
 
         if (updatedTodo.completed) {
             playSuccessSound();
@@ -92,6 +155,11 @@ export default function TodoPage() {
         updateTodosInStorage(updatedTodos);
         setTodos(updatedTodos);
         playDeleteSound();
+
+        // Update Widget
+        import("@/lib/widgetBridge").then(({ updateTodoWidget }) => {
+            updateTodoWidget(updatedTodos);
+        });
     };
 
     // Get todos for selected date
@@ -116,7 +184,7 @@ export default function TodoPage() {
     return (
         <div className="min-h-screen bg-background">
             {/* Header with User Profile */}
-            <div className="relative px-6 pt-6 pb-4">
+            <div className="relative px-6 pb-4" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1.5rem)' }}>
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <h1 className="text-2xl font-bold flex items-center gap-2">

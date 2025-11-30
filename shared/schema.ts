@@ -52,3 +52,18 @@ export const insertTaskSchema = createInsertSchema(tasks).pick({
 
 export type InsertTask = z.infer<typeof insertTaskSchema>;
 export type Task = typeof tasks.$inferSelect;
+
+export const feedback = pgTable("feedback", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  content: text("content").notNull(),
+  createdAt: text("created_at").default(new Date().toISOString()),
+});
+
+export const insertFeedbackSchema = createInsertSchema(feedback).pick({
+  userId: true,
+  content: true,
+});
+
+export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
+export type Feedback = typeof feedback.$inferSelect;

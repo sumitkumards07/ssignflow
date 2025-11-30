@@ -13,5 +13,7 @@ public class MainActivity extends BridgeActivity {
         // Enable third-party cookies
         WebView webView = getBridge().getWebView();
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
+
+        registerPlugin(WidgetDataPlugin.class);
     }
 }

@@ -67,7 +67,7 @@ export default function Settings() {
 
   return (
     <div className="min-h-screen bg-background pb-24 text-foreground">
-      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/50">
+      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/50 pt-safe">
         <div className="flex items-center justify-center py-4">
           <div className="rounded-full bg-secondary px-6 py-2">
             <h1 className="text-sm font-bold tracking-wide uppercase">Settings</h1>
@@ -314,14 +314,25 @@ export default function Settings() {
               />
               <Button
                 className="w-full"
-                onClick={() => {
+                onClick={async () => {
                   const input = document.getElementById('feedback-input') as HTMLTextAreaElement;
                   if (input && input.value.trim()) {
-                    toast({
-                      title: "Feedback Sent",
-                      description: "Thank you for your feedback!",
-                    });
-                    input.value = "";
+                    try {
+                      const { apiRequest } = await import("@/lib/queryClient");
+                      await apiRequest("POST", "/api/feedback", { content: input.value.trim() });
+
+                      toast({
+                        title: "Feedback Sent",
+                        description: "Thank you for your feedback!",
+                      });
+                      input.value = "";
+                    } catch (error) {
+                      toast({
+                        title: "Error",
+                        description: "Failed to send feedback. Please try again.",
+                        variant: "destructive",
+                      });
+                    }
                   } else {
                     toast({
                       title: "Empty Feedback",

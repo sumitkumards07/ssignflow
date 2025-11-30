@@ -1,7 +1,7 @@
-import { type User, type InsertUser, type Task, type InsertTask, users, tasks } from "@shared/schema";
+import { type User, type InsertUser, type Task, type InsertTask, type Feedback, type InsertFeedback, users, tasks, feedback } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 
 // modify the interface with any CRUD methods
 // you might need
@@ -20,6 +20,10 @@ export interface IStorage {
   createTask(task: InsertTask): Promise<Task>;
   updateTask(id: string, task: Partial<InsertTask>): Promise<Task | undefined>;
 
+  // Feedback methods
+  createFeedback(feedback: InsertFeedback): Promise<Feedback>;
+  getAllFeedback(): Promise<Feedback[]>;
+
   // Activity
   updateUserActivity(userId: string): Promise<void>;
   updateUserRole(userId: string, role: string): Promise<void>;
@@ -28,10 +32,12 @@ export interface IStorage {
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private tasks: Map<string, Task>;
+  private feedback: Map<string, Feedback>;
 
   constructor() {
     this.users = new Map();
     this.tasks = new Map();
+    this.feedback = new Map();
 
     // Pre-seed admin user
     const adminId = randomUUID();
@@ -124,6 +130,22 @@ export class MemStorage implements IStorage {
     return updatedTask;
   }
 
+  async createFeedback(insertFeedback: InsertFeedback): Promise<Feedback> {
+    const id = randomUUID();
+    const newFeedback: Feedback = {
+      id,
+      userId: insertFeedback.userId ?? null,
+      content: insertFeedback.content,
+      createdAt: new Date().toISOString()
+    };
+    this.feedback.set(id, newFeedback);
+    return newFeedback;
+  }
+
+  async getAllFeedback(): Promise<Feedback[]> {
+    return Array.from(this.feedback.values());
+  }
+
   async updateUserActivity(userId: string): Promise<void> {
     const user = this.users.get(userId);
     if (user) {
@@ -208,6 +230,21 @@ export class DatabaseStorage implements IStorage {
       .where(eq(tasks.id, id))
       .returning();
     return task;
+  }
+
+  async createFeedback(insertFeedback: InsertFeedback): Promise<Feedback> {
+    const [newFeedback] = await db
+      .insert(feedback)
+      .values({
+        ...insertFeedback,
+        createdAt: new Date().toISOString()
+      })
+      .returning();
+    return newFeedback;
+  }
+
+  async getAllFeedback(): Promise<Feedback[]> {
+    return await db.select().from(feedback).orderBy(desc(feedback.createdAt));
   }
 
   async updateUserActivity(userId: string): Promise<void> {

@@ -153,9 +153,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(usersWithStats);
   });
 
-  app.get("/api/tasks", async (_req, res) => {
+  app.get("/api/tasks", async (req, res) => {
     try {
-      const tasks = await storage.getTasks();
+      const tasks = await storage.getTasks((req.user as any).id);
       res.setHeader("Content-Type", "application/json");
       res.status(200).json(tasks);
     } catch (error: any) {
@@ -179,7 +179,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      const task = await storage.createTask(result.data);
+      const task = await storage.createTask({
+        ...result.data,
+        userId: (req.user as any).id
+      });
       res.setHeader("Content-Type", "application/json");
       res.status(201).json({
         success: true,
@@ -225,6 +228,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: "SERVER_ERROR"
       });
     }
+  });
+
+  // Feedback Routes
+  app.post("/api/feedback", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const { content } = req.body;
+      if (!content) {
+        return res.status(400).json({ message: "Content is required" });
+      }
+
+      const feedback = await storage.createFeedback({
+        userId: (req.user as any).id,
+        content
+      });
+
+      res.status(201).json(feedback);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/admin/feedback", async (req, res) => {
+    if (!req.isAuthenticated() || (req.user as any).role !== "admin") {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    const feedback = await storage.getAllFeedback();
+    res.json(feedback);
   });
 
   const upload = multer({ storage: multer.memoryStorage() });

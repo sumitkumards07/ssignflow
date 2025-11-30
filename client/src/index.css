@@ -114,6 +114,10 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
+
+  /* Disable Copy/Select */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .dark body {
