@@ -4,7 +4,7 @@ import { Upload, FileText, Loader2, Sparkles, Check, X, ArrowRight, Menu, User, 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomNav } from "@/components/layout/BottomNav";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { apiRequest } from "@/lib/queryClient";
 import * as pdfjsLib from "pdfjs-dist";
 import confetti from "canvas-confetti";
 
@@ -40,14 +40,7 @@ export default function AiQuizPage() {
     const [activeQuestions, setActiveQuestions] = useState<QuizQuestion[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
-    const [genAI, setGenAI] = useState<GoogleGenerativeAI | null>(null);
 
-    useEffect(() => {
-        const apiKey = localStorage.getItem('gemini_api_key') || "AIzaSyDtmaA4fpRwigLfQbjMhb3IX5bVC_gYCTA";
-        if (apiKey && apiKey !== 'your_api_key_here') {
-            setGenAI(new GoogleGenerativeAI(apiKey));
-        }
-    }, []);
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -92,7 +85,7 @@ export default function AiQuizPage() {
     };
 
     const handleSendMessage = async () => {
-        if (!userInput.trim() || !pdfText || !genAI) return;
+        if (!userInput.trim() || !pdfText) return;
 
         const userMessage: Message = {
             role: "user",
@@ -103,8 +96,6 @@ export default function AiQuizPage() {
         setIsLoading(true);
 
         try {
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
             const prompt = `You are an expert AI tutor. Your goal is to help the user understand the content of the provided PDF.
 Context from PDF:
 "${pdfText.substring(0, 50000)}"
@@ -134,9 +125,9 @@ Otherwise, for general questions or conversation, use this JSON format:
   "message": "Your helpful response based on the PDF content"
 }`;
 
-            const result = await model.generateContent(prompt);
-            const response = await result.response;
-            const jsonString = response.text().replace(/```json/g, "").replace(/```/g, "").trim();
+            const res = await apiRequest("POST", "/api/ai/generate", { prompt });
+            const data = await res.json();
+            const jsonString = data.text.replace(/```json/g, "").replace(/```/g, "").trim();
             const aiResponse = JSON.parse(jsonString);
 
             const assistantMessage: Message = {

@@ -46,7 +46,8 @@ app.use(express.json({
   verify: (req, _res, buf) => {
     req.rawBody = buf;
   },
-  strict: true
+  strict: true,
+  limit: "50mb"
 }));
 
 // Error handler for JSON parsing

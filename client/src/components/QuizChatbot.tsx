@@ -4,7 +4,7 @@ import { Upload, FileText, Loader2, Sparkles, Check, X, ArrowRight } from "lucid
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { apiRequest } from "@/lib/queryClient";
 import * as pdfjsLib from "pdfjs-dist";
 import confetti from "canvas-confetti";
 
@@ -33,14 +33,7 @@ export function QuizChatbot({ trigger }: { trigger?: React.ReactNode }) {
     const [quizState, setQuizState] = useState<QuizState | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
-    const [genAI, setGenAI] = useState<GoogleGenerativeAI | null>(null);
 
-    useEffect(() => {
-        const apiKey = localStorage.getItem('gemini_api_key') || "AIzaSyDtmaA4fpRwigLfQbjMhb3IX5bVC_gYCTA";
-        if (apiKey && apiKey !== 'your_api_key_here') {
-            setGenAI(new GoogleGenerativeAI(apiKey));
-        }
-    }, []);
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -80,15 +73,13 @@ export function QuizChatbot({ trigger }: { trigger?: React.ReactNode }) {
     };
 
     const generateQuiz = async (text: string) => {
-        if (!genAI) return;
         setIsLoading(true);
         try {
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
             const prompt = `Generate 10 multiple-choice quiz questions from this text. Return ONLY a JSON array of objects with: question (string), options (array of 4 strings), correctAnswer (0-3 index), explanation (string). Text: ${text.substring(0, 20000)}`;
 
-            const result = await model.generateContent(prompt);
-            const response = await result.response;
-            const jsonString = response.text().replace(/```json/g, "").replace(/```/g, "").trim();
+            const res = await apiRequest("POST", "/api/ai/generate", { prompt });
+            const data = await res.json();
+            const jsonString = data.text.replace(/```json/g, "").replace(/```/g, "").trim();
             const questions = JSON.parse(jsonString);
 
             setQuizState({
@@ -274,8 +265,8 @@ export function QuizChatbot({ trigger }: { trigger?: React.ReactNode }) {
                                             className="flex justify-start"
                                         >
                                             <div className={`max-w-[85%] p-4 rounded-2xl rounded-tl-md ${quizState.selectedAnswer === currentQuestion.correctAnswer
-                                                    ? 'bg-green-500/20 border border-green-500/30'
-                                                    : 'bg-red-500/20 border border-red-500/30'
+                                                ? 'bg-green-500/20 border border-green-500/30'
+                                                : 'bg-red-500/20 border border-red-500/30'
                                                 }`}>
                                                 <div className="flex items-center gap-2 mb-2">
                                                     {quizState.selectedAnswer === currentQuestion.correctAnswer ? (
@@ -284,8 +275,8 @@ export function QuizChatbot({ trigger }: { trigger?: React.ReactNode }) {
                                                         <X className="w-5 h-5 text-red-400" />
                                                     )}
                                                     <span className={`text-sm font-semibold ${quizState.selectedAnswer === currentQuestion.correctAnswer
-                                                            ? 'text-green-400'
-                                                            : 'text-red-400'
+                                                        ? 'text-green-400'
+                                                        : 'text-red-400'
                                                         }`}>
                                                         {quizState.selectedAnswer === currentQuestion.correctAnswer ? 'Correct!' : 'Incorrect'}
                                                     </span>
@@ -316,14 +307,14 @@ export function QuizChatbot({ trigger }: { trigger?: React.ReactNode }) {
                                             whileHover={{ scale: quizState.isAnswered ? 1 : 1.02 }}
                                             whileTap={{ scale: quizState.isAnswered ? 1 : 0.98 }}
                                             className={`w-full px-6 py-4 rounded-full text-left transition-all flex items-center justify-between ${showResult
-                                                    ? isCorrect
-                                                        ? 'bg-green-500/20 border-2 border-green-500 text-green-300'
-                                                        : isSelected
-                                                            ? 'bg-red-500/20 border-2 border-red-500 text-red-300'
-                                                            : 'bg-zinc-800/50 border border-zinc-700 text-zinc-400'
+                                                ? isCorrect
+                                                    ? 'bg-green-500/20 border-2 border-green-500 text-green-300'
                                                     : isSelected
-                                                        ? 'bg-purple-600 border-2 border-purple-400 text-white shadow-lg shadow-purple-500/30'
-                                                        : 'bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-purple-500/50'
+                                                        ? 'bg-red-500/20 border-2 border-red-500 text-red-300'
+                                                        : 'bg-zinc-800/50 border border-zinc-700 text-zinc-400'
+                                                : isSelected
+                                                    ? 'bg-purple-600 border-2 border-purple-400 text-white shadow-lg shadow-purple-500/30'
+                                                    : 'bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-purple-500/50'
                                                 }`}
                                         >
                                             <span className="font-medium">{option}</span>

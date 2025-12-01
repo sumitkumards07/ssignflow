@@ -336,6 +336,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/ai/generate", async (req, res) => {
+    try {
+      const { prompt } = req.body;
+      if (!prompt) {
+        res.status(400).json({ message: "Prompt is required" });
+        return;
+      }
+
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        res.status(500).json({ message: "Gemini API Key not configured" });
+        return;
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
+      res.json({ text });
+    } catch (error: any) {
+      console.error("AI generation error:", error);
+      res.status(500).json({ message: "Failed to generate content" });
+    }
+  });
+
   // Temporary route to promote admin
   app.post("/api/admin/promote-temp", async (req, res) => {
     try {
