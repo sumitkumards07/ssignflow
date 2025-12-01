@@ -10,7 +10,7 @@ android {
     namespace "com.blackboxai.app"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        setProperty("archivesBaseName", "assignflow-1.0")
+        setProperty("archivesBaseName", "app")
         applicationId "com.blackboxai.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion

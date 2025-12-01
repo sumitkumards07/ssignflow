@@ -39,7 +39,8 @@ export async function apiRequest(
 
   try {
     // Use relative URL to allow proxying in dev and same-origin in prod
-    const fullUrl = url.startsWith("http") ? url : url;
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+    const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
 
     // Get token from localStorage
     const userStr = localStorage.getItem("user");
@@ -90,7 +91,8 @@ export const getQueryFn: <T>(options: {
     async ({ queryKey }) => {
       const url = queryKey.join("/") as string;
       // Use relative URL to allow proxying in dev and same-origin in prod
-      const fullUrl = url.startsWith("http") ? url : url;
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+      const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
 
       // Get token from localStorage
       const userStr = localStorage.getItem("user");
