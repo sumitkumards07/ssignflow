@@ -39,7 +39,8 @@ export async function apiRequest(
 
   try {
     // Use relative URL to allow proxying in dev and same-origin in prod
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+    // Use relative URL to allow proxying in dev and same-origin in prod
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || "https://assignflow-exuc.onrender.com";
     const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
 
     // Get token from localStorage
@@ -91,7 +92,8 @@ export const getQueryFn: <T>(options: {
     async ({ queryKey }) => {
       const url = queryKey.join("/") as string;
       // Use relative URL to allow proxying in dev and same-origin in prod
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+      // Use relative URL to allow proxying in dev and same-origin in prod
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || "https://assignflow-exuc.onrender.com";
       const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
 
       // Get token from localStorage

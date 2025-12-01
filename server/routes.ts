@@ -16,7 +16,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       "http://localhost:5001",
       "https://assignflow-exuc.onrender.com",
       "capacitor://localhost",
-      "http://localhost"
+      "http://localhost",
+      "https://localhost"
     ];
 
     const origin = req.headers.origin;
