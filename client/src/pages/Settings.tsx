@@ -419,23 +419,7 @@ export default function Settings() {
               <ExternalLink className="h-4 w-4 text-muted-foreground" />
             </a>
 
-            <a
-              href="https://www.linkedin.com/in/neeraj-mandal-11b025384"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex w-full items-center justify-between p-5 transition-colors hover:bg-secondary/30 border-t border-border"
-            >
-              <div className="flex items-center gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
-                  <Linkedin className="h-5 w-5" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-sm">Developer</span>
-                  <span className="text-xs text-muted-foreground">Neeraj Mandal</span>
-                </div>
-              </div>
-              <ExternalLink className="h-4 w-4 text-muted-foreground" />
-            </a>
+
           </div>
         </section>
       </main>
