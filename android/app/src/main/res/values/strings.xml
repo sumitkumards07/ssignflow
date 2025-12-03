@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">AssignFlow</string>
     <string name="title_activity_main">AssignFlow</string>
-    <string name="package_name">com.blackboxai.app</string>
-    <string name="custom_url_scheme">com.blackboxai.app</string>
+    <string name="package_name">com.assignflow.app</string>
+    <string name="custom_url_scheme">com.assignflow.app</string>
 </resources>

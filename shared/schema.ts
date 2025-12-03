@@ -17,6 +17,7 @@ export const users = pgTable("users", {
   todayFocusTime: integer("today_focus_time").default(0), // in minutes
   lastFocusDate: text("last_focus_date"), // YYYY-MM-DD
   avatar: text("avatar"),
+  pushToken: text("push_token"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -107,3 +108,22 @@ export const insertGroupMemberSchema = createInsertSchema(groupMembers).pick({
 
 export type InsertGroupMember = z.infer<typeof insertGroupMemberSchema>;
 export type GroupMember = typeof groupMembers.$inferSelect;
+
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id), // Nullable for broadcast
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  status: text("status").default("pending"), // pending, sent, failed
+  createdAt: text("created_at").default(new Date().toISOString()),
+});
+
+export const insertNotificationSchema = createInsertSchema(notifications).pick({
+  userId: true,
+  title: true,
+  body: true,
+  status: true,
+});
+
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type Notification = typeof notifications.$inferSelect;

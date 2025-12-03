@@ -1,0 +1,29 @@
+{
+    "project_info": {
+        "project_number": "432011808258",
+        "project_id": "assignflow1",
+        "storage_bucket": "assignflow1.firebasestorage.app"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:432011808258:android:14827d18ecf9b5e493211b",
+                "android_client_info": {
+                    "package_name": "com.assignflow.app"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyCj_sMUgrdfgz0Yobiv66v-efUcaXxGrYU"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}

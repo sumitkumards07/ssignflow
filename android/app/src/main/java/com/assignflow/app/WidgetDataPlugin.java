@@ -1,4 +1,4 @@
-package com.blackboxai.app;
+package com.assignflow.app;
 
 import android.content.Context;
 import android.content.Intent;

@@ -119,8 +119,14 @@ export function StudyAssistant() {
                     </span>
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="ghost" size="icon" className="rounded-full">
-                        <MessageSquare className="w-5 h-5" />
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="rounded-full text-muted-foreground hover:text-destructive"
+                        onClick={() => setMessages([])}
+                        title="Reset Chat"
+                    >
+                        <Sparkles className="w-5 h-5" />
                     </Button>
                 </div>
             </div>

@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Task, type InsertTask, type Feedback, type InsertFeedback, type Group, type InsertGroup, type GroupMember, type InsertGroupMember, users, tasks, feedback, groups, groupMembers } from "@shared/schema";
+import { type User, type InsertUser, type Task, type InsertTask, type Feedback, type InsertFeedback, type Group, type InsertGroup, type GroupMember, type InsertGroupMember, users, tasks, feedback, groups, groupMembers, notifications } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
@@ -34,6 +34,7 @@ export interface IStorage {
   updateUserRole(userId: string, role: string): Promise<void>;
   updateUserStats(userId: string, totalTime: number, todayTime: number, lastDate: string): Promise<void>;
   getLeaderboard(): Promise<User[]>;
+  updatePushToken(userId: string, token: string): Promise<void>;
 
   // Group methods
   createGroup(name: string, userId: string): Promise<Group>;
@@ -42,6 +43,7 @@ export interface IStorage {
   getUserGroups(userId: string): Promise<Group[]>;
   joinGroup(groupId: string, userId: string): Promise<void>;
   getGroupMembers(groupId: string): Promise<User[]>;
+  seed(): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -73,7 +75,8 @@ export class MemStorage implements IStorage {
       totalFocusTime: 0,
       todayFocusTime: 0,
       lastFocusDate: null,
-      avatar: null
+      avatar: null,
+      pushToken: null
     });
   }
 
@@ -113,7 +116,8 @@ export class MemStorage implements IStorage {
       totalFocusTime: 0,
       todayFocusTime: 0,
       lastFocusDate: null,
-      avatar: insertUser.avatar ?? null
+      avatar: insertUser.avatar ?? null,
+      pushToken: null
     };
     this.users.set(id, user);
     return user;
@@ -234,6 +238,13 @@ export class MemStorage implements IStorage {
       .slice(0, 50);
   }
 
+  async updatePushToken(userId: string, token: string): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      this.users.set(userId, { ...user, pushToken: token });
+    }
+  }
+
   // Group methods implementation for MemStorage
   async createGroup(name: string, userId: string): Promise<Group> {
     const id = randomUUID();
@@ -300,6 +311,11 @@ export class MemStorage implements IStorage {
     }
     return members.sort((a, b) => (b.totalFocusTime || 0) - (a.totalFocusTime || 0));
   }
+
+  async seed(): Promise<void> {
+    // MemStorage seeds in constructor
+    return;
+  }
 }
 
 export class DatabaseStorage implements IStorage {
@@ -351,16 +367,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createNotification(title: string, body: string): Promise<void> {
-    // For DB storage, we might want a table, but for now let's keep it simple or use a dedicated table if needed.
-    // Since the schema doesn't have a notifications table, we'll skip persistence for now or add it later.
-    // We can just log it or use a simple in-memory cache for this session.
-    // Ideally, we should add a 'notifications' table to schema.ts.
-    // For this task, let's just return.
-    return;
+    await db.insert(notifications).values({
+      title,
+      body,
+      status: "pending",
+      createdAt: new Date().toISOString()
+    });
   }
 
   async getNotifications(): Promise<{ title: string; body: string; timestamp: number }[]> {
-    return [];
+    const notifs = await db.select().from(notifications).orderBy(desc(notifications.createdAt));
+    return notifs.map(n => ({
+      title: n.title,
+      body: n.body,
+      timestamp: new Date(n.createdAt || "").getTime()
+    }));
   }
 
   async setUpdate(version: string, notes: string, url: string): Promise<void> {
@@ -489,26 +510,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   async joinGroup(groupId: string, userId: string): Promise<void> {
-    const [existing] = await db
-      .select()
-      .from(groupMembers)
-      .where(
-        eq(groupMembers.groupId, groupId) &&
-        eq(groupMembers.userId, userId)
-      ); // Note: This AND condition syntax might need adjustment depending on drizzle version, but let's assume standard chaining or and() helper. 
-    // Actually, drizzle `where` takes one condition. We need `and`.
-    // Let's fix this in the next step if needed, but for now I'll use the correct import.
-
-    // Wait, I need to import `and` from drizzle-orm.
-    // I'll assume it's available or I'll fix it.
-    // The previous code block didn't import `and`.
-    // I will add the import in the next tool call if needed, or just do a raw check.
-    // Actually, let's just do a check.
-
-    // For now, let's just try to insert and catch unique constraint error if we had one, 
-    // but we don't have a unique constraint on (groupId, userId) in schema yet?
-    // We should probably check manually.
-
     const members = await db
       .select()
       .from(groupMembers)
@@ -538,6 +539,37 @@ export class DatabaseStorage implements IStorage {
       }
     }
     return groupUsers.sort((a, b) => (b.totalFocusTime || 0) - (a.totalFocusTime || 0));
+  }
+
+  async updatePushToken(userId: string, token: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ pushToken: token })
+      .where(eq(users.id, userId));
+  }
+
+  async seed(): Promise<void> {
+    const adminEmail = "admin@assignflow.com";
+    const [existing] = await db.select().from(users).where(eq(users.email, adminEmail));
+
+    if (!existing) {
+      await db.insert(users).values({
+        username: "sumitkumar",
+        password: "sk2007@",
+        googleId: "admin_google_id",
+        email: adminEmail,
+        displayName: "Sumit Kumar (Admin)",
+        role: "admin",
+        lastActive: new Date().toISOString(),
+        apiToken: "admin_token",
+        totalFocusTime: 0,
+        todayFocusTime: 0,
+        lastFocusDate: null,
+        avatar: null,
+        pushToken: null
+      });
+      console.log("Admin user seeded successfully");
+    }
   }
 }
 

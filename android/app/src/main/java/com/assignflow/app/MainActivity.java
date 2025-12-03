@@ -1,4 +1,4 @@
-package com.blackboxai.app;
+package com.assignflow.app;
 
 import android.os.Bundle;
 import android.webkit.CookieManager;

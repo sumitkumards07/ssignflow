@@ -1,4 +1,4 @@
-package com.blackboxai.app;
+package com.assignflow.app;
 
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
@@ -14,8 +14,8 @@ import org.json.JSONObject;
 
 public class TodoWidget extends AppWidgetProvider {
 
-    public static final String ACTION_TOGGLE_TASK = "com.blackboxai.app.ACTION_TOGGLE_TASK";
-    public static final String EXTRA_ITEM_INDEX = "com.blackboxai.app.EXTRA_ITEM_INDEX";
+    public static final String ACTION_TOGGLE_TASK = "com.assignflow.app.ACTION_TOGGLE_TASK";
+    public static final String EXTRA_ITEM_INDEX = "com.assignflow.app.EXTRA_ITEM_INDEX";
 
     static void updateAppWidget(Context context, AppWidgetManager appWidgetManager, int appWidgetId) {
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_todo);

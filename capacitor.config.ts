@@ -1,7 +1,7 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.blackboxai.app',
+  appId: 'com.assignflow.app',
   appName: 'AssignFlow',
   webDir: 'dist/public',
   server: {

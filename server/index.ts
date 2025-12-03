@@ -3,6 +3,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import passport from "./auth";
 import { registerRoutes } from "./routes";
+import { storage } from "./storage";
 import { setupVite } from "./vite";
 import { log } from "./utils";
 import path from "path";
@@ -95,6 +96,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  await storage.seed();
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

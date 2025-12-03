@@ -1,4 +1,4 @@
-package com.blackboxai.app;
+package com.assignflow.app;
 
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
