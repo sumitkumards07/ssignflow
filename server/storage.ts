@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Task, type InsertTask, type Feedback, type InsertFeedback, type Group, type InsertGroup, type GroupMember, type InsertGroupMember, users, tasks, feedback, groups, groupMembers, notifications } from "@shared/schema";
+import { type User, type InsertUser, type Task, type InsertTask, type Feedback, type InsertFeedback, type Group, type InsertGroup, type GroupMember, type InsertGroupMember, type AppVersion, type InsertAppVersion, users, tasks, feedback, groups, groupMembers, notifications, appVersions } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
@@ -44,6 +44,8 @@ export interface IStorage {
   joinGroup(groupId: string, userId: string): Promise<void>;
   getGroupMembers(groupId: string): Promise<User[]>;
   seed(): Promise<void>;
+  createAppVersion(version: InsertAppVersion): Promise<AppVersion>;
+  getLatestAppVersion(): Promise<AppVersion | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -313,8 +315,25 @@ export class MemStorage implements IStorage {
   }
 
   async seed(): Promise<void> {
-    // MemStorage seeds in constructor
     return;
+  }
+
+  private appVersions: AppVersion[] = [];
+
+  async createAppVersion(insertVersion: InsertAppVersion): Promise<AppVersion> {
+    const id = randomUUID();
+    const version: AppVersion = {
+      ...insertVersion,
+      id,
+      releaseNotes: insertVersion.releaseNotes ?? null,
+      createdAt: new Date().toISOString()
+    };
+    this.appVersions.push(version);
+    return version;
+  }
+
+  async getLatestAppVersion(): Promise<AppVersion | undefined> {
+    return this.appVersions.sort((a, b) => b.versionCode - a.versionCode)[0];
   }
 }
 
@@ -570,6 +589,26 @@ export class DatabaseStorage implements IStorage {
       });
       console.log("Admin user seeded successfully");
     }
+  }
+
+  async createAppVersion(insertVersion: InsertAppVersion): Promise<AppVersion> {
+    const [version] = await db
+      .insert(appVersions)
+      .values({
+        ...insertVersion,
+        createdAt: new Date().toISOString()
+      })
+      .returning();
+    return version;
+  }
+
+  async getLatestAppVersion(): Promise<AppVersion | undefined> {
+    const [version] = await db
+      .select()
+      .from(appVersions)
+      .orderBy(desc(appVersions.versionCode))
+      .limit(1);
+    return version;
   }
 }
 

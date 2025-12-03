@@ -13,6 +13,7 @@ import { scheduleNotification, requestNotificationPermissions } from "@/lib/noti
 import { format, isSameDay, parseISO, addDays, startOfWeek, addWeeks, subWeeks } from "date-fns";
 import confetti from "canvas-confetti";
 import { backupData } from "@/lib/backup";
+import { Tutorial } from "@/components/Tutorial";
 
 export default function TodoPage() {
     const [todos, setTodos] = useState<Todo[]>([]);
@@ -346,6 +347,7 @@ export default function TodoPage() {
             </Button>
 
             <BottomNav />
+            <Tutorial />
         </div >
     );
 }

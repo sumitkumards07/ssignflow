@@ -126,4 +126,21 @@ export const insertNotificationSchema = createInsertSchema(notifications).pick({
 });
 
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
-export type Notification = typeof notifications.$inferSelect;
+export const appVersions = pgTable("app_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  versionCode: integer("version_code").notNull(),
+  versionName: text("version_name").notNull(),
+  apkUrl: text("apk_url").notNull(),
+  releaseNotes: text("release_notes"),
+  createdAt: text("created_at").default(new Date().toISOString()),
+});
+
+export const insertAppVersionSchema = createInsertSchema(appVersions).pick({
+  versionCode: true,
+  versionName: true,
+  apkUrl: true,
+  releaseNotes: true,
+});
+
+export type InsertAppVersion = z.infer<typeof insertAppVersionSchema>;
+export type AppVersion = typeof appVersions.$inferSelect;

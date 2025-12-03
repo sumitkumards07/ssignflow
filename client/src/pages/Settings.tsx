@@ -15,6 +15,9 @@ import { useToast } from "@/hooks/use-toast";
 import { alarmSounds, previewAlarm, getSelectedAlarm, setAlarmSound, setSoundsEnabled, areSoundsEnabled } from "@/lib/sounds";
 import { backupData, restoreData } from "@/lib/backup";
 import { Database, Download, Upload as UploadIcon } from "lucide-react";
+import { registerPlugin } from '@capacitor/core';
+
+const UpdatePlugin = registerPlugin<any>('UpdatePlugin');
 
 const colorThemes = [
   { id: "orange", name: "Orange Flame", color: "#ff6b35", description: "Warm and energetic" },
@@ -73,14 +76,14 @@ export default function Settings() {
       const res = await apiRequest("GET", "/api/updates");
       const data = await res.json();
 
-      // Current version hardcoded for now
-      const currentVersion = "1.0.0";
+      // Current version code (should match build.gradle)
+      const currentVersionCode = 1;
 
-      if (data.version !== currentVersion) {
+      if (data.versionCode > currentVersionCode) {
         toast({
           title: "Update Available",
-          description: `Version ${data.version} is available.`,
-          action: <Button size="sm" onClick={() => window.open(data.url, '_blank')}>Update</Button>
+          description: `Version ${data.versionName} is available.`,
+          action: <Button size="sm" onClick={() => UpdatePlugin.startUpdate({ apkUrl: data.apkUrl })}>Update</Button>
         });
       } else {
         toast({ title: "Up to Date", description: "You are on the latest version." });
@@ -360,6 +363,7 @@ export default function Settings() {
             className="w-full"
             onClick={() => {
               localStorage.removeItem("user");
+              localStorage.setItem("logged_out", "true");
               window.location.href = "/login";
             }}
           >

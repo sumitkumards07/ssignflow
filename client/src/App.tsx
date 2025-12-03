@@ -73,11 +73,27 @@ function App() {
       }
     });
 
-    // Auto-restore data if fresh install
+    // Auto-backup if > 24 hours
+    const checkBackup = async () => {
+      const lastBackup = localStorage.getItem('last_backup_time');
+      const now = new Date().getTime();
+      const twentyFourHours = 24 * 60 * 60 * 1000;
+
+      if (!lastBackup || now - new Date(lastBackup).getTime() > twentyFourHours) {
+        console.log("Last backup > 24h ago, backing up...");
+        const { backupData } = await import("@/lib/backup");
+        await backupData(true); // silent mode
+      }
+    };
+    checkBackup();
+
+    // Auto-restore data if fresh install AND not explicitly logged out
     const checkRestore = async () => {
       const user = localStorage.getItem("user");
-      if (!user) {
-        console.log("No user found, attempting auto-restore...");
+      const wasLoggedOut = localStorage.getItem("logged_out");
+
+      if (!user && !wasLoggedOut) {
+        console.log("No user found and not logged out, attempting auto-restore...");
         const { restoreData } = await import("@/lib/backup");
         await restoreData(true); // silent mode
       }

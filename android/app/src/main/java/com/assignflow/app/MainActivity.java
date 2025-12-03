@@ -15,5 +15,6 @@ public class MainActivity extends BridgeActivity {
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
         registerPlugin(WidgetDataPlugin.class);
+        registerPlugin(UpdatePlugin.class);
     }
 }

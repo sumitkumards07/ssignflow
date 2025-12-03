@@ -61,10 +61,12 @@ export default function Login() {
                 }
                 const user = await res.json();
                 localStorage.setItem("user", JSON.stringify(user));
+                localStorage.removeItem("logged_out");
             } else {
                 const res = await apiRequest("POST", "/api/login", { username: email, password });
                 const user = await res.json();
                 localStorage.setItem("user", JSON.stringify(user));
+                localStorage.removeItem("logged_out");
             }
 
             setLocation("/todo");

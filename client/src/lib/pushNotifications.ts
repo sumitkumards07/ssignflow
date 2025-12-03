@@ -1,5 +1,5 @@
 import { PushNotifications } from '@capacitor/push-notifications';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { apiRequest } from './queryClient';
 
 export async function registerPushNotifications() {
@@ -45,5 +45,10 @@ export function addPushListeners() {
 
     PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
         console.log('Push action performed: ' + JSON.stringify(notification));
+        const data = notification.notification.data;
+        if (data && data.type === 'update' && data.apkUrl) {
+            const UpdatePlugin = registerPlugin<any>('UpdatePlugin');
+            UpdatePlugin.startUpdate({ apkUrl: data.apkUrl });
+        }
     });
 }
