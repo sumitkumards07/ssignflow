@@ -623,15 +623,15 @@ export class DatabaseStorage implements IStorage {
       await this.updateUserRole(sumitUser.id, "admin");
     }
 
-    // Seed latest app version (v1.0.4)
+    // Seed latest app version (v1.0.5)
     const latestVersion = await this.getLatestAppVersion();
-    if (!latestVersion || latestVersion.versionCode < 5) {
-      console.log("Seeding app version 1.0.4...");
+    if (!latestVersion || latestVersion.versionCode < 6) {
+      console.log("Seeding app version 1.0.5...");
       await db.insert(appVersions).values({
-        versionCode: 5,
-        versionName: "1.0.4",
-        apkUrl: "https://assignflow-exuc.onrender.com/app-release.apk", // Assuming this is where it's hosted
-        releaseNotes: "New Features: Attendance Calculator, Improved AI Error Messages, Bug Fixes.",
+        versionCode: 6,
+        versionName: "1.0.5",
+        apkUrl: "https://assignflow-exuc.onrender.com/app-release.apk",
+        releaseNotes: "New Features: Group Deletion in Clash Zone, Attendance Calculator.",
         createdAt: new Date().toISOString()
       });
     }
