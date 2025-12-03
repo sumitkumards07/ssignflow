@@ -40,16 +40,27 @@ export default function TodoPage() {
 
                 if (serverTasks && Array.isArray(serverTasks)) {
                     // Convert server tasks to local Todo format
-                    const convertedTasks: Todo[] = serverTasks.map(t => ({
-                        id: t.id,
-                        text: t.title,
-                        completed: t.completed,
-                        date: t.deadline.split('T')[0],
-                        time: t.deadline.split('T')[1]?.substring(0, 5) || "00:00",
-                        category: t.courseCode,
-                        createdAt: new Date(t.deadline).getTime(), // Approximated
-                        hasAlarm: false // Server doesn't store this yet, default to false
-                    }));
+                    const convertedTasks: Todo[] = serverTasks.map(t => {
+                        const dateObj = new Date(t.deadline);
+                        // Format date as YYYY-MM-DD in local time
+                        const dateStr = dateObj.getFullYear() + '-' +
+                            String(dateObj.getMonth() + 1).padStart(2, '0') + '-' +
+                            String(dateObj.getDate()).padStart(2, '0');
+                        // Format time as HH:mm in local time
+                        const timeStr = String(dateObj.getHours()).padStart(2, '0') + ':' +
+                            String(dateObj.getMinutes()).padStart(2, '0');
+
+                        return {
+                            id: t.id,
+                            text: t.title,
+                            completed: t.completed,
+                            date: dateStr,
+                            time: timeStr,
+                            category: t.courseCode,
+                            createdAt: dateObj.getTime(),
+                            hasAlarm: false
+                        };
+                    });
 
                     // 3. Update local storage with server data (Server is source of truth for restoration)
                     // We merge: if server has more tasks, we use server. 

@@ -566,13 +566,18 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
         try {
             const { apiRequest } = await import("@/lib/queryClient");
 
-            // Parse time to get a deadline (assuming today or tomorrow)
-            const timeParts = item.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+            console.log("Adding task from item:", item);
+
+            // Parse time to get a deadline
+            // Handle formats like "10:00", "10:00 AM", "10:00-11:00", "10am"
+            const timeStr = item.time || "12:00 PM";
+            const timeParts = timeStr.match(/(\d{1,2})[:.]?(\d{2})?\s*(AM|PM)?/i);
+
             let deadline = new Date();
 
             if (timeParts) {
                 let hours = parseInt(timeParts[1]);
-                const minutes = parseInt(timeParts[2]);
+                const minutes = parseInt(timeParts[2] || "0");
                 const period = timeParts[3];
 
                 if (period) {
@@ -581,29 +586,34 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
                 }
 
                 deadline.setHours(hours, minutes, 0, 0);
+                // If time passed today, assume tomorrow
                 if (deadline < new Date()) {
                     deadline.setDate(deadline.getDate() + 1);
                 }
+            } else {
+                // Fallback: Set to end of today if parsing fails
+                deadline.setHours(23, 59, 0, 0);
             }
 
             await apiRequest("POST", "/api/tasks", {
-                title: item.task,
+                title: item.task || "Study Task",
                 description: `Subject: ${item.subject}. Time: ${item.time}`,
                 deadline: deadline.toISOString(),
                 type: "assignment",
-                courseCode: item.subject.substring(0, 10),
+                courseCode: (item.subject || "General").substring(0, 10),
                 sectionId: "self-study",
                 completed: false,
             });
 
             toast({
                 title: "Task Added",
-                description: "Added to your todo list.",
+                description: `Added "${item.task}" to your todo list.`,
             });
-        } catch (error) {
+        } catch (error: any) {
+            console.error("Failed to add task:", error);
             toast({
                 title: "Error",
-                description: "Failed to add task.",
+                description: "Failed to add task: " + error.message,
                 variant: "destructive",
             });
         }
