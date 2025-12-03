@@ -125,7 +125,8 @@
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8",
-    "@rollup/rollup-linux-x64-gnu": "*"
+    "@rollup/rollup-linux-x64-gnu": "*",
+    "lightningcss-linux-x64-gnu": "*"
   },
   "overrides": {
     "esbuild": "^0.25.0"
