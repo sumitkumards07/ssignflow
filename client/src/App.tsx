@@ -11,10 +11,10 @@ import Settings from "@/pages/Settings";
 import Todo from "@/pages/Todo";
 import Login from "@/pages/Login";
 import AdminDashboard from "@/pages/AdminDashboard";
-import AiQuiz from "@/pages/AiQuiz";
 import Upcoming from "@/pages/Upcoming";
 import Pomodoro from "@/pages/Pomodoro";
 import Analytics from "@/pages/Analytics";
+import StudyAssistantPage from "@/pages/StudyAssistantPage";
 import { useEffect } from "react";
 import { App as CapacitorApp } from "@capacitor/app"; // Changed alias from AppPlugin to CapacitorApp
 
@@ -35,9 +35,9 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/todo" component={Todo} />
       <Route path="/upcoming" component={Upcoming} />
-      <Route path="/ai-quiz" component={AiQuiz} />
       <Route path="/settings" component={Settings} />
       <Route path="/pomodoro" component={Pomodoro} />
+      <Route path="/study" component={StudyAssistantPage} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/admin" component={AdminDashboard} />
       <Route component={NotFound} />
@@ -72,6 +72,17 @@ function App() {
         }
       }
     });
+
+    // Auto-restore data if fresh install
+    const checkRestore = async () => {
+      const user = localStorage.getItem("user");
+      if (!user) {
+        console.log("No user found, attempting auto-restore...");
+        const { restoreData } = await import("@/lib/backup");
+        await restoreData(true); // silent mode
+      }
+    };
+    checkRestore();
   }, []);
 
   return (

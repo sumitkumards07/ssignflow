@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { alarmSounds, previewAlarm, getSelectedAlarm, setAlarmSound, setSoundsEnabled, areSoundsEnabled } from "@/lib/sounds";
+import { backupData, restoreData } from "@/lib/backup";
+import { Database, Download, Upload as UploadIcon } from "lucide-react";
 
 const colorThemes = [
   { id: "orange", name: "Orange Flame", color: "#ff6b35", description: "Warm and energetic" },
@@ -65,6 +67,30 @@ export default function Settings() {
     });
   };
 
+  const checkForUpdates = async () => {
+    try {
+      const { apiRequest } = await import("@/lib/queryClient");
+      const res = await apiRequest("GET", "/api/updates");
+      const data = await res.json();
+
+      // Current version hardcoded for now
+      const currentVersion = "1.0.0";
+
+      if (data.version !== currentVersion) {
+        toast({
+          title: "Update Available",
+          description: `Version ${data.version} is available.`,
+          action: <Button size="sm" onClick={() => window.open(data.url, '_blank')}>Update</Button>
+        });
+      } else {
+        toast({ title: "Up to Date", description: "You are on the latest version." });
+      }
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Error", description: "Failed to check for updates", variant: "destructive" });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background pb-24 text-foreground">
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/50 pt-safe">
@@ -79,58 +105,31 @@ export default function Settings() {
         {/* Theme Color Selection */}
         <section className="space-y-4">
           <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Theme Color</h2>
-          <div className="grid grid-cols-2 gap-3">
-            {colorThemes.map((colorTheme) => (
-              <div
-                key={colorTheme.id}
-                onClick={() => handleThemeColorChange(colorTheme.id)}
-                className={`overflow-hidden rounded-2xl border-2 transition-all cursor-pointer ${themeColor === colorTheme.id ? 'border-primary scale-105' : 'border-border hover:border-primary/50'
-                  }`}
-              >
-                <div className="p-4 bg-card">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div
-                      className="w-8 h-8 rounded-full"
-                      style={{ backgroundColor: colorTheme.color }}
-                    />
-                    <Palette className="w-4 h-4" style={{ color: colorTheme.color }} />
-                  </div>
-                  <h3 className="font-bold text-sm">{colorTheme.name}</h3>
-                  <p className="text-xs text-muted-foreground">{colorTheme.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+          <Card>
+            <CardContent className="p-4">
+              <Select value={themeColor} onValueChange={(val) => handleThemeColorChange(val)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select Theme Color" />
+                </SelectTrigger>
+                <SelectContent>
+                  {colorThemes.map((colorTheme) => (
+                    <SelectItem key={colorTheme.id} value={colorTheme.id}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded-full" style={{ backgroundColor: colorTheme.color }} />
+                        {colorTheme.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
         </section>
 
         <section className="space-y-4">
           <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Appearance</h2>
-
           <div className="overflow-hidden rounded-3xl border border-border bg-card">
-            {/* Light Mode */}
-            <div
-              className="flex items-center justify-between border-b border-border p-5 transition-colors hover:bg-secondary/30 cursor-pointer"
-              onClick={() => setTheme('light')}
-            >
-              <div className="flex items-center gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100 text-orange-500 dark:bg-orange-500/20 dark:text-orange-400">
-                  <Sun className="h-5 w-5" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-sm">Light Mode</span>
-                  <span className="text-xs text-muted-foreground">Clean and bright</span>
-                </div>
-              </div>
-              <div className="pointer-events-none">
-                <Switch checked={theme === 'light'} />
-              </div>
-            </div>
-
-            {/* Dark Mode */}
-            <div
-              className="flex items-center justify-between border-b border-border p-5 transition-colors hover:bg-secondary/30 cursor-pointer"
-              onClick={() => setTheme('dark')}
-            >
+            <div className="flex items-center justify-between p-5 border-b border-border">
               <div className="flex items-center gap-4">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 text-indigo-500 dark:bg-indigo-500/20 dark:text-indigo-400">
                   <Moon className="h-5 w-5" />
@@ -140,28 +139,10 @@ export default function Settings() {
                   <span className="text-xs text-muted-foreground">Easy on the eyes</span>
                 </div>
               </div>
-              <div className="pointer-events-none">
-                <Switch checked={theme === 'dark'} />
-              </div>
-            </div>
-
-            {/* System */}
-            <div
-              className="flex items-center justify-between p-5 transition-colors hover:bg-secondary/30 cursor-pointer"
-              onClick={() => setTheme('system')}
-            >
-              <div className="flex items-center gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-500/20 dark:text-slate-400">
-                  <Monitor className="h-5 w-5" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-sm">System</span>
-                  <span className="text-xs text-muted-foreground">Follow device settings</span>
-                </div>
-              </div>
-              <div className="pointer-events-none">
-                <Switch checked={theme === 'system'} />
-              </div>
+              <Switch
+                checked={theme === 'dark'}
+                onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
+              />
             </div>
           </div>
         </section>
@@ -196,30 +177,27 @@ export default function Settings() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                {alarmSounds.map((alarm) => (
-                  <button
-                    key={alarm.id}
-                    onClick={() => handleAlarmChange(alarm.id)}
-                    className={`p-3 rounded-xl border-2 transition-all text-left relative ${selectedAlarm === alarm.id
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border hover:border-primary/50 bg-secondary/30'
-                      }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-semibold">{alarm.name}</span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          previewAlarm(alarm.id);
-                        }}
-                        className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center hover:bg-primary/30 transition-colors"
-                      >
-                        <Play className="w-3 h-3 text-primary fill-current" />
-                      </button>
-                    </div>
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                <Select value={selectedAlarm} onValueChange={(val) => handleAlarmChange(val)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select Alarm Sound" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {alarmSounds.map((alarm) => (
+                      <SelectItem key={alarm.id} value={alarm.id}>
+                        {alarm.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => previewAlarm(selectedAlarm)}
+                  title="Preview Sound"
+                >
+                  <Play className="w-4 h-4" />
+                </Button>
               </div>
             </div>
           </div>
@@ -235,7 +213,7 @@ export default function Settings() {
               <CardContent className="pt-6 space-y-4">
                 <div className="flex items-center gap-4">
                   <Avatar className="w-16 h-16 border-2 border-primary/10">
-                    <AvatarImage src={user?.photoUrl} />
+                    <AvatarImage src={user?.avatar} />
                     <AvatarFallback className="text-lg bg-primary/5 text-primary">
                       {user?.displayName?.charAt(0) || "U"}
                     </AvatarFallback>
@@ -259,12 +237,12 @@ export default function Settings() {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="photo">Photo URL</Label>
+                    <Label htmlFor="avatar">Avatar URL</Label>
                     <Input
-                      id="photo"
-                      defaultValue={user?.photoUrl}
+                      id="avatar"
+                      defaultValue={user?.avatar}
                       placeholder="https://..."
-                      onChange={(e) => handleUserChange("photoUrl", e.target.value)}
+                      onChange={(e) => handleUserChange("avatar", e.target.value)}
                     />
                   </div>
                 </div>
@@ -297,94 +275,41 @@ export default function Settings() {
           )}
         </div>
 
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <MessageSquare className="w-5 h-5" />
-            Feedback
-          </h2>
-          <Card>
-            <CardContent className="pt-6 space-y-4">
-              <p className="text-sm text-muted-foreground">
-                We'd love to hear your thoughts! Let us know how we can improve AssignFlow.
-              </p>
-              <Textarea
-                placeholder="Type your feedback here..."
-                className="min-h-[100px]"
-                id="feedback-input"
-              />
-              <Button
-                className="w-full"
-                onClick={async () => {
-                  const input = document.getElementById('feedback-input') as HTMLTextAreaElement;
-                  if (input && input.value.trim()) {
-                    try {
-                      const { apiRequest } = await import("@/lib/queryClient");
-                      await apiRequest("POST", "/api/feedback", { content: input.value.trim() });
 
-                      toast({
-                        title: "Feedback Sent",
-                        description: "Thank you for your feedback!",
-                      });
-                      input.value = "";
-                    } catch (error) {
-                      toast({
-                        title: "Error",
-                        description: "Failed to send feedback. Please try again.",
-                        variant: "destructive",
-                      });
-                    }
-                  } else {
-                    toast({
-                      title: "Empty Feedback",
-                      description: "Please enter some text before sending.",
-                      variant: "destructive",
-                    });
-                  }
-                }}
-              >
-                Send Feedback
-              </Button>
-            </CardContent>
-          </Card>
-        </section>
 
         <section className="space-y-4">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">AI Configuration</h2>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Data Management</h2>
           <div className="overflow-hidden rounded-3xl border border-border bg-card">
             <div className="flex flex-col gap-4 p-5 border-b border-border">
               <div className="flex items-center gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100 text-purple-500 dark:bg-purple-500/20 dark:text-purple-400">
-                  <BrainCircuit className="h-5 w-5" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-500 dark:bg-blue-500/20 dark:text-blue-400">
+                  <Database className="h-5 w-5" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-bold text-sm">Gemini API Key</span>
-                  <span className="text-xs text-muted-foreground">Required for Quiz Generator</span>
+                  <span className="font-bold text-sm">Backup & Restore</span>
+                  <span className="text-xs text-muted-foreground">Save data to device storage</span>
                 </div>
               </div>
-              <Input
-                type="password"
-                value="****************"
-                disabled
-                className="bg-secondary/50 border-0 text-muted-foreground cursor-not-allowed"
-              />
-              <p className="text-xs text-muted-foreground">
-                Using default configuration. Contact admin to change.
-              </p>
-            </div>
-          </div>
 
-          <div className="pt-4">
-            <Button
-              variant="destructive"
-              className="w-full"
-              onClick={() => {
-                localStorage.removeItem("user");
-                window.location.href = "/login";
-              }}
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Log Out
-            </Button>
+              <div className="grid grid-cols-2 gap-3">
+                <Button variant="outline" onClick={() => backupData()} className="w-full">
+                  <UploadIcon className="w-4 h-4 mr-2" />
+                  Backup
+                </Button>
+                <Button variant="outline" onClick={() => restoreData()} className="w-full">
+                  <Download className="w-4 h-4 mr-2" />
+                  Restore
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Backup saves your data to the Documents folder. Restore loads it back.
+              </p>
+              {localStorage.getItem('last_backup_time') && (
+                <p className="text-[10px] text-muted-foreground mt-2 pt-2 border-t border-border">
+                  Last backup: {new Date(localStorage.getItem('last_backup_time')!).toLocaleString()}
+                </p>
+              )}
+            </div>
           </div>
         </section>
 
@@ -399,6 +324,12 @@ export default function Settings() {
                 <span className="font-bold text-sm">Version</span>
               </div>
               <span className="text-sm font-mono text-muted-foreground bg-secondary/50 px-2 py-1 rounded-md">v1.0.0</span>
+            </div>
+
+            <div className="p-5 border-b border-border">
+              <Button variant="outline" className="w-full" onClick={checkForUpdates}>
+                Check for Updates
+              </Button>
             </div>
 
             <a
@@ -422,9 +353,23 @@ export default function Settings() {
 
           </div>
         </section>
+
+        <div className="pt-4 pb-8">
+          <Button
+            variant="destructive"
+            className="w-full"
+            onClick={() => {
+              localStorage.removeItem("user");
+              window.location.href = "/login";
+            }}
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Log Out
+          </Button>
+        </div>
       </main>
 
-      <BottomNav onAddClick={() => window.location.href = "/"} />
+      <BottomNav />
     </div>
   );
 }

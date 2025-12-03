@@ -9,9 +9,10 @@ import { TimelineItem } from "@/components/TimelineItem";
 import { Todo } from "@/lib/types";
 import { getTodosFromStorage, saveTodoToStorage, updateTodosInStorage } from "@/lib/utils";
 import { playSuccessSound, playDeleteSound } from "@/lib/sounds";
-import { scheduleNotification } from "@/lib/notifications";
+import { scheduleNotification, requestNotificationPermissions } from "@/lib/notifications";
 import { format, isSameDay, parseISO, addDays, startOfWeek, addWeeks, subWeeks } from "date-fns";
 import confetti from "canvas-confetti";
+import { backupData } from "@/lib/backup";
 
 export default function TodoPage() {
     const [todos, setTodos] = useState<Todo[]>([]);
@@ -80,6 +81,8 @@ export default function TodoPage() {
         syncTasks();
     }, []);
 
+    // ... existing imports
+
     const handleAddTodo = async (todoData: Omit<Todo, 'id' | 'createdAt'>) => {
         const newTodo: Todo = {
             id: crypto.randomUUID(),
@@ -90,13 +93,20 @@ export default function TodoPage() {
         saveTodoToStorage(newTodo);
         setTodos(prev => [...prev, newTodo]);
         playSuccessSound();
+        backupData(true); // Auto-backup
 
         if (newTodo.hasAlarm && newTodo.time && newTodo.date) {
-            const [hours, minutes] = newTodo.time.split(':').map(Number);
-            const scheduleDate = parseISO(newTodo.date);
-            scheduleDate.setHours(hours, minutes, 0, 0);
-            const notificationId = Math.abs(newTodo.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0));
-            scheduleNotification(notificationId, "Task Reminder", newTodo.text, scheduleDate);
+            const hasPermission = await requestNotificationPermissions();
+            if (hasPermission) {
+                const [hours, minutes] = newTodo.time.split(':').map(Number);
+                const scheduleDate = parseISO(newTodo.date);
+                scheduleDate.setHours(hours, minutes, 0, 0);
+                const notificationId = Math.abs(newTodo.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0));
+                scheduleNotification(notificationId, "Task Reminder", newTodo.text, scheduleDate);
+            } else {
+                // Optionally show a toast that permissions were denied
+                console.warn("Notification permissions denied");
+            }
         }
 
         // Sync with server
@@ -134,6 +144,7 @@ export default function TodoPage() {
 
         updateTodosInStorage(updatedTodos);
         setTodos(updatedTodos);
+        backupData(true); // Auto-backup
 
         // Update Widget
         import("@/lib/widgetBridge").then(({ updateTodoWidget }) => {
@@ -155,6 +166,7 @@ export default function TodoPage() {
         updateTodosInStorage(updatedTodos);
         setTodos(updatedTodos);
         playDeleteSound();
+        backupData(true); // Auto-backup
 
         // Update Widget
         import("@/lib/widgetBridge").then(({ updateTodoWidget }) => {
@@ -196,11 +208,17 @@ export default function TodoPage() {
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <h1 className="text-2xl font-bold flex items-center gap-2">
-                            {format(selectedDate, "MMMM")} <span style={{ color: 'var(--theme-primary)' }}>{format(selectedDate, "yyyy")}</span>
+                            {format(selectedDate, "MMMM")}
                         </h1>
                     </div>
                     <div className="flex items-center gap-3">
-                        <CalendarIcon className="w-6 h-6" style={{ color: 'var(--theme-primary)' }} />
+                        <Button
+                            onClick={() => window.location.href = "/upcoming"}
+                            className="bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg hover:shadow-xl hover:scale-105 transition-all rounded-full px-4 h-9"
+                        >
+                            <CalendarIcon className="w-4 h-4 mr-2" />
+                            Assignments
+                        </Button>
                         <Avatar className="w-10 h-10 border-2" style={{ borderColor: 'var(--theme-primary)' }}>
                             <AvatarFallback className="text-white font-semibold text-sm" style={{ backgroundColor: 'var(--theme-primary)' }}>
                                 {initials}
@@ -208,65 +226,66 @@ export default function TodoPage() {
                         </Avatar>
                     </div>
                 </div>
-
-                {/* Week Navigator */}
-                <div className="flex items-center justify-between mb-4">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={goToPreviousWeek}
-                        className="h-8 w-8 rounded-full"
-                    >
-                        <ChevronLeft className="w-5 h-5" />
-                    </Button>
-                    <span className="text-sm text-muted-foreground font-medium">
-                        {format(weekStart, "MMM d")} - {format(addDays(weekStart, 6), "MMM d, yyyy")}
-                    </span>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={goToNextWeek}
-                        className="h-8 w-8 rounded-full"
-                    >
-                        <ChevronRight className="w-5 h-5" />
-                    </Button>
-                </div>
-
-                {/* Calendar Week Strip */}
-                <div className="grid grid-cols-7 gap-2">
-                    {weekDays.map((day, index) => {
-                        const isSelected = isSameDay(day, selectedDate);
-                        const isToday = isSameDay(day, new Date());
-                        const hasTodos = todos.some(todo => todo.date && isSameDay(parseISO(todo.date), day));
-
-                        return (
-                            <button
-                                key={index}
-                                onClick={() => setSelectedDate(day)}
-                                className="flex flex-col items-center py-3 rounded-xl transition-all relative"
-                            >
-                                <span className="text-xs text-muted-foreground font-medium mb-1">
-                                    {format(day, "EEE")}
-                                </span>
-                                <div
-                                    className={`w-11 h-11 rounded-full flex items-center justify-center text-lg font-semibold transition-all ${isSelected
-                                        ? "text-white scale-110 shadow-lg"
-                                        : isToday
-                                            ? "bg-secondary text-foreground"
-                                            : "hover:bg-secondary"
-                                        }`}
-                                    style={isSelected ? { backgroundColor: 'var(--theme-primary)' } : (isToday ? { color: 'var(--theme-primary)' } : {})}
-                                >
-                                    {format(day, "d")}
-                                </div>
-                                {hasTodos && !isSelected && (
-                                    <div className="w-1 h-1 rounded-full mt-1" style={{ backgroundColor: 'var(--theme-primary)' }}></div>
-                                )}
-                            </button>
-                        );
-                    })}
-                </div>
             </div>
+
+            {/* Week Navigator */}
+            <div className="flex items-center justify-between mb-4">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={goToPreviousWeek}
+                    className="h-8 w-8 rounded-full"
+                >
+                    <ChevronLeft className="w-5 h-5" />
+                </Button>
+                <span className="text-sm text-muted-foreground font-medium">
+                    {format(weekStart, "MMM d")} - {format(addDays(weekStart, 6), "MMM d, yyyy")}
+                </span>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={goToNextWeek}
+                    className="h-8 w-8 rounded-full"
+                >
+                    <ChevronRight className="w-5 h-5" />
+                </Button>
+            </div>
+
+            {/* Calendar Week Strip */}
+            <div className="grid grid-cols-7 gap-2">
+                {weekDays.map((day, index) => {
+                    const isSelected = isSameDay(day, selectedDate);
+                    const isToday = isSameDay(day, new Date());
+                    const hasTodos = todos.some(todo => todo.date && isSameDay(parseISO(todo.date), day));
+
+                    return (
+                        <button
+                            key={index}
+                            onClick={() => setSelectedDate(day)}
+                            className="flex flex-col items-center py-3 rounded-xl transition-all relative"
+                        >
+                            <span className="text-xs text-muted-foreground font-medium mb-1">
+                                {format(day, "EEE")}
+                            </span>
+                            <div
+                                className={`w-11 h-11 rounded-full flex items-center justify-center text-lg font-semibold transition-all ${isSelected
+                                    ? "text-white scale-110 shadow-lg"
+                                    : isToday
+                                        ? "bg-secondary text-foreground"
+                                        : "hover:bg-secondary"
+                                    }`}
+                                style={isSelected ? { backgroundColor: 'var(--theme-primary)' } : (isToday ? { color: 'var(--theme-primary)' } : {})}
+                            >
+                                {format(day, "d")}
+                            </div>
+                            {hasTodos && !isSelected && (
+                                <div className="w-1 h-1 rounded-full mt-1" style={{ backgroundColor: 'var(--theme-primary)' }}></div>
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
+
 
             {/* Tasks Section */}
             <div className="px-6 pb-24">
@@ -319,7 +338,14 @@ export default function TodoPage() {
                 selectedDate={selectedDate}
             />
 
-            <BottomNav onAddClick={() => setIsDrawerOpen(true)} />
-        </div>
+            <Button
+                onClick={() => setIsDrawerOpen(true)}
+                className="fixed bottom-24 right-6 w-14 h-14 rounded-full shadow-2xl bg-primary hover:bg-primary/90 z-50 flex items-center justify-center"
+            >
+                <Plus className="w-8 h-8 text-primary-foreground" />
+            </Button>
+
+            <BottomNav />
+        </div >
     );
 }

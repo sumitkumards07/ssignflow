@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, User, Sword } from "lucide-react";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, isSameMonth, subDays, subWeeks, startOfYear, endOfYear, eachMonthOfInterval, getYear, getWeek } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { useLocation } from "wouter";
 
 interface PomodoroSession {
     taskId: string;
@@ -14,9 +15,10 @@ interface PomodoroSession {
 }
 
 export default function AnalyticsPage() {
-    const [activeTab, setActiveTab] = useState<"pomodoro" | "task">("pomodoro");
+    const [activeTab, setActiveTab] = useState<"pomodoro" | "battlefield">("pomodoro");
     const [chartView, setChartView] = useState<"daily" | "weekly" | "monthly" | "yearly">("daily");
     const [currentMonth, setCurrentMonth] = useState(new Date());
+    const [, setLocation] = useLocation();
 
     const sessions: PomodoroSession[] = JSON.parse(localStorage.getItem("pomodoro_sessions") || "[]");
 
@@ -164,56 +166,170 @@ export default function AnalyticsPage() {
 
     const maxChartValue = Math.max(...chartData.map(d => d.value), 1); // Avoid 0 division
 
+    const [leaderboard, setLeaderboard] = useState<any[]>([]);
+    const [groups, setGroups] = useState<any[]>([]);
+    const [selectedGroup, setSelectedGroup] = useState<any>(null);
+    const [groupMembers, setGroupMembers] = useState<any[]>([]);
+    const [showCreateGroup, setShowCreateGroup] = useState(false);
+    const [showJoinGroup, setShowJoinGroup] = useState(false);
+    const [newGroupName, setNewGroupName] = useState("");
+    const [joinCode, setJoinCode] = useState("");
+
+    // Sync stats to server
+    useEffect(() => {
+        const syncStats = async () => {
+            if (stats.total) {
+                try {
+                    const { apiRequest } = await import("@/lib/queryClient");
+                    await apiRequest("POST", "/api/analytics/sync", {
+                        totalTime: Math.round(parseFloat(stats.total) * 60), // Convert back to minutes
+                        todayTime: Math.round(parseFloat(stats.today) * 60),
+                        date: format(new Date(), "yyyy-MM-dd")
+                    });
+                } catch (error) {
+                    console.error("Failed to sync analytics:", error);
+                }
+            }
+        };
+        syncStats();
+    }, [stats]);
+
+    // Fetch leaderboard
+    useEffect(() => {
+        if (activeTab === "battlefield") {
+            const fetchLeaderboard = async () => {
+                try {
+                    const { apiRequest } = await import("@/lib/queryClient");
+                    const res = await apiRequest("GET", "/api/analytics/leaderboard");
+                    const data = await res.json();
+                    setLeaderboard(data);
+                } catch (error) {
+                    console.error("Failed to fetch leaderboard:", error);
+                }
+            };
+            fetchLeaderboard();
+        }
+    }, [activeTab]);
+
+    // Fetch groups
+    useEffect(() => {
+        if (activeTab === "battlefield") {
+            const fetchGroups = async () => {
+                try {
+                    const { apiRequest } = await import("@/lib/queryClient");
+                    const res = await apiRequest("GET", "/api/groups");
+                    const data = await res.json();
+                    setGroups(data);
+                } catch (error) {
+                    console.error("Failed to fetch groups:", error);
+                }
+            };
+            fetchGroups();
+        }
+    }, [activeTab]);
+
+    const handleCreateGroup = async () => {
+        try {
+            const { apiRequest } = await import("@/lib/queryClient");
+            const res = await apiRequest("POST", "/api/groups", { name: newGroupName });
+            const group = await res.json();
+            setGroups([...groups, group]);
+            setShowCreateGroup(false);
+            setNewGroupName("");
+        } catch (error) {
+            console.error("Failed to create group:", error);
+        }
+    };
+
+    const handleJoinGroup = async () => {
+        try {
+            const { apiRequest } = await import("@/lib/queryClient");
+            const res = await apiRequest("POST", "/api/groups/join", { code: joinCode });
+            const data = await res.json();
+            setGroups([...groups, data.group]);
+            setShowJoinGroup(false);
+            setJoinCode("");
+        } catch (error) {
+            console.error("Failed to join group:", error);
+            alert("Invalid code or already joined");
+        }
+    };
+
+    const handleGroupClick = async (groupId: string) => {
+        try {
+            const { apiRequest } = await import("@/lib/queryClient");
+            const res = await apiRequest("GET", `/api/groups/${groupId}`);
+            const data = await res.json();
+            setSelectedGroup(data.group);
+            setGroupMembers(data.members);
+        } catch (error) {
+            console.error("Failed to fetch group details:", error);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-background text-foreground pb-24">
             {/* Header */}
             <div className="px-6 pt-safe pb-4 flex items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border">
-                <button className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-secondary transition-colors">
+                <button
+                    onClick={() => selectedGroup ? setSelectedGroup(null) : window.history.back()}
+                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-secondary transition-colors"
+                >
                     <ChevronLeft className="w-6 h-6" />
                 </button>
-                <h1 className="text-xl font-semibold">Report</h1>
-                <button className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-secondary transition-colors">
-                    <CalendarIcon className="w-5 h-5" />
+                <h1 className="text-xl font-semibold">{selectedGroup ? selectedGroup.name : "Report"}</h1>
+                <button
+                    onClick={() => setLocation("/settings")}
+                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-secondary transition-colors"
+                >
+                    <User className="w-5 h-5" />
                 </button>
             </div>
 
             {/* Tabs */}
-            <div className="flex border-b border-border bg-background sticky top-[60px] z-10">
-                <button
-                    onClick={() => setActiveTab("pomodoro")}
-                    className={`flex-1 py-3 text-sm font-medium relative transition-colors ${activeTab === "pomodoro" ? "text-primary" : "text-muted-foreground"
-                        }`}
-                    style={activeTab === "pomodoro" ? { color: 'var(--theme-primary)' } : {}}
-                >
-                    Pomodoro
-                    {activeTab === "pomodoro" && (
-                        <motion.div
-                            layoutId="activeTab"
-                            className="absolute bottom-0 left-0 right-0 h-0.5"
-                            style={{ backgroundColor: 'var(--theme-primary)' }}
-                        />
-                    )}
-                </button>
-                <button
-                    onClick={() => setActiveTab("task")}
-                    className={`flex-1 py-3 text-sm font-medium relative transition-colors ${activeTab === "task" ? "text-primary" : "text-muted-foreground"
-                        }`}
-                    style={activeTab === "task" ? { color: 'var(--theme-primary)' } : {}}
-                >
-                    Task
-                    {activeTab === "task" && (
-                        <motion.div
-                            layoutId="activeTab"
-                            className="absolute bottom-0 left-0 right-0 h-0.5"
-                            style={{ backgroundColor: 'var(--theme-primary)' }}
-                        />
-                    )}
-                </button>
-            </div>
+            {!selectedGroup && (
+                <div className="flex border-b border-border bg-background sticky top-[60px] z-10">
+                    <button
+                        onClick={() => setActiveTab("pomodoro")}
+                        className={`flex-1 py-3 text-sm font-medium relative transition-colors ${activeTab === "pomodoro" ? "text-primary" : "text-muted-foreground"
+                            }`}
+                        style={activeTab === "pomodoro" ? { color: 'var(--theme-primary)' } : {}}
+                    >
+                        Pomodoro
+                        {activeTab === "pomodoro" && (
+                            <motion.div
+                                layoutId="activeTab"
+                                className="absolute bottom-0 left-0 right-0 h-0.5"
+                                style={{ backgroundColor: 'var(--theme-primary)' }}
+                            />
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("battlefield")}
+                        className={`flex-1 py-3 text-sm font-medium relative transition-colors flex items-center justify-center gap-2 ${activeTab === "battlefield" ? "text-primary" : "text-muted-foreground"
+                            }`}
+                        style={activeTab === "battlefield" ? { color: 'var(--theme-primary)' } : {}}
+                    >
+                        <div className="flex items-center gap-2">
+                            <Sword className={`w-4 h-4 ${activeTab === "battlefield" ? "animate-pulse text-orange-500" : ""}`} />
+                            <span className={activeTab === "battlefield" ? "text-orange-500 font-bold" : ""}>Clash Zone</span>
+                            {activeTab === "battlefield" && (
+                                <span className="absolute -top-1 -right-1 text-xs">🔥</span>
+                            )}
+                        </div>
+                        {activeTab === "battlefield" && (
+                            <motion.div
+                                layoutId="activeTab"
+                                className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-500"
+                            />
+                        )}
+                    </button>
+                </div>
+            )}
 
             {/* Content */}
             <div className="overflow-y-auto">
-                {activeTab === "pomodoro" ? (
+                {activeTab === "pomodoro" && !selectedGroup ? (
                     <div className="space-y-6 p-6">
                         {/* Stats Cards */}
                         <div className="grid grid-cols-3 gap-3">
@@ -383,13 +499,183 @@ export default function AnalyticsPage() {
                             </div>
                         </div>
                     </div>
-                ) : (
-                    <div className="p-6">
-                        <div className="text-center text-muted-foreground py-12">
-                            Task analytics coming soon...
-                        </div>
+                ) : activeTab === "battlefield" ? (
+                    <div className="p-6 space-y-6">
+                        {selectedGroup ? (
+                            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+                                <div className="flex items-center justify-between mb-6">
+                                    <h3 className="text-lg font-bold flex items-center gap-2">
+                                        <span className="text-2xl">👥</span> {selectedGroup.name}
+                                    </h3>
+                                    <div className="text-xs text-muted-foreground bg-secondary px-3 py-1 rounded-full">
+                                        Code: <span className="font-mono select-all">{selectedGroup.code}</span>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    {groupMembers.map((user, index) => (
+                                        <div key={user.id} className="flex items-center gap-4 p-3 rounded-xl hover:bg-secondary/50 transition-colors">
+                                            <div className={`w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm ${index === 0 ? "bg-yellow-500/20 text-yellow-500" :
+                                                index === 1 ? "bg-zinc-400/20 text-zinc-400" :
+                                                    index === 2 ? "bg-orange-500/20 text-orange-500" :
+                                                        "bg-secondary text-muted-foreground"
+                                                }`}>
+                                                {index + 1}
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="font-medium">{user.displayName || user.username}</div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    Today: {Math.round(user.todayFocusTime / 60)}h {user.todayFocusTime % 60}m
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="font-bold text-primary" style={{ color: 'var(--theme-primary)' }}>
+                                                    {Math.round(user.totalFocusTime / 60)}h
+                                                </div>
+                                                <div className="text-[10px] text-muted-foreground">Total</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Groups List */}
+                                <div className="space-y-4">
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => { setShowCreateGroup(true); setShowJoinGroup(false); }}
+                                            className="flex-1 py-3 bg-primary text-primary-foreground rounded-xl font-medium text-sm hover:opacity-90 transition-opacity"
+                                            style={{ backgroundColor: 'var(--theme-primary)' }}
+                                        >
+                                            Create Group
+                                        </button>
+                                        <button
+                                            onClick={() => { setShowJoinGroup(true); setShowCreateGroup(false); }}
+                                            className="flex-1 py-3 bg-secondary text-secondary-foreground rounded-xl font-medium text-sm hover:bg-secondary/80 transition-colors"
+                                        >
+                                            Join Group
+                                        </button>
+                                    </div>
+
+                                    {showCreateGroup && (
+                                        <div className="bg-card border border-border rounded-xl p-4 animate-in fade-in slide-in-from-top-2">
+                                            <h4 className="text-sm font-medium mb-2">Create New Group</h4>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={newGroupName}
+                                                    onChange={(e) => setNewGroupName(e.target.value)}
+                                                    placeholder="Group Name"
+                                                    className="flex-1 bg-secondary rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                                                />
+                                                <button
+                                                    onClick={handleCreateGroup}
+                                                    disabled={!newGroupName.trim()}
+                                                    className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium disabled:opacity-50"
+                                                    style={{ backgroundColor: 'var(--theme-primary)' }}
+                                                >
+                                                    Create
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {showJoinGroup && (
+                                        <div className="bg-card border border-border rounded-xl p-4 animate-in fade-in slide-in-from-top-2">
+                                            <h4 className="text-sm font-medium mb-2">Join Group</h4>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={joinCode}
+                                                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                                                    placeholder="Enter Code"
+                                                    className="flex-1 bg-secondary rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20 font-mono uppercase"
+                                                />
+                                                <button
+                                                    onClick={handleJoinGroup}
+                                                    disabled={!joinCode.trim()}
+                                                    className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium disabled:opacity-50"
+                                                    style={{ backgroundColor: 'var(--theme-primary)' }}
+                                                >
+                                                    Join
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <h3 className="text-sm font-semibold text-muted-foreground mt-6 mb-2">My Groups</h3>
+                                    {groups.length === 0 ? (
+                                        <div className="text-center py-8 text-muted-foreground text-sm bg-secondary/30 rounded-xl border border-dashed border-border">
+                                            You haven't joined any groups yet.
+                                        </div>
+                                    ) : (
+                                        <div className="grid gap-3">
+                                            {groups.map(group => (
+                                                <button
+                                                    key={group.id}
+                                                    onClick={() => handleGroupClick(group.id)}
+                                                    className="flex items-center justify-between p-4 bg-card border border-border rounded-xl hover:bg-secondary/50 transition-colors text-left"
+                                                >
+                                                    <div>
+                                                        <div className="font-medium">{group.name}</div>
+                                                        <div className="text-xs text-muted-foreground mt-0.5">Code: {group.code}</div>
+                                                    </div>
+                                                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Global Leaderboard */}
+                                <div className="bg-card border border-border rounded-2xl p-6 shadow-sm mt-6">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h3 className="text-lg font-bold flex items-center gap-2">
+                                            <span className="text-2xl">🏆</span> Global Leaderboard
+                                        </h3>
+                                        <div className="text-xs text-muted-foreground bg-secondary px-3 py-1 rounded-full">
+                                            Top 50
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        {leaderboard.map((user, index) => (
+                                            <div key={user.id} className="flex items-center gap-4 p-3 rounded-xl hover:bg-secondary/50 transition-colors">
+                                                <div className={`w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm ${index === 0 ? "bg-yellow-500/20 text-yellow-500" :
+                                                    index === 1 ? "bg-zinc-400/20 text-zinc-400" :
+                                                        index === 2 ? "bg-orange-500/20 text-orange-500" :
+                                                            "bg-secondary text-muted-foreground"
+                                                    }`}>
+                                                    {index + 1}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="font-medium">{user.displayName || user.username}</div>
+                                                    <div className="text-xs text-muted-foreground">
+                                                        Today: {Math.round(user.todayFocusTime / 60)}h {user.todayFocusTime % 60}m
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="font-bold text-primary" style={{ color: 'var(--theme-primary)' }}>
+                                                        {Math.round(user.totalFocusTime / 60)}h
+                                                    </div>
+                                                    <div className="text-[10px] text-muted-foreground">Total</div>
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {leaderboard.length === 0 && (
+                                            <div className="text-center py-12 text-muted-foreground">
+                                                <p>No warriors found yet.</p>
+                                                <p className="text-xs mt-1">Start focusing to join the battlefield!</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
-                )}
+                ) : null}
             </div>
 
             <BottomNav />

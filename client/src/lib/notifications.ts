@@ -23,13 +23,12 @@ export async function scheduleNotification(
             return;
         }
 
-        const sound = localStorage.getItem('alarm_sound') || undefined;
-        // Map sound names to resource files if needed, or use directly if they match
-        // Android resources should be lowercase and without extension in some contexts, 
-        // but Capacitor usually takes the filename. 
-        // Let's assume the values 'chime', 'melody', 'alert' match the raw files.
-        // If 'default', we pass undefined to use system default.
-        const soundPath = sound && sound !== 'default' ? `${sound}.mp3` : undefined;
+        // Use 'selected_alarm' from localStorage, default to 'alarm1' if not set
+        // But for actual notification sound on Android, we need a resource file.
+        // Since we don't have custom files in res/raw yet, we should use the system default.
+        // However, we can create a channel with 'IMPORTANCE_HIGH' to ensure it rings.
+
+        const channelId = 'assignflow_alarm_channel';
 
         await LocalNotifications.schedule({
             notifications: [
@@ -38,29 +37,27 @@ export async function scheduleNotification(
                     body,
                     id,
                     schedule: { at: scheduleTime },
-                    sound: soundPath,
+                    sound: undefined, // Use system default sound
                     attachments: undefined,
                     actionTypeId: "",
                     extra: null,
-                    channelId: sound && sound !== 'default' ? sound : undefined // Use channel for custom sounds on Android 8+
+                    channelId: channelId
                 }
             ]
         });
 
-        // Create channel if custom sound (Android 8+)
-        if (sound && sound !== 'default') {
-            await LocalNotifications.createChannel({
-                id: sound,
-                name: sound.charAt(0).toUpperCase() + sound.slice(1),
-                importance: 5, // High importance
-                description: `Channel for ${sound} alarms`,
-                sound: `${sound}.mp3`,
-                visibility: 1,
-                vibration: true,
-            });
-        }
+        // Create channel with high importance
+        await LocalNotifications.createChannel({
+            id: channelId,
+            name: 'Task Alarms',
+            importance: 5, // High importance
+            description: 'Channel for task alarms',
+            sound: undefined, // Use system default
+            visibility: 1,
+            vibration: true,
+        });
 
-        console.log(`Notification scheduled for ${scheduleTime.toLocaleString()} with sound: ${soundPath}`);
+        console.log(`Notification scheduled for ${scheduleTime.toLocaleString()}`);
     } catch (error) {
         console.error("Error scheduling notification:", error);
     }

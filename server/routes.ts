@@ -96,7 +96,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const existingUser = await storage.getUserByUsername(username);
       if (existingUser) {
-        return res.status(400).json({ message: "Username already exists" });
+        // Generate suggestions
+        const suggestions = [
+          `${username}${Math.floor(Math.random() * 1000)}`,
+          `${username}_${new Date().getFullYear()}`,
+          `${username}${Math.floor(Math.random() * 100)}`
+        ];
+        return res.status(400).json({
+          message: "Username already exists",
+          suggestions
+        });
       }
 
       const user = await storage.createUser({
@@ -104,6 +113,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password,
         role: "user",
         displayName: username,
+        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
       });
 
       req.login(user, (err) => {
@@ -281,6 +291,181 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(feedback);
   });
 
+  // Analytics Routes
+  app.post("/api/analytics/sync", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const { totalTime, todayTime, date } = req.body;
+
+    try {
+      await storage.updateUserStats(
+        (req.user as any).id,
+        totalTime,
+        todayTime,
+        date
+      );
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/analytics/leaderboard", async (req, res) => {
+    try {
+      const leaderboard = await storage.getLeaderboard();
+      // Filter sensitive data
+      const safeLeaderboard = leaderboard.map(u => ({
+        id: u.id,
+        username: u.username,
+        displayName: u.displayName,
+        totalFocusTime: u.totalFocusTime || 0,
+        todayFocusTime: u.todayFocusTime || 0,
+        lastFocusDate: u.lastFocusDate
+      }));
+      res.json(safeLeaderboard);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Group Routes
+  app.post("/api/groups", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    try {
+      const { name } = req.body;
+      if (!name) {
+        return res.status(400).json({ message: "Group name is required" });
+      }
+      const group = await storage.createGroup(name, (req.user as any).id);
+      res.status(201).json(group);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/groups/join", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    try {
+      const { code } = req.body;
+      if (!code) {
+        return res.status(400).json({ message: "Group code is required" });
+      }
+      const group = await storage.getGroupByCode(code);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+      await storage.joinGroup(group.id, (req.user as any).id);
+      res.json({ message: "Joined group successfully", group });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/groups", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    try {
+      const groups = await storage.getUserGroups((req.user as any).id);
+      res.json(groups);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/groups/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+      const members = await storage.getGroupMembers(req.params.id);
+
+      // Filter sensitive data
+      const safeMembers = members.map(u => ({
+        id: u.id,
+        username: u.username,
+        displayName: u.displayName,
+        totalFocusTime: u.totalFocusTime || 0,
+        todayFocusTime: u.todayFocusTime || 0,
+        lastFocusDate: u.lastFocusDate
+      }));
+
+      res.json({ group, members: safeMembers });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Admin Routes
+  app.get("/api/admin/tasks", async (req, res) => {
+    if (!req.isAuthenticated() || (req.user as any).role !== "admin") {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    const tasks = await storage.getAllTasks();
+    res.json(tasks);
+  });
+
+  app.post("/api/admin/notifications", async (req, res) => {
+    if (!req.isAuthenticated() || (req.user as any).role !== "admin") {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    const { title, body } = req.body;
+    await storage.createNotification(title, body);
+    res.json({ success: true });
+  });
+
+  app.post("/api/admin/updates", async (req, res) => {
+    if (!req.isAuthenticated() || (req.user as any).role !== "admin") {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    const { version, notes, url } = req.body;
+    await storage.setUpdate(version, notes, url);
+    res.json({ success: true });
+  });
+
+  app.get("/api/updates", async (req, res) => {
+    const update = await storage.getUpdate();
+    if (update) {
+      res.json(update);
+    } else {
+      res.json({
+        version: "1.0.0",
+        url: "",
+        notes: "No updates available"
+      });
+    }
+  });
+
+  // Admin Seeding
+  (async () => {
+    try {
+      const adminUser = await storage.getUserByUsername("admin");
+      if (!adminUser) {
+        console.log("Seeding admin user...");
+        await storage.createUser({
+          username: "admin",
+          password: "admin@2007", // In a real app, this should be hashed!
+          role: "admin",
+          displayName: "Administrator",
+          avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=admin"
+        });
+        console.log("Admin user created.");
+      }
+    } catch (e) {
+      console.error("Error seeding admin:", e);
+    }
+  })();
+
   const upload = multer({ storage: multer.memoryStorage() });
 
   app.post("/api/quiz/generate", upload.single("pdf"), async (req, res) => {
@@ -361,6 +546,181 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("AI generation error:", error);
       res.status(500).json({ message: "Failed to generate content" });
+    }
+  });
+
+  // Image Analysis Route
+  app.post("/api/ai/analyze-image", upload.single("image"), async (req, res) => {
+    try {
+      if (!req.file) {
+        res.status(400).json({ message: "No image file uploaded" });
+        return;
+      }
+
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        res.status(500).json({ message: "Gemini API Key not configured" });
+        return;
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+      const prompt = "Analyze this image and provide a solution or explanation. If it's a math problem, solve it step-by-step. If it's a schedule, extract the timetable.";
+
+      const imagePart = {
+        inlineData: {
+          data: req.file.buffer.toString("base64"),
+          mimeType: req.file.mimetype,
+        },
+      };
+
+      const result = await model.generateContent([prompt, imagePart]);
+      const response = await result.response;
+      const text = response.text();
+
+      res.json({ text });
+    } catch (error: any) {
+      console.error("Image analysis error:", error);
+      res.status(500).json({ message: "Failed to analyze image" });
+    }
+  });
+
+  // PDF to Notes Route
+  app.post("/api/ai/pdf-to-notes", upload.single("pdf"), async (req, res) => {
+    try {
+      if (!req.file) {
+        res.status(400).json({ message: "No PDF file uploaded" });
+        return;
+      }
+
+      const dataBuffer = req.file.buffer;
+      const { createRequire } = await import("module");
+      const require = createRequire(import.meta.url);
+      const pdfParse = require("pdf-parse");
+
+      const data = await pdfParse(dataBuffer);
+      const text = data.text;
+
+      if (!text || text.length < 50) {
+        res.status(400).json({ message: "Not enough text found in PDF" });
+        return;
+      }
+
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        res.status(500).json({ message: "Gemini API Key not configured" });
+        return;
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+      const prompt = `
+        Summarize the following text into concise, handwritten-style study notes. 
+        Focus on key concepts, definitions, and important points. 
+        Use bullet points and short paragraphs.
+        Text: ${text.substring(0, 20000)}
+      `;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const notes = response.text();
+
+      res.json({ notes });
+    } catch (error: any) {
+      console.error("PDF to notes error:", error);
+      res.status(500).json({ message: "Failed to generate notes" });
+    }
+  });
+
+  // PDF to Timetable Route
+  app.post("/api/ai/pdf-to-timetable", upload.single("pdf"), async (req, res) => {
+    try {
+      if (!req.file) {
+        res.status(400).json({ message: "No PDF file uploaded" });
+        return;
+      }
+
+      const dataBuffer = req.file.buffer;
+      const { createRequire } = await import("module");
+      const require = createRequire(import.meta.url);
+      const pdfParse = require("pdf-parse");
+
+      const data = await pdfParse(dataBuffer);
+      const text = data.text;
+
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        res.status(500).json({ message: "Gemini API Key not configured" });
+        return;
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+      const prompt = `
+        Extract a study timetable or schedule from the following text.
+        Return a JSON array of objects with:
+        - "day": string (e.g., "Monday", "2023-10-27")
+        - "time": string (e.g., "10:00 AM - 11:00 AM")
+        - "subject": string
+        - "task": string
+        
+        If no explicit schedule is found, generate a suggested study plan based on the content.
+        Return ONLY valid JSON.
+        Text: ${text.substring(0, 20000)}
+      `;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const jsonString = response.text().replace(/```json/g, "").replace(/```/g, "").trim();
+      const timetable = JSON.parse(jsonString);
+
+      res.json(timetable);
+    } catch (error: any) {
+      console.error("PDF to timetable error:", error);
+      res.status(500).json({ message: "Failed to generate timetable" });
+    }
+  });
+
+  // YouTube Playlist Route
+  app.get("/api/youtube/playlist", async (req, res) => {
+    try {
+      const { listId } = req.query;
+      if (!listId) {
+        res.status(400).json({ message: "Playlist ID is required" });
+        return;
+      }
+
+      const apiKey = process.env.YOUTUBE_API_KEY;
+      if (!apiKey) {
+        // Fallback or error if no key. For now, error.
+        res.status(500).json({ message: "YouTube API Key not configured" });
+        return;
+      }
+
+      const response = await fetch(
+        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=${listId}&key=${apiKey}`
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || "Failed to fetch playlist");
+      }
+
+      const data = await response.json();
+      const videos = data.items.map((item: any) => ({
+        id: item.contentDetails.videoId,
+        title: item.snippet.title,
+        thumbnail: item.snippet.thumbnails?.medium?.url,
+        position: item.snippet.position
+      }));
+
+      res.json(videos);
+    } catch (error: any) {
+      console.error("YouTube playlist error:", error);
+      res.status(500).json({ message: error.message });
     }
   });
 

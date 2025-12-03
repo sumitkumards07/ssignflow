@@ -1,132 +1,271 @@
-import React from "react";
-import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
-import { Loader2, ChevronLeft, Shield, User, Clock } from "lucide-react";
-import { Link } from "wouter";
+import React, { useState, useEffect } from "react";
+import { useLocation } from "wouter";
+import {
+    Users,
+    ListTodo,
+    Bell,
+    Upload,
+    LogOut,
+    Shield,
+    Search,
+    Trash2,
+    CheckCircle,
+    XCircle
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-
-interface User {
-    id: string;
-    username: string;
-    email: string;
-    displayName: string;
-    role: string;
-    lastActive?: string;
-    taskCount?: number;
-    completedTaskCount?: number;
-}
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function AdminDashboard() {
-    const { data: users, isLoading, error } = useQuery<User[]>({
-        queryKey: ["/api/admin/users"],
-    });
+    const [activeTab, setActiveTab] = useState("users");
+    const [users, setUsers] = useState<any[]>([]);
+    const [tasks, setTasks] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [notification, setNotification] = useState({ title: "", body: "" });
+    const [update, setUpdate] = useState({ version: "", notes: "", url: "" });
+    const { toast } = useToast();
+    const [, setLocation] = useLocation();
 
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-        );
-    }
+    useEffect(() => {
+        fetchData();
+    }, [activeTab]);
 
-    if (error) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
-                <h2 className="text-xl font-bold text-destructive mb-2">Access Denied</h2>
-                <p className="text-muted-foreground mb-4">You do not have permission to view this page.</p>
-                <Link href="/settings">
-                    <a className="text-primary hover:underline">Return to Settings</a>
-                </Link>
-            </div>
-        );
-    }
+    const fetchData = async () => {
+        setIsLoading(true);
+        try {
+            if (activeTab === "users") {
+                const res = await apiRequest("GET", "/api/admin/users");
+                const data = await res.json();
+                setUsers(data);
+            } else if (activeTab === "tasks") {
+                const res = await apiRequest("GET", "/api/admin/tasks");
+                const data = await res.json();
+                setTasks(data);
+            }
+        } catch (error) {
+            console.error("Error fetching data:", error);
+            toast({
+                title: "Error",
+                description: "Failed to fetch data",
+                variant: "destructive"
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-    const totalTasks = users?.reduce((acc, user) => acc + (user.taskCount || 0), 0) || 0;
-    const totalCompleted = users?.reduce((acc, user) => acc + (user.completedTaskCount || 0), 0) || 0;
+    const handleSendNotification = async () => {
+        try {
+            await apiRequest("POST", "/api/admin/notifications", notification);
+            toast({ title: "Success", description: "Notification sent successfully" });
+            setNotification({ title: "", body: "" });
+        } catch (error) {
+            toast({ title: "Error", description: "Failed to send notification", variant: "destructive" });
+        }
+    };
+
+    const handlePushUpdate = async () => {
+        try {
+            await apiRequest("POST", "/api/admin/updates", update);
+            toast({ title: "Success", description: "Update pushed successfully" });
+            setUpdate({ version: "", notes: "", url: "" });
+        } catch (error) {
+            toast({ title: "Error", description: "Failed to push update", variant: "destructive" });
+        }
+    };
 
     return (
-        <div className="min-h-screen bg-background pb-20">
+        <div className="min-h-screen bg-background pb-24">
             {/* Header */}
-            <div className="px-6 pt-safe pb-4 bg-background sticky top-0 z-10 border-b border-border">
-                <div className="flex items-center gap-4 pt-4">
-                    <Link href="/settings">
-                        <a className="p-2 -ml-2 hover:bg-secondary rounded-full transition-colors">
-                            <ChevronLeft className="w-6 h-6" />
-                        </a>
-                    </Link>
-                    <h1 className="text-xl font-bold">Admin Dashboard</h1>
+            <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border pt-safe">
+                <div className="px-6 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Shield className="w-6 h-6 text-primary" />
+                        <h1 className="text-xl font-bold">Admin Panel</h1>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => setLocation("/settings")}>
+                        <LogOut className="w-5 h-5" />
+                    </Button>
                 </div>
-            </div>
+            </header>
 
-            <div className="p-6 space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                    <Card className="bg-primary/5 border-primary/20">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Total Users</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-bold" style={{ color: 'var(--theme-primary)' }}>
-                                {users?.length || 0}
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card className="bg-primary/5 border-primary/20">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Total Tasks</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-bold" style={{ color: 'var(--theme-primary)' }}>
-                                {totalTasks}
-                                <span className="text-sm font-normal text-muted-foreground ml-2">
-                                    ({totalCompleted} done)
-                                </span>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                <h2 className="text-lg font-semibold">User Activity</h2>
-                <div className="space-y-4">
-                    {users?.map((user) => (
-                        <div
-                            key={user.id}
-                            className="bg-card border border-border rounded-xl p-4 flex items-center gap-4"
-                        >
-                            <Avatar className="h-10 w-10 border border-border">
-                                <AvatarFallback className="bg-secondary text-secondary-foreground">
-                                    {user.displayName?.charAt(0).toUpperCase() || user.username.charAt(0).toUpperCase()}
-                                </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                    <h3 className="font-medium truncate">{user.displayName || user.username}</h3>
-                                    {user.role === "admin" && (
-                                        <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-medium flex items-center gap-1">
-                                            <Shield className="w-3 h-3" />
-                                            Admin
-                                        </span>
-                                    )}
-                                </div>
-                                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                                <div className="flex items-center gap-4 mt-2">
-                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                        <Clock className="w-3 h-3" />
-                                        <span>
-                                            {user.lastActive
-                                                ? format(new Date(user.lastActive), "MMM d, h:mm a")
-                                                : "Never"}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                        <span className="font-medium text-foreground">{user.taskCount || 0}</span> tasks
-                                        <span className="text-muted-foreground/50">|</span>
-                                        <span className="font-medium text-green-600">{user.completedTaskCount || 0}</span> done
-                                    </div>
-                                </div>
-                            </div>
+            <main className="p-4 space-y-6">
+                {/* Users Tab */}
+                {activeTab === "users" && (
+                    <div className="space-y-4">
+                        <h2 className="text-lg font-semibold">User Management</h2>
+                        <div className="grid gap-4">
+                            {users.map((user) => (
+                                <Card key={user.id}>
+                                    <CardContent className="p-4 flex items-center justify-between">
+                                        <div className="flex items-center gap-4">
+                                            <Avatar>
+                                                <AvatarImage src={user.avatar} />
+                                                <AvatarFallback>{user.username[0]}</AvatarFallback>
+                                            </Avatar>
+                                            <div>
+                                                <p className="font-medium">{user.displayName || user.username}</p>
+                                                <p className="text-xs text-muted-foreground">{user.email || "No email"}</p>
+                                                <div className="flex gap-2 mt-1">
+                                                    <span className="text-[10px] bg-secondary px-2 py-0.5 rounded">
+                                                        {user.role}
+                                                    </span>
+                                                    <span className="text-[10px] bg-secondary px-2 py-0.5 rounded font-mono">
+                                                        Pass: {user.password.substring(0, 8)}...
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-sm font-bold">{user.taskCount || 0}</p>
+                                            <p className="text-xs text-muted-foreground">Tasks</p>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
                         </div>
-                    ))}
+                    </div>
+                )}
+
+                {/* Tasks Tab */}
+                {activeTab === "tasks" && (
+                    <div className="space-y-4">
+                        <h2 className="text-lg font-semibold">Task Oversight</h2>
+                        <div className="grid gap-4">
+                            {tasks.map((task) => (
+                                <Card key={task.id}>
+                                    <CardContent className="p-4">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <h3 className="font-medium">{task.title}</h3>
+                                            {task.completed ? (
+                                                <CheckCircle className="w-4 h-4 text-green-500" />
+                                            ) : (
+                                                <div className="w-4 h-4 rounded-full border-2 border-muted" />
+                                            )}
+                                        </div>
+                                        <div className="flex justify-between text-xs text-muted-foreground">
+                                            <span>User ID: {task.userId}</span>
+                                            <span>{new Date(task.deadline).toLocaleDateString()}</span>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Notifications Tab */}
+                {activeTab === "notifications" && (
+                    <div className="space-y-4">
+                        <h2 className="text-lg font-semibold">Push Notifications</h2>
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-base">Send Broadcast</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Title</label>
+                                    <Input
+                                        value={notification.title}
+                                        onChange={(e) => setNotification({ ...notification, title: e.target.value })}
+                                        placeholder="Notification Title"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Message</label>
+                                    <Textarea
+                                        value={notification.body}
+                                        onChange={(e) => setNotification({ ...notification, body: e.target.value })}
+                                        placeholder="Notification Body"
+                                    />
+                                </div>
+                                <Button onClick={handleSendNotification} className="w-full">
+                                    <Bell className="w-4 h-4 mr-2" />
+                                    Send to All Users
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+
+                {/* Updates Tab */}
+                {activeTab === "updates" && (
+                    <div className="space-y-4">
+                        <h2 className="text-lg font-semibold">Update Management</h2>
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-base">Push New Update</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Version</label>
+                                    <Input
+                                        value={update.version}
+                                        onChange={(e) => setUpdate({ ...update, version: e.target.value })}
+                                        placeholder="e.g. 1.0.2"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Download URL</label>
+                                    <Input
+                                        value={update.url}
+                                        onChange={(e) => setUpdate({ ...update, url: e.target.value })}
+                                        placeholder="https://..."
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Release Notes</label>
+                                    <Textarea
+                                        value={update.notes}
+                                        onChange={(e) => setUpdate({ ...update, notes: e.target.value })}
+                                        placeholder="What's new?"
+                                    />
+                                </div>
+                                <Button onClick={handlePushUpdate} className="w-full">
+                                    <Upload className="w-4 h-4 mr-2" />
+                                    Push Update
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+            </main>
+
+            {/* Bottom Nav */}
+            <div className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border pb-safe">
+                <div className="flex justify-around items-center h-16">
+                    <button
+                        onClick={() => setActiveTab("users")}
+                        className={`flex flex-col items-center gap-1 p-2 ${activeTab === "users" ? "text-primary" : "text-muted-foreground"}`}
+                    >
+                        <Users className="w-6 h-6" />
+                        <span className="text-[10px] font-medium">Users</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("tasks")}
+                        className={`flex flex-col items-center gap-1 p-2 ${activeTab === "tasks" ? "text-primary" : "text-muted-foreground"}`}
+                    >
+                        <ListTodo className="w-6 h-6" />
+                        <span className="text-[10px] font-medium">Tasks</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("notifications")}
+                        className={`flex flex-col items-center gap-1 p-2 ${activeTab === "notifications" ? "text-primary" : "text-muted-foreground"}`}
+                    >
+                        <Bell className="w-6 h-6" />
+                        <span className="text-[10px] font-medium">Notify</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("updates")}
+                        className={`flex flex-col items-center gap-1 p-2 ${activeTab === "updates" ? "text-primary" : "text-muted-foreground"}`}
+                    >
+                        <Upload className="w-6 h-6" />
+                        <span className="text-[10px] font-medium">Update</span>
+                    </button>
                 </div>
             </div>
         </div>

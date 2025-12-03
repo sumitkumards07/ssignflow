@@ -13,6 +13,10 @@ export const users = pgTable("users", {
   role: text("role").default("user"), // 'admin' | 'user'
   lastActive: text("last_active"), // ISO string timestamp
   apiToken: text("api_token").unique(),
+  totalFocusTime: integer("total_focus_time").default(0), // in minutes
+  todayFocusTime: integer("today_focus_time").default(0), // in minutes
+  lastFocusDate: text("last_focus_date"), // YYYY-MM-DD
+  avatar: text("avatar"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -22,6 +26,10 @@ export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
   displayName: true,
   role: true,
+  totalFocusTime: true,
+  todayFocusTime: true,
+  lastFocusDate: true,
+  avatar: true,
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -67,3 +75,35 @@ export const insertFeedbackSchema = createInsertSchema(feedback).pick({
 
 export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
 export type Feedback = typeof feedback.$inferSelect;
+
+export const groups = pgTable("groups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  code: text("code").notNull().unique(),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: text("created_at").default(new Date().toISOString()),
+});
+
+export const insertGroupSchema = createInsertSchema(groups).pick({
+  name: true,
+  code: true,
+  createdBy: true,
+});
+
+export type InsertGroup = z.infer<typeof insertGroupSchema>;
+export type Group = typeof groups.$inferSelect;
+
+export const groupMembers = pgTable("group_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").references(() => groups.id),
+  userId: varchar("user_id").references(() => users.id),
+  joinedAt: text("joined_at").default(new Date().toISOString()),
+});
+
+export const insertGroupMemberSchema = createInsertSchema(groupMembers).pick({
+  groupId: true,
+  userId: true,
+});
+
+export type InsertGroupMember = z.infer<typeof insertGroupMemberSchema>;
+export type GroupMember = typeof groupMembers.$inferSelect;

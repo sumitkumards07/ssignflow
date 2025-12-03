@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Play, Pause, RotateCcw, SkipForward } from "lucide-react";
+import { Play, Pause, RotateCcw, SkipForward, Music, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -10,6 +10,9 @@ import { format, isSameDay } from "date-fns";
 import confetti from "canvas-confetti";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { playAlarmSound } from "@/lib/sounds";
+import { scheduleNotification } from "@/lib/notifications";
+import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/hooks/use-toast";
 
 interface PomodoroSession {
     taskId: string;
@@ -28,9 +31,19 @@ export default function PomodoroPage() {
     const [todos, setTodos] = useState<Todo[]>([]);
     const [sessionsCompleted, setSessionsCompleted] = useState(0);
     const [showSettings, setShowSettings] = useState(false);
+    const [showMusic, setShowMusic] = useState(false);
+    const [spotifyLink, setSpotifyLink] = useState("https://open.spotify.com/embed/playlist/37i9dQZF1DX8Uebhn9wzrS?utm_source=generator");
     const [customMinutes, setCustomMinutes] = useState(25);
+    const [dndEnabled, setDndEnabled] = useState(() => {
+        return localStorage.getItem('pomodoro_dnd') === 'true';
+    });
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
     const backgroundTimerRef = useRef<number | null>(null);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        localStorage.setItem('pomodoro_dnd', String(dndEnabled));
+    }, [dndEnabled]);
 
     useEffect(() => {
         const allTodos = getTodosFromStorage();
@@ -151,10 +164,24 @@ export default function PomodoroPage() {
         localStorage.removeItem('pomodoro_state');
         playAlarmSound();
 
+        if (dndEnabled) {
+            toast({
+                title: "Session Complete",
+                description: "You can disable Do Not Disturb mode now.",
+            });
+            scheduleNotification(
+                Date.now() + 2,
+                "Session Complete",
+                "You can disable Do Not Disturb mode now.",
+                new Date(Date.now() + 1000)
+            );
+        }
+
         if (!isBreak) {
             // Focus Session Completed
-            // Save session - Use totalTime for accurate duration (convert seconds to minutes)
-            const actualDurationMinutes = Math.floor(totalTime / 60);
+            // Save session - Use actual elapsed time for accurate duration
+            const elapsedSeconds = totalTime - timeLeft;
+            const actualDurationMinutes = Math.floor(elapsedSeconds / 60);
 
             const sessions = JSON.parse(localStorage.getItem("pomodoro_sessions") || "[]");
             const newSession: PomodoroSession = {
@@ -205,6 +232,19 @@ export default function PomodoroPage() {
     const toggleTimer = async () => {
         if (!isRunning) {
             // Starting timer
+            if (dndEnabled) {
+                toast({
+                    title: "Focus Mode",
+                    description: "Please enable Do Not Disturb mode for best focus.",
+                });
+                // Immediate notification for DND
+                scheduleNotification(
+                    Date.now() + 1,
+                    "Focus Mode Started",
+                    "Please enable Do Not Disturb mode on your device.",
+                    new Date(Date.now() + 1000)
+                );
+            }
             await scheduleBackgroundNotification();
             localStorage.setItem('pomodoro_state', JSON.stringify({
                 timeLeft,
@@ -272,13 +312,69 @@ export default function PomodoroPage() {
             {/* Header */}
             <div className="px-6 pb-6 flex items-center justify-between" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 2rem)' }}>
                 <h1 className="text-2xl font-medium">Pomodoro Timer</h1>
-                <button
-                    onClick={() => setShowSettings(true)}
-                    className="px-4 py-2 bg-secondary rounded-full text-sm hover:bg-secondary/80 transition-colors"
-                >
-                    ⚙️ Set Timer
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => setShowMusic(true)}
+                        className="p-2 bg-secondary rounded-full hover:bg-secondary/80 transition-colors"
+                    >
+                        <Music className="w-5 h-5" />
+                    </button>
+                    <button
+                        onClick={() => setShowSettings(true)}
+                        className="px-4 py-2 bg-secondary rounded-full text-sm hover:bg-secondary/80 transition-colors"
+                    >
+                        ⚙️ Set Timer
+                    </button>
+                </div>
             </div>
+
+            {/* Music Player Dialog */}
+            {showMusic && (
+                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6" onClick={() => setShowMusic(false)}>
+                    <div className="bg-card rounded-2xl p-4 max-w-sm w-full border border-border" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold">Focus Music</h3>
+                            <button onClick={() => setShowMusic(false)} className="p-1 hover:bg-secondary rounded-full">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="mb-4">
+                            <input
+                                type="text"
+                                placeholder="Paste Spotify Link (Song/Playlist)"
+                                className="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-sm mb-2"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        const target = e.target as HTMLInputElement;
+                                        const url = target.value;
+                                        if (url.includes('spotify.com')) {
+                                            // Convert to embed URL
+                                            // https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT
+                                            // -> https://open.spotify.com/embed/track/4cOdK2wGLETKBW3PvgPWqT
+                                            const embedUrl = url.replace('open.spotify.com/', 'open.spotify.com/embed/');
+                                            setSpotifyLink(embedUrl);
+                                            target.value = '';
+                                        }
+                                    }
+                                }}
+                            />
+                            <p className="text-[10px] text-muted-foreground">Paste link and press Enter</p>
+                        </div>
+
+                        <iframe
+                            style={{ borderRadius: '12px' }}
+                            src={spotifyLink}
+                            width="100%"
+                            height="80"
+                            frameBorder="0"
+                            allowFullScreen
+                            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                            loading="lazy"
+                        ></iframe>
+                    </div>
+                </div>
+            )}
 
             {/* Timer Settings Dialog */}
             {showSettings && (
@@ -295,6 +391,13 @@ export default function PomodoroPage() {
                                     className="w-full bg-background border border-border rounded-xl px-4 py-3"
                                     min="1"
                                     max="120"
+                                />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm text-muted-foreground">DND Reminders</label>
+                                <Switch
+                                    checked={dndEnabled}
+                                    onCheckedChange={setDndEnabled}
                                 />
                             </div>
                             <div className="flex gap-3">
@@ -423,6 +526,17 @@ export default function PomodoroPage() {
                             <Play className="w-8 h-8 ml-1 text-white" />
                         )}
                     </button>
+
+                    {/* Complete Early Button */}
+                    {isRunning && !isBreak && (
+                        <button
+                            onClick={handlePomodoroComplete}
+                            className="w-14 h-14 rounded-2xl bg-secondary/80 backdrop-blur-xl border border-border flex items-center justify-center hover:bg-secondary transition-all"
+                            title="Complete Early"
+                        >
+                            <Check className="w-5 h-5 text-green-500" />
+                        </button>
+                    )}
 
                     {/* Skip Break Button */}
                     {isBreak && (

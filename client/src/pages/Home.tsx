@@ -167,7 +167,7 @@ export default function Home() {
         onAdd={handleAddTask}
       />
 
-      <BottomNav onAddClick={() => setIsDrawerOpen(true)} />
+      <BottomNav />
 
       {/* Confirmation Dialogs */}
       <AlertDialog open={!!taskToComplete} onOpenChange={(open) => !open && setTaskToComplete(null)}>

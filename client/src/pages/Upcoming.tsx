@@ -462,7 +462,14 @@ export default function UpcomingPage() {
                 </DialogContent>
             </Dialog>
 
-            <BottomNav onAddClick={() => setIsDrawerOpen(true)} />
+            <Button
+                onClick={() => setIsDrawerOpen(true)}
+                className="fixed bottom-24 right-6 w-14 h-14 rounded-full shadow-2xl bg-primary hover:bg-primary/90 z-50 flex items-center justify-center"
+            >
+                <Plus className="w-8 h-8 text-white" />
+            </Button>
+
+            <BottomNav />
         </div>
     );
 }
