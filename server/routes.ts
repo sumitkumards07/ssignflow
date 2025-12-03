@@ -502,42 +502,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin Seeding
-  (async () => {
-    try {
-      const adminUser = await storage.getUserByUsername("admin");
-      if (!adminUser) {
-        console.log("Seeding admin user...");
-        await storage.createUser({
-          username: "admin",
-          password: "admin@2007", // In a real app, this should be hashed!
-          role: "admin",
-          displayName: "Administrator",
-          avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=admin"
-        });
-        console.log("Admin user created.");
-      }
-
-      // Also promote 'sumitkumar' to admin if exists, or create if missing
-      let sumitUser = await storage.getUserByUsername("sumitkumar");
-      if (!sumitUser) {
-        console.log("Seeding sumitkumar user...");
-        sumitUser = await storage.createUser({
-          username: "sumitkumar",
-          password: "sk2007@",
-          role: "admin",
-          displayName: "Sumit Kumar",
-          avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=sumitkumar"
-        });
-        console.log("Sumitkumar user created.");
-      } else if (sumitUser.role !== "admin") {
-        console.log("Promoting sumitkumar to admin...");
-        await storage.updateUserRole(sumitUser.id, "admin");
-      }
-    } catch (e) {
-      console.error("Error seeding admin:", e);
-    }
-  })();
+  // Admin Seeding is now handled in storage.seed() called from index.ts
 
   const upload = multer({ storage: multer.memoryStorage() });
 

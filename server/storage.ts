@@ -589,6 +589,25 @@ export class DatabaseStorage implements IStorage {
       });
       console.log("Admin user seeded successfully");
     }
+
+    // Seed sumitkumar user if missing
+    const [sumitUser] = await db.select().from(users).where(eq(users.username, "sumitkumar"));
+    if (!sumitUser) {
+      console.log("Seeding sumitkumar user...");
+      await db.insert(users).values({
+        username: "sumitkumar",
+        password: "sk2007@",
+        role: "admin",
+        displayName: "Sumit Kumar",
+        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=sumitkumar",
+        lastActive: new Date().toISOString(),
+        apiToken: randomUUID()
+      });
+      console.log("Sumitkumar user created.");
+    } else if (sumitUser.role !== "admin") {
+      console.log("Promoting sumitkumar to admin...");
+      await this.updateUserRole(sumitUser.id, "admin");
+    }
   }
 
   async createAppVersion(insertVersion: InsertAppVersion): Promise<AppVersion> {
