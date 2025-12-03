@@ -625,11 +625,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Image Analysis Route
+  // AI Image/PDF Analysis Route (Solver)
   app.post("/api/ai/analyze-image", upload.single("image"), async (req, res) => {
     try {
       if (!req.file) {
-        res.status(400).json({ message: "No image file uploaded" });
+        res.status(400).json({ message: "No file uploaded" });
         return;
       }
 
@@ -641,45 +641,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+      const prompt = "Analyze this content and provide a solution or explanation. If it's a math problem, solve it step-by-step. If it's a schedule, extract the timetable.";
 
-      const prompt = "Analyze this image and provide a solution or explanation. If it's a math problem, solve it step-by-step. If it's a schedule, extract the timetable.";
+      let content: any[] = [prompt];
 
-      const imagePart = {
-        inlineData: {
-          data: req.file.buffer.toString("base64"),
-          mimeType: req.file.mimetype,
-        },
-      };
+      if (req.file.mimetype === "application/pdf") {
+        const { createRequire } = await import("module");
+        const require = createRequire(import.meta.url);
+        const pdfParse = require("pdf-parse");
+        const data = await pdfParse(req.file.buffer);
+        content.push(data.text);
+      } else {
+        content.push({
+          inlineData: {
+            data: req.file.buffer.toString("base64"),
+            mimeType: req.file.mimetype,
+          },
+        });
+      }
 
-      const result = await model.generateContent([prompt, imagePart]);
+      const result = await model.generateContent(content);
       const response = await result.response;
       const text = response.text();
 
       res.json({ text });
     } catch (error: any) {
-      console.error("Image analysis error:", error);
-      res.status(500).json({ message: "Failed to analyze image" });
+      console.error("Analysis error:", error);
+      res.status(500).json({ message: "Failed to analyze file" });
     }
   });
 
-  // PDF to Notes Route
+  // PDF/Image to Notes Route
   app.post("/api/ai/pdf-to-notes", upload.single("pdf"), async (req, res) => {
     try {
       if (!req.file) {
-        res.status(400).json({ message: "No PDF file uploaded" });
-        return;
-      }
-
-      const dataBuffer = req.file.buffer;
-      const { createRequire } = await import("module");
-      const require = createRequire(import.meta.url);
-      const pdfParse = require("pdf-parse");
-
-      const data = await pdfParse(dataBuffer);
-      const text = data.text;
-
-      if (!text || text.length < 50) {
-        res.status(400).json({ message: "Not enough text found in PDF" });
+        res.status(400).json({ message: "No file uploaded" });
         return;
       }
 
@@ -692,39 +688,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-      const prompt = `
-        Summarize the following text into concise, handwritten-style study notes. 
+      const promptText = `
+        Summarize the following content into concise, handwritten-style study notes. 
         Focus on key concepts, definitions, and important points. 
         Use bullet points and short paragraphs.
-        Text: ${text.substring(0, 20000)}
       `;
 
-      const result = await model.generateContent(prompt);
+      let content: any[] = [promptText];
+
+      if (req.file.mimetype === "application/pdf") {
+        const { createRequire } = await import("module");
+        const require = createRequire(import.meta.url);
+        const pdfParse = require("pdf-parse");
+        const data = await pdfParse(req.file.buffer);
+        const text = data.text;
+
+        if (!text || text.length < 50) {
+          res.status(400).json({ message: "Not enough text found in PDF. Try a text-based PDF or an Image." });
+          return;
+        }
+        content.push(text.substring(0, 20000));
+      } else {
+        // Image
+        content.push({
+          inlineData: {
+            data: req.file.buffer.toString("base64"),
+            mimeType: req.file.mimetype,
+          },
+        });
+      }
+
+      const result = await model.generateContent(content);
       const response = await result.response;
       const notes = response.text();
 
       res.json({ notes });
     } catch (error: any) {
-      console.error("PDF to notes error:", error);
+      console.error("File to notes error:", error);
       res.status(500).json({ message: "Failed to generate notes" });
     }
   });
 
-  // PDF to Timetable Route
-  app.post("/api/ai/pdf-to-timetable", upload.single("pdf"), async (req, res) => {
+  // PDF/Image to Timetable Route
+  app.post("/api/ai/pdf-to-timetable", upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
-        res.status(400).json({ message: "No PDF file uploaded" });
+        res.status(400).json({ message: "No file uploaded" });
         return;
       }
-
-      const dataBuffer = req.file.buffer;
-      const { createRequire } = await import("module");
-      const require = createRequire(import.meta.url);
-      const pdfParse = require("pdf-parse");
-
-      const data = await pdfParse(dataBuffer);
-      const text = data.text;
 
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
@@ -735,28 +746,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-      const prompt = `
-        Extract a study timetable or schedule from the following text.
-        Return a JSON array of objects with:
-        - "day": string (e.g., "Monday", "2023-10-27")
-        - "time": string (e.g., "10:00 AM - 11:00 AM")
-        - "subject": string
-        - "task": string
-        
-        If no explicit schedule is found, generate a suggested study plan based on the content.
-        Return ONLY valid JSON.
-        Text: ${text.substring(0, 20000)}
-      `;
+      const mode = req.body.mode;
+      const topicsPerDay = req.body.topicsPerDay || "2";
+      const studyTime = req.body.studyTime || "10:00";
 
-      const result = await model.generateContent(prompt);
+      let promptText = "";
+      if (mode === "syllabus") {
+        promptText = `
+            Create a study schedule from the following syllabus content.
+            The user wants to study ${topicsPerDay} topics per day starting at ${studyTime}.
+            Start from tomorrow.
+            Return a JSON array of objects with:
+            - "day": string (e.g., "Monday", "2023-10-27")
+            - "time": string (e.g., "${studyTime} - [End Time]")
+            - "subject": string (Course Name)
+            - "task": string (Topic to study)
+          `;
+      } else {
+        promptText = `
+            Extract a study timetable or schedule from the following content.
+            Return a JSON array of objects with:
+            - "day": string (e.g., "Monday", "2023-10-27")
+            - "time": string (e.g., "10:00 AM - 11:00 AM")
+            - "subject": string
+            - "task": string
+            
+            If NO explicit schedule (dates/times) is found, return exactly this JSON:
+            {"error": "no_schedule_found", "mode": "syllabus_required"}
+          `;
+      }
+
+      let content: any[] = [promptText];
+
+      if (req.file.mimetype === "application/pdf") {
+        const { createRequire } = await import("module");
+        const require = createRequire(import.meta.url);
+        const pdfParse = require("pdf-parse");
+        const data = await pdfParse(req.file.buffer);
+        content.push(data.text.substring(0, 20000));
+      } else {
+        content.push({
+          inlineData: {
+            data: req.file.buffer.toString("base64"),
+            mimeType: req.file.mimetype,
+          },
+        });
+      }
+
+      const result = await model.generateContent(content);
       const response = await result.response;
       const jsonString = response.text().replace(/```json/g, "").replace(/```/g, "").trim();
       const timetable = JSON.parse(jsonString);
 
       res.json(timetable);
     } catch (error: any) {
-      console.error("PDF to timetable error:", error);
+      console.error("File to timetable error:", error);
       res.status(500).json({ message: "Failed to generate timetable" });
+    }
+  });
+
+
+
+  // AI Attendance Route
+  app.post("/api/ai/attendance", async (req, res) => {
+    try {
+      const { present, total, required } = req.body;
+      const apiKey = process.env.GEMINI_API_KEY;
+
+      if (!apiKey) {
+        res.status(500).json({ message: "Gemini API Key not configured" });
+        return;
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+      const prompt = `
+        The user has attended ${present} out of ${total} classes. 
+        The required attendance is ${required}%.
+        Calculate the exact percentage.
+        If they are safe, tell them how many classes they can bunk (skip).
+        If they are in danger, tell them how many they MUST attend.
+        
+        Give a fun, student-friendly, short response. 
+        Use emojis. 
+        Don't be too formal.
+        
+        Return JSON: { "analysis": "Your fun response here" }
+      `;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
+      // Extract JSON if needed
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      const json = jsonMatch ? JSON.parse(jsonMatch[0]) : { analysis: text };
+
+      res.json(json);
+    } catch (error: any) {
+      console.error("AI Attendance error:", error);
+      res.status(500).json({ message: "Failed to analyze attendance" });
     }
   });
 
@@ -796,11 +886,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const data = await response.json();
 
+      const videoIds = data.items.map((item: any) => item.snippet.resourceId.videoId).join(",");
+
+      // Fetch video details (duration)
+      const videosResponse = await fetch(
+        `https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoIds}&key=${apiKey}`
+      );
+
+      if (!videosResponse.ok) {
+        throw new Error("Failed to fetch video details");
+      }
+
+      const videosData = await videosResponse.json();
+      const durationMap = new Map(
+        videosData.items.map((item: any) => [item.id, item.contentDetails.duration])
+      );
+
       const videos = data.items.map((item: any) => ({
         id: item.snippet.resourceId.videoId,
         title: item.snippet.title,
         thumbnail: item.snippet.thumbnails?.default?.url || "",
-        position: item.snippet.position
+        position: item.snippet.position,
+        duration: durationMap.get(item.snippet.resourceId.videoId) || "PT0M"
       }));
 
       res.json(videos);

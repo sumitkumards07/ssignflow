@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, FileText, Image as ImageIcon, Youtube, BookOpen, Clock, Check, Loader2, ArrowRight, Plus, BrainCircuit, MessageSquare, ChevronLeft, Mic, Send, Download, Sparkles } from "lucide-react";
+import { Upload, FileText, Image as ImageIcon, Youtube, BookOpen, Clock, Check, Loader2, ArrowRight, Plus, BrainCircuit, MessageSquare, ChevronLeft, Mic, Send, Download, Sparkles, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -103,9 +103,9 @@ export function StudyAssistant() {
     };
 
     return (
-        <div className="h-full flex flex-col bg-background text-foreground relative">
+        <div className="h-full flex flex-col bg-background text-foreground relative md:max-w-4xl md:mx-auto md:border-x md:border-border shadow-sm">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-border bg-background/95 backdrop-blur z-10 pt-safe">
+            <div className="flex items-center justify-between p-4 border-b border-border bg-background/95 backdrop-blur z-10 pt-safe sticky top-0">
                 <div className="flex items-center gap-3">
                     {activeFeature || messages.length > 0 ? (
                         <Button variant="ghost" size="icon" onClick={() => { setActiveFeature(null); setMessages([]); }} className="-ml-2">
@@ -376,6 +376,39 @@ function NotesTab({ isLoading, setIsLoading, toast }: any) {
         }
     };
 
+    const downloadPDF = async () => {
+        if (!notes) return;
+        try {
+            const { jsPDF } = await import("jspdf");
+            const doc = new jsPDF();
+
+            // Add title
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(20);
+            doc.text("Study Notes", 20, 20);
+
+            // Add content
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(12);
+            const splitText = doc.splitTextToSize(notes, 170);
+            doc.text(splitText, 20, 40);
+
+            doc.save("study-notes.pdf");
+
+            toast({
+                title: "Downloaded",
+                description: "Notes saved as PDF.",
+            });
+        } catch (error) {
+            console.error("PDF download failed:", error);
+            toast({
+                title: "Error",
+                description: "Failed to download PDF.",
+                variant: "destructive",
+            });
+        }
+    };
+
     const handleGenerate = async () => {
         if (!file) return;
         setIsLoading(true);
@@ -388,14 +421,17 @@ function NotesTab({ isLoading, setIsLoading, toast }: any) {
                 body: formData,
             });
 
-            if (!res.ok) throw new Error("Failed to generate notes");
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.message || "Failed to generate notes");
+            }
 
             const data = await res.json();
             setNotes(data.notes);
-        } catch (error) {
+        } catch (error: any) {
             toast({
                 title: "Error",
-                description: "Failed to generate notes.",
+                description: error.message || "Failed to generate notes.",
                 variant: "destructive",
             });
         } finally {
@@ -416,9 +452,9 @@ function NotesTab({ isLoading, setIsLoading, toast }: any) {
                             className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-secondary/50 transition-colors"
                             onClick={() => fileInputRef.current?.click()}
                         >
-                            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf" className="hidden" />
+                            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf,image/*" className="hidden" />
                             <FileText className="w-12 h-12 text-muted-foreground mb-4" />
-                            <p className="text-muted-foreground">{file ? file.name : "Click to upload PDF"}</p>
+                            <p className="text-muted-foreground">{file ? file.name : "Click to upload PDF or Image"}</p>
                         </div>
 
                         {file && (
@@ -436,8 +472,12 @@ function NotesTab({ isLoading, setIsLoading, toast }: any) {
 
                 {notes && (
                     <Card className="bg-[#fff9e6] text-zinc-900 border-zinc-200 shadow-lg rotate-1 transform transition-transform hover:rotate-0">
-                        <CardHeader className="border-b border-zinc-200/50 pb-4">
+                        <CardHeader className="border-b border-zinc-200/50 pb-4 flex flex-row items-center justify-between">
                             <CardTitle className="font-handwriting text-2xl text-zinc-800">Study Notes</CardTitle>
+                            <Button variant="ghost" size="sm" onClick={downloadPDF} className="text-zinc-600 hover:text-zinc-900">
+                                <Download className="w-4 h-4 mr-2" />
+                                PDF
+                            </Button>
                         </CardHeader>
                         <CardContent className="pt-6">
                             <div className="font-handwriting text-lg leading-relaxed whitespace-pre-wrap" style={{ fontFamily: '"Comic Sans MS", "Chalkboard SE", sans-serif' }}>
@@ -456,13 +496,18 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
     const [timetable, setTimetable] = useState<any[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const [syllabusMode, setSyllabusMode] = useState(false);
+    const [topicsPerDay, setTopicsPerDay] = useState("2");
+    const [studyTime, setStudyTime] = useState("10:00");
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             setFile(e.target.files[0]);
             setTimetable([]);
+            setSyllabusMode(false);
             toast({
                 title: "File Uploaded",
-                description: "Thank you for uploading! Click 'Extract Timetable' to proceed.",
+                description: "Click 'Extract Timetable' to proceed.",
             });
         }
     };
@@ -474,19 +519,42 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
             const formData = new FormData();
             formData.append("pdf", file);
 
+            if (syllabusMode) {
+                formData.append("mode", "syllabus");
+                formData.append("topicsPerDay", topicsPerDay);
+                formData.append("studyTime", studyTime);
+            }
+
             const res = await fetch("/api/ai/pdf-to-timetable", {
                 method: "POST",
                 body: formData,
             });
 
-            if (!res.ok) throw new Error("Failed to generate timetable");
+            if (!res.ok) {
+                const errorData = await res.json();
+                if (res.status === 422 && errorData.mode === "syllabus_required") {
+                    setSyllabusMode(true);
+                    toast({
+                        title: "Syllabus Detected",
+                        description: "No schedule found. Please configure study plan settings.",
+                    });
+                    return;
+                }
+                throw new Error(errorData.message || "Failed to generate timetable");
+            }
 
             const data = await res.json();
             setTimetable(Array.isArray(data) ? data : []);
-        } catch (error) {
+            setSyllabusMode(false);
+
+            toast({
+                title: "Success",
+                description: "Timetable generated successfully.",
+            });
+        } catch (error: any) {
             toast({
                 title: "Error",
-                description: "Failed to generate timetable.",
+                description: error.message || "Failed to generate timetable.",
                 variant: "destructive",
             });
         } finally {
@@ -500,17 +568,41 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
                 <Card className="border-border bg-card">
                     <CardHeader>
                         <CardTitle>PDF to Timetable</CardTitle>
-                        <CardDescription>Extract schedule from course documents</CardDescription>
+                        <CardDescription>Extract schedule or create plan from syllabus</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div
                             className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-secondary/50 transition-colors"
                             onClick={() => fileInputRef.current?.click()}
                         >
-                            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf" className="hidden" />
+                            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf,image/*" className="hidden" />
                             <Clock className="w-12 h-12 text-muted-foreground mb-4" />
-                            <p className="text-muted-foreground">{file ? file.name : "Click to upload PDF"}</p>
+                            <p className="text-muted-foreground">{file ? file.name : "Click to upload PDF or Image"}</p>
                         </div>
+
+                        {syllabusMode && (
+                            <div className="mt-4 space-y-4 p-4 bg-secondary/30 rounded-lg border border-border">
+                                <p className="text-sm font-medium">Configure Study Plan</p>
+                                <div className="space-y-2">
+                                    <Label>Topics per Day</Label>
+                                    <Input
+                                        type="number"
+                                        value={topicsPerDay}
+                                        onChange={(e) => setTopicsPerDay(e.target.value)}
+                                        className="bg-background"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Study Time</Label>
+                                    <Input
+                                        type="time"
+                                        value={studyTime}
+                                        onChange={(e) => setStudyTime(e.target.value)}
+                                        className="bg-background"
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         {file && (
                             <Button
@@ -519,7 +611,7 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
                                 className="w-full mt-4"
                             >
                                 {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Clock className="w-4 h-4 mr-2" />}
-                                Extract Timetable
+                                {syllabusMode ? "Generate Study Plan" : "Extract Timetable"}
                             </Button>
                         )}
                     </CardContent>
@@ -577,13 +669,77 @@ function CoursesTab({ isLoading, setIsLoading, toast }: any) {
         }
     };
 
+    const [isCreating, setIsCreating] = useState(false);
+
+    const parseDuration = (duration: string) => {
+        const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+        if (!match) return 0;
+        const hours = parseInt(match[1] || '0', 10);
+        const minutes = parseInt(match[2] || '0', 10);
+        const seconds = parseInt(match[3] || '0', 10);
+        return hours * 60 + minutes + Math.round(seconds / 60); // Return total minutes, rounding seconds
+    };
+
+    const handleCreateSchedule = async () => {
+        setIsCreating(true);
+        try {
+            const { apiRequest } = await import("@/lib/queryClient");
+
+            const [startHours, startMinutes] = scheduleConfig.time.split(":").map(Number);
+            let currentDate = new Date();
+            currentDate.setHours(startHours, startMinutes, 0, 0);
+
+            let tasksCreated = 0;
+
+            for (let i = 0; i < videos.length; i++) {
+                const video = videos[i];
+                const durationMinutes = parseDuration(video.duration) || 30; // Fallback to 30 mins
+
+                // Calculate end time
+                const endTime = new Date(currentDate.getTime() + durationMinutes * 60000);
+
+                await apiRequest("POST", "/api/tasks", {
+                    title: `Watch: ${video.title}`,
+                    description: `YouTube Study Session. Duration: ${durationMinutes} mins`,
+                    dueDate: currentDate.toISOString(),
+                    completed: false,
+                });
+
+                tasksCreated++;
+
+                // Update time for next video
+                currentDate = endTime;
+
+                // If we exceeded videos per day, move to next day
+                if ((i + 1) % scheduleConfig.videosPerDay === 0) {
+                    currentDate.setDate(currentDate.getDate() + 1);
+                    currentDate.setHours(startHours, startMinutes, 0, 0);
+                }
+            }
+
+            toast({
+                title: "Schedule Added!",
+                description: `Successfully scheduled ${tasksCreated} study sessions.`,
+            });
+        } catch (error) {
+            console.error("Failed to create schedule:", error);
+            toast({
+                title: "Error",
+                description: "Failed to create study schedule.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
     return (
         <ScrollArea className="h-full p-4">
             <div className="space-y-6 max-w-md mx-auto">
                 <Card className="border-border bg-card">
                     <CardHeader>
                         <CardTitle>YouTube Course Scheduler</CardTitle>
-                        <CardDescription>Turn a playlist into a daily study plan</CardDescription>
+                        <CardDescription>Turn playlists into a daily study plan</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="flex gap-2">
@@ -612,7 +768,7 @@ function CoursesTab({ isLoading, setIsLoading, toast }: any) {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Study Time</Label>
+                                        <Label>Start Time</Label>
                                         <Input
                                             type="time"
                                             value={scheduleConfig.time}
@@ -622,8 +778,22 @@ function CoursesTab({ isLoading, setIsLoading, toast }: any) {
                                     </div>
                                 </div>
 
-                                <Button className="w-full bg-green-600 hover:bg-green-700">
-                                    Create Study Schedule
+                                <Button
+                                    onClick={handleCreateSchedule}
+                                    disabled={isLoading || isCreating}
+                                    className="w-full bg-green-600 hover:bg-green-700 relative overflow-hidden"
+                                >
+                                    {isCreating ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            <span>Hold on creating...</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <Calendar className="w-4 h-4 mr-2" />
+                                            Create Study Schedule
+                                        </>
+                                    )}
                                 </Button>
 
                                 <div className="space-y-2 mt-4">
@@ -636,6 +806,103 @@ function CoursesTab({ isLoading, setIsLoading, toast }: any) {
                                     ))}
                                     {videos.length > 5 && <p className="text-xs text-center text-muted-foreground">and {videos.length - 5} more...</p>}
                                 </div>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+        </ScrollArea>
+    );
+}
+
+function AttendanceTab() {
+    const [present, setPresent] = useState("");
+    const [total, setTotal] = useState("");
+    const [required, setRequired] = useState("75");
+    const [result, setResult] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+
+    const calculate = async () => {
+        if (!present || !total || !required) {
+            setResult("Please fill all fields!");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const res = await fetch("/api/ai/attendance", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ present, total, required }),
+            });
+
+            if (!res.ok) throw new Error("Failed to analyze");
+
+            const data = await res.json();
+            setResult(data.analysis);
+        } catch (error) {
+            // Fallback to local calculation if AI fails
+            const p = parseInt(present);
+            const t = parseInt(total);
+            const r = parseInt(required);
+            const current = (p / t) * 100;
+
+            if (current >= r) {
+                const bunkable = Math.floor((p * 100 - r * t) / r);
+                setResult(`You're safe! You can bunk ${bunkable} classes. (${current.toFixed(2)}%)`);
+            } else {
+                const needed = Math.ceil((r * t - 100 * p) / (100 - r));
+                setResult(`Danger! Attend ${needed} more classes! (${current.toFixed(2)}%)`);
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <ScrollArea className="h-full p-4">
+            <div className="space-y-6 max-w-md mx-auto">
+                <Card className="border-border bg-card">
+                    <CardHeader>
+                        <CardTitle>Attendance Calculator</CardTitle>
+                        <CardDescription>AI-Powered Bunk Manager</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                            <Label>Classes Attended</Label>
+                            <Input
+                                type="number"
+                                value={present}
+                                onChange={(e) => setPresent(e.target.value)}
+                                className="bg-secondary border-border"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Total Classes</Label>
+                            <Input
+                                type="number"
+                                value={total}
+                                onChange={(e) => setTotal(e.target.value)}
+                                className="bg-secondary border-border"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Required Percentage (%)</Label>
+                            <Input
+                                type="number"
+                                value={required}
+                                onChange={(e) => setRequired(e.target.value)}
+                                className="bg-secondary border-border"
+                            />
+                        </div>
+                        <Button onClick={calculate} className="w-full" disabled={loading}>
+                            {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <BrainCircuit className="w-4 h-4 mr-2" />}
+                            Analyze
+                        </Button>
+
+                        {result && (
+                            <div className="p-4 bg-secondary/50 rounded-lg text-center font-medium mt-4 animate-in fade-in slide-in-from-bottom-2">
+                                {result}
                             </div>
                         )}
                     </CardContent>
