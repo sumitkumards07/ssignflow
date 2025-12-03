@@ -458,20 +458,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.isAuthenticated() || (req.user as any).role !== "admin") {
       return res.status(403).json({ message: "Forbidden" });
     }
-    const { version, notes, url } = req.body;
-    await storage.setUpdate(version, notes, url);
+    const { versionCode, versionName, apkUrl, releaseNotes } = req.body;
+
+    if (!versionCode || !versionName || !apkUrl) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    await storage.createAppVersion({
+      versionCode: parseInt(versionCode),
+      versionName,
+      apkUrl,
+      releaseNotes
+    });
+
+    // Send Push Notification about update
+    // const users = await storage.getAllUsers();
+    // const tokens = users.map(u => u.pushToken).filter(t => t);
+    // if (tokens.length > 0) {
+    //   await sendMulticastNotification(tokens, "Update Available", `Version ${versionName} is now available.`);
+    // }
+
     res.json({ success: true });
   });
 
   app.get("/api/updates", async (req, res) => {
-    const update = await storage.getUpdate();
+    const update = await storage.getLatestAppVersion();
     if (update) {
       res.json(update);
     } else {
       res.json({
-        version: "1.0.0",
-        url: "",
-        notes: "No updates available"
+        versionCode: 1,
+        versionName: "1.0.0",
+        apkUrl: "",
+        releaseNotes: "No updates available"
       });
     }
   });
@@ -747,23 +766,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || "Failed to fetch playlist");
+        const errorData = await response.json();
+        console.error("YouTube API Error:", JSON.stringify(errorData, null, 2));
+
+        if (response.status === 403) {
+          return res.status(403).json({ message: "YouTube API Quota Exceeded or Invalid Key" });
+        }
+        if (response.status === 404) {
+          return res.status(404).json({ message: "Playlist not found" });
+        }
+
+        throw new Error(errorData.error?.message || "Failed to fetch playlist");
       }
 
       const data = await response.json();
+
       const videos = data.items.map((item: any) => ({
-        id: item.contentDetails.videoId,
+        id: item.snippet.resourceId.videoId,
         title: item.snippet.title,
-        thumbnail: item.snippet.thumbnails?.medium?.url,
+        thumbnail: item.snippet.thumbnails?.default?.url || "",
         position: item.snippet.position
       }));
 
       res.json(videos);
     } catch (error: any) {
       console.error("YouTube playlist error:", error);
-      console.error("Full error details:", JSON.stringify(error, null, 2));
-      res.status(500).json({ message: error.message, details: error });
+      res.status(500).json({ message: error.message || "Internal Server Error" });
     }
   });
 
