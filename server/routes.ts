@@ -810,7 +810,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Attendance Route
   app.post("/api/ai/attendance", async (req, res) => {
     try {
-      const { present, total, required } = req.body;
+      const { present, totalConducted, upcoming, required } = req.body;
       const apiKey = process.env.GEMINI_API_KEY;
 
       if (!apiKey) {
@@ -822,11 +822,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
       const prompt = `
-        The user has attended ${present} out of ${total} classes. 
+        The user has attended ${present} out of ${totalConducted} classes so far.
+        There are ${upcoming} more classes upcoming.
         The required attendance is ${required}%.
-        Calculate the exact percentage.
-        If they are safe, tell them how many classes they can bunk (skip).
-        If they are in danger, tell them how many they MUST attend.
+        
+        Calculate:
+        1. Current attendance percentage.
+        2. Max possible attendance if they attend all upcoming classes.
+        3. How many of the upcoming classes they MUST attend to reach/maintain ${required}%.
+        4. How many they can afford to miss (bunk) from the upcoming ones.
         
         Give a fun, student-friendly, short response. 
         Use emojis. 

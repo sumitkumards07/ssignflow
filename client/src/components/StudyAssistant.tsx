@@ -817,13 +817,14 @@ function CoursesTab({ isLoading, setIsLoading, toast }: any) {
 
 function AttendanceTab() {
     const [present, setPresent] = useState("");
-    const [total, setTotal] = useState("");
+    const [totalConducted, setTotalConducted] = useState("");
+    const [upcoming, setUpcoming] = useState("");
     const [required, setRequired] = useState("75");
     const [result, setResult] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
     const calculate = async () => {
-        if (!present || !total || !required) {
+        if (!present || !totalConducted || !upcoming || !required) {
             setResult("Please fill all fields!");
             return;
         }
@@ -833,7 +834,7 @@ function AttendanceTab() {
             const res = await fetch("/api/ai/attendance", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ present, total, required }),
+                body: JSON.stringify({ present, totalConducted, upcoming, required }),
             });
 
             if (!res.ok) throw new Error("Failed to analyze");
@@ -841,19 +842,8 @@ function AttendanceTab() {
             const data = await res.json();
             setResult(data.analysis);
         } catch (error) {
-            // Fallback to local calculation if AI fails
-            const p = parseInt(present);
-            const t = parseInt(total);
-            const r = parseInt(required);
-            const current = (p / t) * 100;
-
-            if (current >= r) {
-                const bunkable = Math.floor((p * 100 - r * t) / r);
-                setResult(`You're safe! You can bunk ${bunkable} classes. (${current.toFixed(2)}%)`);
-            } else {
-                const needed = Math.ceil((r * t - 100 * p) / (100 - r));
-                setResult(`Danger! Attend ${needed} more classes! (${current.toFixed(2)}%)`);
-            }
+            // Fallback logic if AI fails
+            setResult("AI Analysis failed. Please try again.");
         } finally {
             setLoading(false);
         }
@@ -869,7 +859,7 @@ function AttendanceTab() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="space-y-2">
-                            <Label>Classes Attended</Label>
+                            <Label>Classes Attended So Far</Label>
                             <Input
                                 type="number"
                                 value={present}
@@ -878,11 +868,20 @@ function AttendanceTab() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Total Classes</Label>
+                            <Label>Total Classes Conducted</Label>
                             <Input
                                 type="number"
-                                value={total}
-                                onChange={(e) => setTotal(e.target.value)}
+                                value={totalConducted}
+                                onChange={(e) => setTotalConducted(e.target.value)}
+                                className="bg-secondary border-border"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Upcoming Classes (Future)</Label>
+                            <Input
+                                type="number"
+                                value={upcoming}
+                                onChange={(e) => setUpcoming(e.target.value)}
                                 className="bg-secondary border-border"
                             />
                         </div>
