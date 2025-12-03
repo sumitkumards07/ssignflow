@@ -39,6 +39,8 @@ export default function Settings() {
       return {};
     }
   });
+  const [selectedAlarm, setSelectedAlarm] = React.useState(getSelectedAlarm());
+  const [soundsEnabled, setSounds] = React.useState(areSoundsEnabled());
 
   // Fetch fresh user data on mount
   React.useEffect(() => {
