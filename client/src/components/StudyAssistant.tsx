@@ -1,4 +1,3 @@
-```typescript
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, FileText, Image as ImageIcon, Youtube, BookOpen, Clock, Check, Loader2, ArrowRight, Plus, BrainCircuit, MessageSquare, ChevronLeft, Mic, Send, Download, Sparkles } from "lucide-react";
@@ -150,14 +149,13 @@ export function StudyAssistant() {
                                     {messages.map((msg) => (
                                         <div
                                             key={msg.id}
-                                            className={`flex ${ msg.role === "user" ? "justify-end" : "justify-start" } `}
+                                            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                                         >
                                             <div
-                                                className={`max - w - [85 %] rounded - 2xl p - 4 ${
-    msg.role === "user"
-    ? "bg-primary text-primary-foreground rounded-br-none"
-    : "bg-secondary text-secondary-foreground rounded-bl-none"
-} `}
+                                                className={`max-w-[85%] rounded-2xl p-4 ${msg.role === "user"
+                                                    ? "bg-primary text-primary-foreground rounded-br-none"
+                                                    : "bg-secondary text-secondary-foreground rounded-bl-none"
+                                                    }`}
                                             >
                                                 <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
                                                 {msg.role === "ai" && (
@@ -207,10 +205,10 @@ export function StudyAssistant() {
                                     <button
                                         key={feature.id}
                                         onClick={() => setActiveFeature(feature.id)}
-                                        className={`flex flex - col items - center justify - center p - 4 rounded - 2xl border border - border hover: bg - secondary / 50 transition - all ${ feature.id === 'quiz' ? 'col-span-2' : '' } `}
+                                        className={`flex flex-col items-center justify-center p-4 rounded-2xl border border-border hover:bg-secondary/50 transition-all ${feature.id === 'quiz' ? 'col-span-2' : ''}`}
                                     >
-                                        <div className={`w - 10 h - 10 rounded - full ${ feature.bg } flex items - center justify - center mb - 2`}>
-                                            <feature.icon className={`w - 5 h - 5 ${ feature.color } `} />
+                                        <div className={`w-10 h-10 rounded-full ${feature.bg} flex items-center justify-center mb-2`}>
+                                            <feature.icon className={`w-5 h-5 ${feature.color}`} />
                                         </div>
                                         <span className="font-medium text-sm">{feature.label}</span>
                                     </button>
@@ -555,7 +553,7 @@ function CoursesTab({ isLoading, setIsLoading, toast }: any) {
             const urlMatch = playlistId.match(/[?&]list=([^&]+)/);
             if (urlMatch) id = urlMatch[1];
 
-            const res = await apiRequest("GET", `/ api / youtube / playlist ? listId = ${ id } `);
+            const res = await apiRequest("GET", `/api/youtube/playlist?listId=${id}`);
             const data = await res.json();
             setVideos(data);
         } catch (error) {
@@ -636,4 +634,3 @@ function CoursesTab({ isLoading, setIsLoading, toast }: any) {
         </ScrollArea>
     );
 }
-```
