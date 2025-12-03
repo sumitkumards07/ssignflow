@@ -39,8 +39,24 @@ export default function Settings() {
       return {};
     }
   });
-  const [selectedAlarm, setSelectedAlarm] = React.useState(getSelectedAlarm());
-  const [soundsEnabled, setSounds] = React.useState(areSoundsEnabled());
+
+  // Fetch fresh user data on mount
+  React.useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const { apiRequest } = await import("@/lib/queryClient");
+        const res = await apiRequest("GET", "/api/auth/me");
+        if (res.ok) {
+          const freshUser = await res.json();
+          setUser(freshUser);
+          localStorage.setItem("user", JSON.stringify(freshUser));
+        }
+      } catch (e) {
+        console.error("Failed to fetch fresh user data", e);
+      }
+    };
+    fetchUser();
+  }, []);
 
   const handleUserChange = (key: string, value: string) => {
     const newUser = { ...user, [key]: value };
