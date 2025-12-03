@@ -843,7 +843,28 @@ function AttendanceTab() {
             setResult(data.analysis);
         } catch (error) {
             // Fallback logic if AI fails
-            setResult("AI Analysis failed. Please try again.");
+            const p = parseInt(present);
+            const t = parseInt(totalConducted);
+            const u = parseInt(upcoming);
+            const r = parseInt(required);
+
+            if (!isNaN(p) && !isNaN(t) && !isNaN(u) && !isNaN(r)) {
+                const totalClasses = t + u;
+                const requiredClasses = Math.ceil((totalClasses * r) / 100);
+                const deficit = requiredClasses - p;
+                const mustAttend = Math.max(0, deficit);
+                const canBunk = Math.max(0, u - mustAttend);
+
+                if (mustAttend > u) {
+                    setResult(`Impossible! Max possible is ${(((p + u) / totalClasses) * 100).toFixed(1)}%.`);
+                } else if (mustAttend > 0) {
+                    setResult(`Attend ${mustAttend} more classes. You can bunk ${canBunk}.`);
+                } else {
+                    setResult(`Safe! You can bunk ${canBunk} classes.`);
+                }
+            } else {
+                setResult("Calculation failed. Check inputs.");
+            }
         } finally {
             setLoading(false);
         }

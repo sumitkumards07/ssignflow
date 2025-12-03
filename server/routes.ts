@@ -818,23 +818,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
+      // Hardcoded Math Logic to prevent AI hallucinations
+      const p = parseInt(present);
+      const t = parseInt(totalConducted);
+      const u = parseInt(upcoming);
+      const r = parseInt(required);
+
+      const totalClasses = t + u;
+      const requiredClasses = Math.ceil((totalClasses * r) / 100);
+      const deficit = requiredClasses - p;
+
+      const mustAttend = Math.max(0, deficit);
+      const canBunk = Math.max(0, u - mustAttend);
+      const currentPercentage = ((p / t) * 100).toFixed(2);
+      const maxPossiblePercentage = (((p + u) / totalClasses) * 100).toFixed(2);
+
+      let status = "";
+      if (mustAttend > u) {
+        status = `Even if you attend ALL ${u} upcoming classes, you will only reach ${maxPossiblePercentage}%. You cannot reach ${r}%.`;
+      } else if (mustAttend > 0) {
+        status = `You MUST attend ${mustAttend} out of ${u} upcoming classes to reach ${r}%. You can bunk ${canBunk}.`;
+      } else {
+        status = `You are safe! You can bunk ${canBunk} upcoming classes and still stay above ${r}%.`;
+      }
+
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
       const prompt = `
-        The user has attended ${present} out of ${totalConducted} classes so far.
-        There are ${upcoming} more classes upcoming.
-        The required attendance is ${required}%.
+        The user wants to know their attendance status.
+        Here is the mathematically correct data:
+        - Current Percentage: ${currentPercentage}%
+        - Target Percentage: ${r}%
+        - Upcoming Classes: ${u}
+        - Must Attend: ${mustAttend}
+        - Can Bunk: ${canBunk}
+        - Status Summary: "${status}"
         
-        Calculate:
-        1. Current attendance percentage.
-        2. Max possible attendance if they attend all upcoming classes.
-        3. How many of the upcoming classes they MUST attend to reach/maintain ${required}%.
-        4. How many they can afford to miss (bunk) from the upcoming ones.
-        
-        Give a fun, student-friendly, short response. 
+        Task:
+        Rewrite the "Status Summary" in a fun, student-friendly way. 
         Use emojis. 
-        Don't be too formal.
+        Keep the numbers EXACTLY as provided. Do NOT recalculate.
         
         Return JSON: { "analysis": "Your fun response here" }
       `;
