@@ -10,7 +10,7 @@ android {
     namespace "com.assignflow.app"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        setProperty("archivesBaseName", "app")
+        setProperty("archivesBaseName", "assignflow-v1.0.2")
         applicationId "com.assignflow.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion

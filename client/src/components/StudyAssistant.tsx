@@ -283,7 +283,7 @@ function SolverTab({ isLoading, setIsLoading, toast }: any) {
         setIsLoading(true);
         try {
             const formData = new FormData();
-            formData.append("image", image);
+            formData.append("file", image);
 
             const res = await fetch("/api/ai/analyze-image", {
                 method: "POST",
@@ -414,7 +414,7 @@ function NotesTab({ isLoading, setIsLoading, toast }: any) {
         setIsLoading(true);
         try {
             const formData = new FormData();
-            formData.append("pdf", file);
+            formData.append("file", file);
 
             const res = await fetch("/api/ai/pdf-to-notes", {
                 method: "POST",
@@ -517,7 +517,7 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
         setIsLoading(true);
         try {
             const formData = new FormData();
-            formData.append("pdf", file);
+            formData.append("file", file);
 
             if (syllabusMode) {
                 formData.append("mode", "syllabus");
@@ -701,7 +701,10 @@ function CoursesTab({ isLoading, setIsLoading, toast }: any) {
                 await apiRequest("POST", "/api/tasks", {
                     title: `Watch: ${video.title}`,
                     description: `YouTube Study Session. Duration: ${durationMinutes} mins`,
-                    dueDate: currentDate.toISOString(),
+                    deadline: currentDate.toISOString(),
+                    type: "assignment", // Default type
+                    courseCode: "YOUTUBE", // Placeholder
+                    sectionId: "self-study", // Placeholder
                     completed: false,
                 });
 

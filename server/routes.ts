@@ -188,6 +188,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/tasks", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const result = insertTaskSchema.safeParse(req.body);
       if (!result.success) {
@@ -626,7 +627,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI Image/PDF Analysis Route (Solver)
-  app.post("/api/ai/analyze-image", upload.single("image"), async (req, res) => {
+  app.post("/api/ai/analyze-image", upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
         res.status(400).json({ message: "No file uploaded" });
@@ -672,7 +673,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PDF/Image to Notes Route
-  app.post("/api/ai/pdf-to-notes", upload.single("pdf"), async (req, res) => {
+  app.post("/api/ai/pdf-to-notes", upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
         res.status(400).json({ message: "No file uploaded" });
