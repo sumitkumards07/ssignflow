@@ -595,10 +595,16 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
                 deadline.setHours(23, 59, 0, 0);
             }
 
+            // Helper to get local ISO string (without Z)
+            const toLocalISOString = (date: Date) => {
+                const offset = date.getTimezoneOffset() * 60000;
+                return new Date(date.getTime() - offset).toISOString().slice(0, -1);
+            };
+
             await apiRequest("POST", "/api/tasks", {
                 title: item.task || "Study Task",
                 description: `Subject: ${item.subject}. Time: ${item.time}`,
-                deadline: deadline.toISOString(),
+                deadline: toLocalISOString(deadline), // Send local time
                 type: "assignment",
                 courseCode: (item.subject || "General").substring(0, 10),
                 sectionId: "self-study",
@@ -770,40 +776,43 @@ function CoursesTab({ isLoading, setIsLoading, toast }: any) {
                 currentDate.setDate(currentDate.getDate() + 1);
             }
 
-            let tasksCreated = 0;
+            // Helper to get local ISO string (without Z)
+            const toLocalISOString = (date: Date) => {
+                const offset = date.getTimezoneOffset() * 60000;
+                return new Date(date.getTime() - offset).toISOString().slice(0, -1);
+            };
 
-            for (let i = 0; i < videos.length; i++) {
-                const video = videos[i];
-                const durationMinutes = parseDuration(video.duration) || 30; // Fallback to 30 mins
+            let videosScheduledToday = 0;
 
-                // Calculate end time
+            for (const video of videos) {
+                const durationMinutes = parseDuration(video.contentDetails.duration);
                 const endTime = new Date(currentDate.getTime() + durationMinutes * 60000);
 
                 await apiRequest("POST", "/api/tasks", {
-                    title: `Watch: ${video.title}`,
+                    title: `Watch: ${video.snippet.title}`,
                     description: `YouTube Study Session. Duration: ${durationMinutes} mins`,
-                    deadline: endTime.toISOString(),
+                    deadline: toLocalISOString(endTime), // Send local time
                     type: "assignment", // Default type
                     courseCode: "YOUTUBE", // Placeholder
                     sectionId: "self-study", // Placeholder
                     completed: false,
                 });
 
-                tasksCreated++;
-
-                // Update time for next video
-                currentDate = endTime;
-
-                // If we exceeded videos per day, move to next day
-                if ((i + 1) % scheduleConfig.videosPerDay === 0) {
+                // Move to next day if we've reached the limit
+                videosScheduledToday++;
+                if (videosScheduledToday >= scheduleConfig.videosPerDay) {
                     currentDate.setDate(currentDate.getDate() + 1);
                     currentDate.setHours(startHours, startMinutes, 0, 0);
+                    videosScheduledToday = 0;
+                } else {
+                    // Add buffer time (e.g., 10 mins) between videos if multiple per day
+                    currentDate = new Date(endTime.getTime() + 10 * 60000);
                 }
             }
 
             toast({
                 title: "Schedule Added!",
-                description: `Successfully scheduled ${tasksCreated} study sessions.`,
+                description: `Successfully scheduled ${videos.length} study sessions.`,
             });
         } catch (error) {
             console.error("Failed to create schedule:", error);
