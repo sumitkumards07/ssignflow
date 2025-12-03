@@ -562,6 +562,53 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
         }
     };
 
+    const handleAddTask = async (item: any) => {
+        try {
+            const { apiRequest } = await import("@/lib/queryClient");
+
+            // Parse time to get a deadline (assuming today or tomorrow)
+            const timeParts = item.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+            let deadline = new Date();
+
+            if (timeParts) {
+                let hours = parseInt(timeParts[1]);
+                const minutes = parseInt(timeParts[2]);
+                const period = timeParts[3];
+
+                if (period) {
+                    if (period.toUpperCase() === "PM" && hours < 12) hours += 12;
+                    if (period.toUpperCase() === "AM" && hours === 12) hours = 0;
+                }
+
+                deadline.setHours(hours, minutes, 0, 0);
+                if (deadline < new Date()) {
+                    deadline.setDate(deadline.getDate() + 1);
+                }
+            }
+
+            await apiRequest("POST", "/api/tasks", {
+                title: item.task,
+                description: `Subject: ${item.subject}. Time: ${item.time}`,
+                deadline: deadline.toISOString(),
+                type: "assignment",
+                courseCode: item.subject.substring(0, 10),
+                sectionId: "self-study",
+                completed: false,
+            });
+
+            toast({
+                title: "Task Added",
+                description: "Added to your todo list.",
+            });
+        } catch (error) {
+            toast({
+                title: "Error",
+                description: "Failed to add task.",
+                variant: "destructive",
+            });
+        }
+    };
+
     return (
         <ScrollArea className="h-full p-4">
             <div className="space-y-6 max-w-md mx-auto">
@@ -628,7 +675,11 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
                                         <p className="text-foreground mt-1">{item.subject}</p>
                                         <p className="text-sm text-muted-foreground">{item.task}</p>
                                     </div>
-                                    <Button size="sm" variant="outline" className="border-primary/50 text-primary hover:bg-primary/10">
+                                    <Button
+                                        size="sm"
+                                        className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+                                        onClick={() => handleAddTask(item)}
+                                    >
                                         <Plus className="w-4 h-4" />
                                     </Button>
                                 </CardContent>
@@ -689,6 +740,11 @@ function CoursesTab({ isLoading, setIsLoading, toast }: any) {
             let currentDate = new Date();
             currentDate.setHours(startHours, startMinutes, 0, 0);
 
+            // If the time has already passed today, start from tomorrow
+            if (currentDate < new Date()) {
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+
             let tasksCreated = 0;
 
             for (let i = 0; i < videos.length; i++) {
@@ -701,7 +757,7 @@ function CoursesTab({ isLoading, setIsLoading, toast }: any) {
                 await apiRequest("POST", "/api/tasks", {
                     title: `Watch: ${video.title}`,
                     description: `YouTube Study Session. Duration: ${durationMinutes} mins`,
-                    deadline: currentDate.toISOString(),
+                    deadline: endTime.toISOString(),
                     type: "assignment", // Default type
                     courseCode: "YOUTUBE", // Placeholder
                     sectionId: "self-study", // Placeholder

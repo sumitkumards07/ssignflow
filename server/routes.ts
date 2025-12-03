@@ -531,7 +531,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Admin Seeding is now handled in storage.seed() called from index.ts
 
-  const upload = multer({ storage: multer.memoryStorage() });
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+  });
 
   app.post("/api/quiz/generate", upload.single("pdf"), async (req, res) => {
     try {
@@ -627,7 +630,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI Image/PDF Analysis Route (Solver)
-  app.post("/api/ai/analyze-image", upload.single("file"), async (req, res) => {
+  app.post("/api/ai/analyze-image", (req, res, next) => {
+    upload.single("file")(req, res, (err) => {
+      if (err) {
+        console.error("Multer error:", err);
+        return res.status(400).json({ message: "File upload failed: " + err.message });
+      }
+      next();
+    });
+  }, async (req, res) => {
     try {
       if (!req.file) {
         res.status(400).json({ message: "No file uploaded" });
@@ -673,7 +684,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PDF/Image to Notes Route
-  app.post("/api/ai/pdf-to-notes", upload.single("file"), async (req, res) => {
+  app.post("/api/ai/pdf-to-notes", (req, res, next) => {
+    upload.single("file")(req, res, (err) => {
+      if (err) {
+        console.error("Multer error:", err);
+        return res.status(400).json({ message: "File upload failed: " + err.message });
+      }
+      next();
+    });
+  }, async (req, res) => {
     try {
       if (!req.file) {
         res.status(400).json({ message: "No file uploaded" });
@@ -726,12 +745,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ notes });
     } catch (error: any) {
       console.error("File to notes error:", error);
-      res.status(500).json({ message: "Failed to generate notes" });
+      res.status(500).json({ message: "Failed to generate notes: " + error.message });
     }
   });
 
   // PDF/Image to Timetable Route
-  app.post("/api/ai/pdf-to-timetable", upload.single("file"), async (req, res) => {
+  app.post("/api/ai/pdf-to-timetable", (req, res, next) => {
+    upload.single("file")(req, res, (err) => {
+      if (err) {
+        console.error("Multer error:", err);
+        return res.status(400).json({ message: "File upload failed: " + err.message });
+      }
+      next();
+    });
+  }, async (req, res) => {
     try {
       if (!req.file) {
         res.status(400).json({ message: "No file uploaded" });
