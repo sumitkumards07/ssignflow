@@ -131,7 +131,8 @@
     "@rollup/rollup-linux-x64-gnu": "*",
     "@tailwindcss/oxide-linux-x64-gnu": "*",
     "bufferutil": "^4.0.8",
-    "lightningcss-linux-x64-gnu": "*"
+    "lightningcss-linux-x64-gnu": "*",
+    "@esbuild/linux-x64": "*"
   },
   "overrides": {
     "esbuild": "^0.25.0"
