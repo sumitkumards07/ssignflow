@@ -33,6 +33,7 @@ export function StudyAssistant() {
         { id: "quiz", label: "Take Quiz", icon: BrainCircuit, color: "text-green-500", bg: "bg-green-500/10" },
         { id: "timetable", label: "Plan Schedule", icon: Clock, color: "text-orange-500", bg: "bg-orange-500/10" },
         { id: "courses", label: "Find Courses", icon: Youtube, color: "text-red-500", bg: "bg-red-500/10" },
+        { id: "attendance", label: "Attendance Calc", icon: Check, color: "text-teal-500", bg: "bg-teal-500/10" },
     ];
 
     useEffect(() => {
@@ -148,6 +149,7 @@ export function StudyAssistant() {
                             {activeFeature === "quiz" && <QuizInterface />}
                             {activeFeature === "timetable" && <TimetableTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
                             {activeFeature === "courses" && <CoursesTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
+                            {activeFeature === "attendance" && <AttendanceTab />}
                         </motion.div>
                     ) : messages.length > 0 ? (
                         <div className="h-full flex flex-col" ref={scrollRef}>
