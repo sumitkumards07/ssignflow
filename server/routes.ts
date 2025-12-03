@@ -538,7 +538,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-      const result = await model.generateContent(prompt);
+      const systemPrompt = `
+        You are an advanced AI Research Assistant. 
+        Your goal is to provide comprehensive, accurate, and well-structured answers.
+        
+        Guidelines:
+        - If the user asks a question, provide a detailed explanation.
+        - If the user asks for a summary, provide a concise but complete summary.
+        - Use formatting (bullet points, bold text) to make the answer readable.
+        - If you don't know the answer, admit it and suggest what you do know.
+        - Be helpful, polite, and professional.
+      `;
+
+      const result = await model.generateContent([systemPrompt, prompt]);
       const response = await result.response;
       const text = response.text();
 

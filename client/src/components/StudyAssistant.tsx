@@ -1,6 +1,7 @@
-import React, { useState, useRef } from "react";
+```typescript
+import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, FileText, Image as ImageIcon, Youtube, BookOpen, Clock, Check, Loader2, ArrowRight, Plus, BrainCircuit, MessageSquare, ChevronLeft, Mic, Send } from "lucide-react";
+import { Upload, FileText, Image as ImageIcon, Youtube, BookOpen, Clock, Check, Loader2, ArrowRight, Plus, BrainCircuit, MessageSquare, ChevronLeft, Mic, Send, Download, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,11 +11,22 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { QuizInterface } from "@/components/QuizInterface";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import jsPDF from "jspdf";
+
+interface Message {
+    id: string;
+    role: "user" | "ai";
+    content: string;
+    timestamp: number;
+}
 
 export function StudyAssistant() {
     const { toast } = useToast();
     const [activeFeature, setActiveFeature] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [inputValue, setInputValue] = useState("");
+    const scrollRef = useRef<HTMLDivElement>(null);
 
     const features = [
         { id: "solver", label: "Solve Problem", icon: ImageIcon, color: "text-purple-500", bg: "bg-purple-500/10" },
@@ -24,8 +36,69 @@ export function StudyAssistant() {
         { id: "courses", label: "Find Courses", icon: Youtube, color: "text-red-500", bg: "bg-red-500/10" },
     ];
 
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [messages]);
+
     const handleBack = () => {
         setActiveFeature(null);
+        setMessages([]);
+    };
+
+    const handleSendMessage = async () => {
+        if (!inputValue.trim()) return;
+
+        const userMsg: Message = {
+            id: Date.now().toString(),
+            role: "user",
+            content: inputValue,
+            timestamp: Date.now()
+        };
+
+        setMessages(prev => [...prev, userMsg]);
+        setInputValue("");
+        setIsLoading(true);
+
+        try {
+            const res = await apiRequest("POST", "/api/ai/generate", { prompt: userMsg.content });
+            const data = await res.json();
+
+            const aiMsg: Message = {
+                id: (Date.now() + 1).toString(),
+                role: "ai",
+                content: data.text,
+                timestamp: Date.now()
+            };
+            setMessages(prev => [...prev, aiMsg]);
+        } catch (error) {
+            toast({
+                title: "Error",
+                description: "Failed to get response.",
+                variant: "destructive"
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            handleSendMessage();
+        }
+    };
+
+    const downloadPDF = (content: string) => {
+        const doc = new jsPDF();
+        const splitText = doc.splitTextToSize(content, 180);
+        doc.text(splitText, 10, 10);
+        doc.save("study-assistant-response.pdf");
+        toast({
+            title: "Downloaded",
+            description: "Response saved as PDF.",
+        });
     };
 
     return (
@@ -33,8 +106,8 @@ export function StudyAssistant() {
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-border bg-background/95 backdrop-blur z-10 pt-safe">
                 <div className="flex items-center gap-3">
-                    {activeFeature ? (
-                        <Button variant="ghost" size="icon" onClick={handleBack} className="-ml-2">
+                    {activeFeature || messages.length > 0 ? (
+                        <Button variant="ghost" size="icon" onClick={() => { setActiveFeature(null); setMessages([]); }} className="-ml-2">
                             <ChevronLeft className="w-6 h-6" />
                         </Button>
                     ) : (
@@ -43,7 +116,7 @@ export function StudyAssistant() {
                         </div>
                     )}
                     <span className="font-semibold text-lg">
-                        {activeFeature ? features.find(f => f.id === activeFeature)?.label : "Study Assistant"}
+                        {activeFeature ? features.find(f => f.id === activeFeature)?.label : (messages.length > 0 ? "Chat" : "Study Assistant")}
                     </span>
                 </div>
                 <div className="flex gap-2">
@@ -56,7 +129,65 @@ export function StudyAssistant() {
             {/* Main Content */}
             <div className="flex-1 overflow-hidden relative">
                 <AnimatePresence mode="wait">
-                    {!activeFeature ? (
+                    {activeFeature ? (
+                        <motion.div
+                            key="feature"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="h-full"
+                        >
+                            {activeFeature === "solver" && <SolverTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
+                            {activeFeature === "notes" && <NotesTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
+                            {activeFeature === "quiz" && <QuizInterface />}
+                            {activeFeature === "timetable" && <TimetableTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
+                            {activeFeature === "courses" && <CoursesTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
+                        </motion.div>
+                    ) : messages.length > 0 ? (
+                        <div className="h-full flex flex-col" ref={scrollRef}>
+                            <ScrollArea className="flex-1 p-4">
+                                <div className="space-y-4 pb-4">
+                                    {messages.map((msg) => (
+                                        <div
+                                            key={msg.id}
+                                            className={`flex ${ msg.role === "user" ? "justify-end" : "justify-start" } `}
+                                        >
+                                            <div
+                                                className={`max - w - [85 %] rounded - 2xl p - 4 ${
+    msg.role === "user"
+    ? "bg-primary text-primary-foreground rounded-br-none"
+    : "bg-secondary text-secondary-foreground rounded-bl-none"
+} `}
+                                            >
+                                                <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
+                                                {msg.role === "ai" && (
+                                                    <div className="mt-2 pt-2 border-t border-black/10 flex justify-end">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-6 px-2 text-xs"
+                                                            onClick={() => downloadPDF(msg.content)}
+                                                        >
+                                                            <Download className="w-3 h-3 mr-1" />
+                                                            PDF
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {isLoading && (
+                                        <div className="flex justify-start">
+                                            <div className="bg-secondary rounded-2xl rounded-bl-none p-4 flex items-center gap-2">
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                <span className="text-sm text-muted-foreground">Thinking...</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </ScrollArea>
+                        </div>
+                    ) : (
                         <motion.div
                             key="home"
                             initial={{ opacity: 0, scale: 0.95 }}
@@ -76,47 +207,41 @@ export function StudyAssistant() {
                                     <button
                                         key={feature.id}
                                         onClick={() => setActiveFeature(feature.id)}
-                                        className={`flex flex-col items-center justify-center p-4 rounded-2xl border border-border hover:bg-secondary/50 transition-all ${feature.id === 'quiz' ? 'col-span-2' : ''}`}
+                                        className={`flex flex - col items - center justify - center p - 4 rounded - 2xl border border - border hover: bg - secondary / 50 transition - all ${ feature.id === 'quiz' ? 'col-span-2' : '' } `}
                                     >
-                                        <div className={`w-10 h-10 rounded-full ${feature.bg} flex items-center justify-center mb-2`}>
-                                            <feature.icon className={`w-5 h-5 ${feature.color}`} />
+                                        <div className={`w - 10 h - 10 rounded - full ${ feature.bg } flex items - center justify - center mb - 2`}>
+                                            <feature.icon className={`w - 5 h - 5 ${ feature.color } `} />
                                         </div>
                                         <span className="font-medium text-sm">{feature.label}</span>
                                     </button>
                                 ))}
                             </div>
                         </motion.div>
-                    ) : (
-                        <motion.div
-                            key="feature"
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            className="h-full"
-                        >
-                            {activeFeature === "solver" && <SolverTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
-                            {activeFeature === "notes" && <NotesTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
-                            {activeFeature === "quiz" && <QuizInterface />}
-                            {activeFeature === "timetable" && <TimetableTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
-                            {activeFeature === "courses" && <CoursesTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
-                        </motion.div>
                     )}
                 </AnimatePresence>
             </div>
 
-            {/* Chat Input (Visual Only for Home) */}
+            {/* Chat Input */}
             {!activeFeature && (
                 <div className="p-4 border-t border-border bg-background">
                     <div className="relative max-w-md mx-auto">
                         <Input
-                            placeholder="Message Study Assistant..."
+                            placeholder="Ask anything (e.g., 'What is AI?')..."
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
+                            onKeyDown={handleKeyDown}
                             className="pr-24 h-12 rounded-full bg-secondary border-transparent focus:border-primary/50"
                         />
                         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                             <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full text-muted-foreground">
                                 <Mic className="w-4 h-4" />
                             </Button>
-                            <Button size="icon" className="h-8 w-8 rounded-full bg-primary text-primary-foreground">
+                            <Button
+                                size="icon"
+                                onClick={handleSendMessage}
+                                disabled={!inputValue.trim() || isLoading}
+                                className="h-8 w-8 rounded-full bg-primary text-primary-foreground"
+                            >
                                 <ArrowRight className="w-4 h-4" />
                             </Button>
                         </div>
@@ -126,11 +251,6 @@ export function StudyAssistant() {
         </div>
     );
 }
-
-// ... (Rest of the components: SolverTab, NotesTab, TimetableTab, CoursesTab)
-// I need to make sure I include them in the replacement content or they will be lost if I replace the whole file.
-// The tool `replace_file_content` replaces a range. If I use StartLine: 1 and EndLine: 451, I must provide ALL content.
-// I will copy the existing components and adapt their styling.
 
 function SolverTab({ isLoading, setIsLoading, toast }: any) {
     const [image, setImage] = useState<File | null>(null);
@@ -144,6 +264,10 @@ function SolverTab({ isLoading, setIsLoading, toast }: any) {
             setImage(file);
             setPreview(URL.createObjectURL(file));
             setSolution("");
+            toast({
+                title: "File Uploaded",
+                description: "Thank you for uploading! Click 'Solve with AI' to proceed.",
+            });
         }
     };
 
@@ -237,6 +361,10 @@ function NotesTab({ isLoading, setIsLoading, toast }: any) {
         if (e.target.files && e.target.files[0]) {
             setFile(e.target.files[0]);
             setNotes("");
+            toast({
+                title: "File Uploaded",
+                description: "Thank you for uploading! Click 'Generate Notes' to proceed.",
+            });
         }
     };
 
@@ -324,6 +452,10 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
         if (e.target.files && e.target.files[0]) {
             setFile(e.target.files[0]);
             setTimetable([]);
+            toast({
+                title: "File Uploaded",
+                description: "Thank you for uploading! Click 'Extract Timetable' to proceed.",
+            });
         }
     };
 
@@ -423,7 +555,7 @@ function CoursesTab({ isLoading, setIsLoading, toast }: any) {
             const urlMatch = playlistId.match(/[?&]list=([^&]+)/);
             if (urlMatch) id = urlMatch[1];
 
-            const res = await apiRequest("GET", `/api/youtube/playlist?listId=${id}`);
+            const res = await apiRequest("GET", `/ api / youtube / playlist ? listId = ${ id } `);
             const data = await res.json();
             setVideos(data);
         } catch (error) {
@@ -504,5 +636,4 @@ function CoursesTab({ isLoading, setIsLoading, toast }: any) {
         </ScrollArea>
     );
 }
-
-import { Sparkles } from "lucide-react";
+```
