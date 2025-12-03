@@ -414,6 +414,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/groups/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Only creator or admin can delete
+      if (group.createdBy !== (req.user as any).id && (req.user as any).role !== "admin") {
+        return res.status(403).json({ message: "Only the group creator can delete this group" });
+      }
+
+      await storage.deleteGroup(req.params.id);
+      res.json({ message: "Group deleted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Admin Routes
   app.get("/api/admin/tasks", async (req, res) => {
     const user = req.user as any;

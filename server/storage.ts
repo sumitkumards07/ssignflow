@@ -43,6 +43,7 @@ export interface IStorage {
   getUserGroups(userId: string): Promise<Group[]>;
   joinGroup(groupId: string, userId: string): Promise<void>;
   getGroupMembers(groupId: string): Promise<User[]>;
+  deleteGroup(groupId: string): Promise<void>;
   seed(): Promise<void>;
   createAppVersion(version: InsertAppVersion): Promise<AppVersion>;
   getLatestAppVersion(): Promise<AppVersion | undefined>;
@@ -303,15 +304,23 @@ export class MemStorage implements IStorage {
   }
 
   async getGroupMembers(groupId: string): Promise<User[]> {
-    const memberEntries = Array.from(this.groupMembers.values())
-      .filter(m => m.groupId === groupId);
+    const members = Array.from(this.groupMembers.values())
+      .filter((m) => m.groupId === groupId)
+      .map((m) => m.userId ? this.users.get(m.userId) : undefined)
+      .filter((u): u is User => u !== undefined);
+    return members;
+  }
 
-    const members: User[] = [];
-    for (const m of memberEntries) {
-      const user = this.users.get(m.userId!);
-      if (user) members.push(user);
+  async deleteGroup(groupId: string): Promise<void> {
+    // Delete members
+    const entries = Array.from(this.groupMembers.entries());
+    for (const [key, member] of entries) {
+      if (member.groupId === groupId) {
+        this.groupMembers.delete(key);
+      }
     }
-    return members.sort((a, b) => (b.totalFocusTime || 0) - (a.totalFocusTime || 0));
+    // Delete group
+    this.groups.delete(groupId);
   }
 
   async seed(): Promise<void> {
@@ -558,6 +567,11 @@ export class DatabaseStorage implements IStorage {
       }
     }
     return groupUsers.sort((a, b) => (b.totalFocusTime || 0) - (a.totalFocusTime || 0));
+  }
+
+  async deleteGroup(groupId: string): Promise<void> {
+    await db.delete(groupMembers).where(eq(groupMembers.groupId, groupId));
+    await db.delete(groups).where(eq(groups.id, groupId));
   }
 
   async updatePushToken(userId: string, token: string): Promise<void> {

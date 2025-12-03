@@ -174,6 +174,22 @@ export default function AnalyticsPage() {
     const [showJoinGroup, setShowJoinGroup] = useState(false);
     const [newGroupName, setNewGroupName] = useState("");
     const [joinCode, setJoinCode] = useState("");
+    const [currentUser, setCurrentUser] = useState<any>(null);
+
+    // Fetch current user
+    useEffect(() => {
+        const fetchUser = async () => {
+            try {
+                const { apiRequest } = await import("@/lib/queryClient");
+                const res = await apiRequest("GET", "/api/auth/me");
+                const data = await res.json();
+                setCurrentUser(data);
+            } catch (error) {
+                console.error("Failed to fetch user:", error);
+            }
+        };
+        fetchUser();
+    }, []);
 
     // Sync stats to server
     useEffect(() => {
@@ -264,6 +280,19 @@ export default function AnalyticsPage() {
             setGroupMembers(data.members);
         } catch (error) {
             console.error("Failed to fetch group details:", error);
+        }
+    };
+
+    const handleDeleteGroup = async (groupId: string) => {
+        if (!confirm("Are you sure you want to delete this group? This action cannot be undone.")) return;
+        try {
+            const { apiRequest } = await import("@/lib/queryClient");
+            await apiRequest("DELETE", `/api/groups/${groupId}`);
+            setGroups(groups.filter(g => g.id !== groupId));
+            setSelectedGroup(null);
+        } catch (error) {
+            console.error("Failed to delete group:", error);
+            alert("Failed to delete group");
         }
     };
 
@@ -510,6 +539,14 @@ export default function AnalyticsPage() {
                                     <div className="text-xs text-muted-foreground bg-secondary px-3 py-1 rounded-full">
                                         Code: <span className="font-mono select-all">{selectedGroup.code}</span>
                                     </div>
+                                    {(currentUser?.id === selectedGroup.createdBy || currentUser?.role === "admin") && (
+                                        <button
+                                            onClick={() => handleDeleteGroup(selectedGroup.id)}
+                                            className="text-xs bg-red-500/10 text-red-500 hover:bg-red-500/20 px-3 py-1 rounded-full transition-colors ml-2"
+                                        >
+                                            Delete Group
+                                        </button>
+                                    )}
                                 </div>
 
                                 <div className="space-y-4">
