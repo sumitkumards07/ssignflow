@@ -26,7 +26,7 @@ export default function AdminDashboard() {
     const [tasks, setTasks] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [notification, setNotification] = useState({ title: "", body: "" });
-    const [update, setUpdate] = useState({ version: "", notes: "", url: "" });
+    const [update, setUpdate] = useState({ versionCode: "", versionName: "", apkUrl: "", releaseNotes: "" });
     const { toast } = useToast();
     const [, setLocation] = useLocation();
 
@@ -72,7 +72,7 @@ export default function AdminDashboard() {
         try {
             await apiRequest("POST", "/api/admin/updates", update);
             toast({ title: "Success", description: "Update pushed successfully" });
-            setUpdate({ version: "", notes: "", url: "" });
+            setUpdate({ versionCode: "", versionName: "", apkUrl: "", releaseNotes: "" });
         } catch (error) {
             toast({ title: "Error", description: "Failed to push update", variant: "destructive" });
         }
@@ -201,27 +201,38 @@ export default function AdminDashboard() {
                                 <CardTitle className="text-base">Push New Update</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Version</label>
-                                    <Input
-                                        value={update.version}
-                                        onChange={(e) => setUpdate({ ...update, version: e.target.value })}
-                                        placeholder="e.g. 1.0.2"
-                                    />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium">Version Code</label>
+                                        <Input
+                                            type="number"
+                                            value={update.versionCode}
+                                            onChange={(e) => setUpdate({ ...update, versionCode: e.target.value })}
+                                            placeholder="e.g. 10"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium">Version Name</label>
+                                        <Input
+                                            value={update.versionName}
+                                            onChange={(e) => setUpdate({ ...update, versionName: e.target.value })}
+                                            placeholder="e.g. 1.0.2"
+                                        />
+                                    </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium">Download URL</label>
+                                    <label className="text-sm font-medium">APK Download URL</label>
                                     <Input
-                                        value={update.url}
-                                        onChange={(e) => setUpdate({ ...update, url: e.target.value })}
+                                        value={update.apkUrl}
+                                        onChange={(e) => setUpdate({ ...update, apkUrl: e.target.value })}
                                         placeholder="https://..."
                                     />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">Release Notes</label>
                                     <Textarea
-                                        value={update.notes}
-                                        onChange={(e) => setUpdate({ ...update, notes: e.target.value })}
+                                        value={update.releaseNotes}
+                                        onChange={(e) => setUpdate({ ...update, releaseNotes: e.target.value })}
                                         placeholder="What's new?"
                                     />
                                 </div>
