@@ -608,6 +608,19 @@ export class DatabaseStorage implements IStorage {
       console.log("Promoting sumitkumar to admin...");
       await this.updateUserRole(sumitUser.id, "admin");
     }
+
+    // Seed latest app version (v1.0.4)
+    const latestVersion = await this.getLatestAppVersion();
+    if (!latestVersion || latestVersion.versionCode < 5) {
+      console.log("Seeding app version 1.0.4...");
+      await db.insert(appVersions).values({
+        versionCode: 5,
+        versionName: "1.0.4",
+        apkUrl: "https://assignflow-exuc.onrender.com/app-release.apk", // Assuming this is where it's hosted
+        releaseNotes: "New Features: Attendance Calculator, Improved AI Error Messages, Bug Fixes.",
+        createdAt: new Date().toISOString()
+      });
+    }
   }
 
   async createAppVersion(insertVersion: InsertAppVersion): Promise<AppVersion> {
