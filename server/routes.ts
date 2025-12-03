@@ -510,6 +510,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         console.log("Admin user created.");
       }
+
+      // Also promote 'sumitkumar' to admin if exists
+      const sumitUser = await storage.getUserByUsername("sumitkumar");
+      if (sumitUser && sumitUser.role !== "admin") {
+        console.log("Promoting sumitkumar to admin...");
+        await storage.updateUserRole(sumitUser.id, "admin");
+      }
     } catch (e) {
       console.error("Error seeding admin:", e);
     }
