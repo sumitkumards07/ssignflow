@@ -11,6 +11,10 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 export async function registerRoutes(app: Express): Promise<Server> {
   // Add CORS headers for mobile app
   app.use("/api", async (req, res, next) => {
+    // Log API Key status once (or on every request for debugging)
+    if (!process.env.GEMINI_API_KEY) {
+      console.warn("WARNING: GEMINI_API_KEY is not set!");
+    }
     const allowedOrigins = [
       "http://localhost:5173",
       "http://localhost:5001",

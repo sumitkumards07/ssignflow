@@ -72,9 +72,10 @@ export function StudyAssistant() {
             };
             setMessages(prev => [...prev, aiMsg]);
         } catch (error) {
+            console.error("Chat error:", error);
             toast({
                 title: "Error",
-                description: "Failed to get response.",
+                description: "Failed to get response. Check your internet or API Key.",
                 variant: "destructive"
             });
         } finally {
@@ -292,9 +293,10 @@ function SolverTab({ isLoading, setIsLoading, toast }: any) {
             const data = await res.json();
             setSolution(data.text);
         } catch (error) {
+            console.error("Analysis error:", error);
             toast({
-                title: "Error",
-                description: "Failed to analyze image. Please try again.",
+                title: "Analysis Failed",
+                description: "Could not analyze image. Ensure GEMINI_API_KEY is set.",
                 variant: "destructive",
             });
         } finally {
