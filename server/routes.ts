@@ -856,11 +856,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         - Status Summary: "${status}"
         
         Task:
-        Rewrite the "Status Summary" in a fun, student-friendly way. 
-        Use emojis. 
+        Rewrite the "Status Summary" in a fun, student-friendly way.
+        Keep it extremely short and concise.
+        Use bullet points.
+        Use emojis.
         Keep the numbers EXACTLY as provided. Do NOT recalculate.
         
-        Return JSON: { "analysis": "Your fun response here" }
+        Return JSON: { "analysis": "Your short bulleted response here" }
       `;
 
       const result = await model.generateContent(prompt);
