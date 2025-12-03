@@ -98,8 +98,9 @@ export default function Login() {
                         AssignFlow
                     </CardTitle>
                     <CardDescription className="text-zinc-300 text-base">
-                        {isRegistering ? "Create your account" : "Welcome back"}
+                        Welcome back! Please sign in to continue.
                     </CardDescription>
+                    <p className="text-xs text-zinc-500 mt-2">v1.0.2 (Build 12)</p>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <form onSubmit={handleLogin} className="space-y-4">

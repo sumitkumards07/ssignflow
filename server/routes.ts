@@ -717,17 +717,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let content: any[] = [promptText];
 
       if (req.file.mimetype === "application/pdf") {
-        const { createRequire } = await import("module");
-        const require = createRequire(import.meta.url);
-        const pdfParse = require("pdf-parse");
-        const data = await pdfParse(req.file.buffer);
-        const text = data.text;
-
-        if (!text || text.length < 50) {
-          res.status(400).json({ message: "Not enough text found in PDF. Try a text-based PDF or an Image." });
-          return;
-        }
-        content.push(text.substring(0, 20000));
+        // Send PDF directly to Gemini (supports up to 20MB for Flash 1.5/2.0)
+        // This avoids pdf-parse errors (DOMMatrix) and supports handwritten notes
+        content.push({
+          inlineData: {
+            data: req.file.buffer.toString("base64"),
+            mimeType: "application/pdf",
+          },
+        });
       } else {
         // Image
         content.push({
