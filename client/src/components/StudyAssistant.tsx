@@ -530,9 +530,17 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
                 body: formData,
             });
 
+            const text = await res.text();
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                console.error("Failed to parse JSON response:", text);
+                throw new Error(`Server Error: ${text.substring(0, 100)}...`);
+            }
+
             if (!res.ok) {
-                const errorData = await res.json();
-                if (res.status === 422 && errorData.mode === "syllabus_required") {
+                if (res.status === 422 && data.mode === "syllabus_required") {
                     setSyllabusMode(true);
                     toast({
                         title: "Syllabus Detected",
@@ -540,10 +548,8 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
                     });
                     return;
                 }
-                throw new Error(errorData.message || "Failed to generate timetable");
+                throw new Error(data.message || "Failed to generate timetable");
             }
-
-            const data = await res.json();
             setTimetable(Array.isArray(data) ? data : []);
             setSyllabusMode(false);
 

@@ -100,7 +100,7 @@ export default function Login() {
                     <CardDescription className="text-zinc-300 text-base">
                         Welcome back! Please sign in to continue.
                     </CardDescription>
-                    <p className="text-xs text-zinc-500 mt-2">v1.0.2 (Build 17)</p>
+                    <p className="text-xs text-zinc-500 mt-2">v1.0.2 (Build 18)</p>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <form onSubmit={handleLogin} className="space-y-4">

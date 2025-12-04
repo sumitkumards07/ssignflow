@@ -78,7 +78,15 @@ export function QuizChatbot({ trigger }: { trigger?: React.ReactNode }) {
             const prompt = `Generate 10 multiple-choice quiz questions from this text. Return ONLY a JSON array of objects with: question (string), options (array of 4 strings), correctAnswer (0-3 index), explanation (string). Text: ${text.substring(0, 20000)}`;
 
             const res = await apiRequest("POST", "/api/ai/generate", { prompt });
-            const data = await res.json();
+            // apiRequest returns the Response object
+            const responseText = await res.text();
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                console.error("Failed to parse JSON response:", responseText);
+                throw new Error(`Server Error: ${responseText.substring(0, 100)}...`);
+            }
             const jsonString = data.text.replace(/```json/g, "").replace(/```/g, "").trim();
             const questions = JSON.parse(jsonString);
 
