@@ -202,7 +202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const task = await storage.createTask({
         ...result.data,
         userId: (req.user as any).id
-      });
+      } as any);
       res.setHeader("Content-Type", "application/json");
       res.status(201).json({
         success: true,
@@ -536,7 +536,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
   });
 
-  app.post("/api/quiz/generate", upload.single("pdf"), async (req, res) => {
+  app.post("/api/quiz/generate", (req, res, next) => {
+    upload.single("pdf")(req, res, (err) => {
+      if (err) {
+        console.error("Multer error in quiz:", err);
+        return res.status(400).json({ message: "File upload failed: " + err.message });
+      }
+      next();
+    });
+  }, async (req, res) => {
     try {
       if (!req.file) {
         res.status(400).json({ message: "No PDF file uploaded" });
@@ -700,6 +708,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        console.error("Gemini API Key is missing in environment variables!");
+        res.status(500).json({ message: "Server Error: Gemini API Key not configured. Please set GEMINI_API_KEY in Render." });
+        return;
+      }
       if (!apiKey) {
         res.status(500).json({ message: "Gemini API Key not configured" });
         return;

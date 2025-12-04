@@ -48,7 +48,7 @@ app.use(express.json({
     req.rawBody = buf;
   },
   strict: true,
-  limit: "50mb"
+  limit: "50mb" // Increase limit for large AI prompts
 }));
 
 // Error handler for JSON parsing
