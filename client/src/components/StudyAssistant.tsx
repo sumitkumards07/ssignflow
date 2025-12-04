@@ -602,8 +602,7 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
             };
 
             await apiRequest("POST", "/api/tasks", {
-                title: item.task || "Study Task",
-                description: `Subject: ${item.subject}. Time: ${item.time}`,
+                title: `${item.task || "Study Task"} (${item.subject} - ${item.time})`, // Append details to title since description col missing
                 deadline: toLocalISOString(deadline), // Send local time
                 type: "assignment",
                 courseCode: (item.subject || "General").substring(0, 10),
@@ -617,9 +616,13 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
             });
         } catch (error: any) {
             console.error("Failed to add task:", error);
+            // Extract detailed error message if available
+            let errorMsg = error.message;
+            if (errorMsg.includes("400")) errorMsg = "Validation Error: Check inputs";
+
             toast({
                 title: "Error",
-                description: "Failed to add task: " + error.message,
+                description: "Failed to add task: " + errorMsg,
                 variant: "destructive",
             });
         }
@@ -789,8 +792,7 @@ function CoursesTab({ isLoading, setIsLoading, toast }: any) {
                 const endTime = new Date(currentDate.getTime() + durationMinutes * 60000);
 
                 await apiRequest("POST", "/api/tasks", {
-                    title: `Watch: ${video.snippet.title}`,
-                    description: `YouTube Study Session. Duration: ${durationMinutes} mins`,
+                    title: `Watch: ${video.snippet.title} (${durationMinutes}m)`,
                     deadline: toLocalISOString(endTime), // Send local time
                     type: "assignment", // Default type
                     courseCode: "YOUTUBE", // Placeholder

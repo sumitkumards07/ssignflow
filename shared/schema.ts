@@ -49,7 +49,6 @@ export const tasks = pgTable("tasks", {
 });
 
 export const insertTaskSchema = createInsertSchema(tasks).pick({
-  userId: true,
   type: true,
   title: true,
   courseCode: true,
