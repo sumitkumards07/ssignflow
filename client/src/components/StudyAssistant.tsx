@@ -788,11 +788,17 @@ function CoursesTab({ isLoading, setIsLoading, toast }: any) {
             let videosScheduledToday = 0;
 
             for (const video of videos) {
-                const durationMinutes = parseDuration(video.contentDetails.duration);
+                // Server returns simplified object: { id, title, duration, ... }
+                // Client was expecting raw YouTube API format: { snippet: { title }, contentDetails: { duration } }
+
+                const durationStr = video.duration || video.contentDetails?.duration || "PT30M";
+                const titleStr = video.title || video.snippet?.title || "Untitled Video";
+
+                const durationMinutes = parseDuration(durationStr) || 30;
                 const endTime = new Date(currentDate.getTime() + durationMinutes * 60000);
 
                 await apiRequest("POST", "/api/tasks", {
-                    title: `Watch: ${video.snippet.title} (${durationMinutes}m)`,
+                    title: `Watch: ${titleStr} (${durationMinutes}m)`,
                     deadline: toLocalISOString(endTime), // Send local time
                     type: "assignment", // Default type
                     courseCode: "YOUTUBE", // Placeholder
