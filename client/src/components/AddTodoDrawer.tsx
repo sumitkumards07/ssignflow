@@ -42,8 +42,8 @@ export function AddTodoDrawer({ open, onOpenChange, onAdd, selectedDate }: AddTo
 
     return (
         <Drawer open={open} onOpenChange={onOpenChange}>
-            <DrawerContent className="bg-background border-t border-border text-foreground">
-                <div className="mx-auto w-full max-w-lg">
+            <DrawerContent className="bg-background border-t border-border text-foreground max-h-[85dvh]">
+                <div className="mx-auto w-full max-w-lg px-4 sm:px-6">
                     <DrawerHeader>
                         <DrawerTitle>Add New Task</DrawerTitle>
                     </DrawerHeader>
@@ -106,7 +106,7 @@ export function AddTodoDrawer({ open, onOpenChange, onAdd, selectedDate }: AddTo
                             />
                         </div>
 
-                        <DrawerFooter className="px-0">
+                        <DrawerFooter className="px-0 pb-[calc(1rem+env(safe-area-inset-bottom))]">
                             <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-12 rounded-xl text-lg font-medium">
                                 Add Task
                             </Button>

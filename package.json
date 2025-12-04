@@ -24,7 +24,9 @@
     "@capacitor/cli": "^7.4.4",
     "@capacitor/core": "^7.4.4",
     "@capacitor/filesystem": "^7.1.5",
+    "@capacitor/keyboard": "^7.0.3",
     "@capacitor/local-notifications": "^7.0.3",
+    "@capacitor/push-notifications": "^7.0.0",
     "@capacitor/toast": "^7.0.2",
     "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^3.10.0",
@@ -77,6 +79,7 @@
     "embla-carousel-react": "^8.6.0",
     "express": "^4.21.2",
     "express-session": "^1.18.2",
+    "firebase-admin": "^12.0.0",
     "framer-motion": "^12.23.24",
     "input-otp": "^1.4.2",
     "jspdf": "^3.0.4",
@@ -109,9 +112,7 @@
     "wouter": "^3.3.5",
     "ws": "^8.18.0",
     "zod": "^3.25.76",
-    "zod-validation-error": "^3.4.0",
-    "firebase-admin": "^12.0.0",
-    "@capacitor/push-notifications": "^7.0.0"
+    "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
     "@types/connect-pg-simple": "^7.0.3",
@@ -128,11 +129,11 @@
     "tsx": "^4.20.5"
   },
   "optionalDependencies": {
+    "@esbuild/linux-x64": "*",
     "@rollup/rollup-linux-x64-gnu": "*",
     "@tailwindcss/oxide-linux-x64-gnu": "*",
     "bufferutil": "^4.0.8",
-    "lightningcss-linux-x64-gnu": "*",
-    "@esbuild/linux-x64": "*"
+    "lightningcss-linux-x64-gnu": "*"
   },
   "overrides": {
     "esbuild": "^0.25.0"

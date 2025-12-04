@@ -12,6 +12,12 @@ const config: CapacitorConfig = {
       keystorePath: undefined,
       keystoreAlias: undefined,
     }
+  },
+  plugins: {
+    Keyboard: {
+      resize: 'body',
+      resizeOnFullScreen: true,
+    }
   }
 };
 

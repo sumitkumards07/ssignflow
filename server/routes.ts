@@ -21,7 +21,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       "https://assignflow-exuc.onrender.com",
       "capacitor://localhost",
       "http://localhost",
-      "https://localhost"
+      "https://localhost",
+      // AWS App Runner - add your App Runner URL here after deployment
     ];
 
     const origin = req.headers.origin;
@@ -63,8 +64,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   });
 
+  // Health check endpoints for AWS/container orchestration
   app.get("/health", (_req, res) => {
     res.status(200).json({ status: "ok" });
+  });
+
+  app.get("/api/health", (_req, res) => {
+    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
   // Google OAuth routes removed

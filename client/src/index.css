@@ -154,3 +154,49 @@ body {
 .min-h-safe {
   min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
 }
+
+/* Keyboard-aware utilities */
+.keyboard-aware {
+  transition: transform 0.25s ease-out;
+}
+
+/* Dynamic viewport height for mobile */
+.h-dvh {
+  height: 100dvh;
+}
+
+.min-h-dvh {
+  min-height: 100dvh;
+}
+
+/* Input touch behavior */
+input,
+textarea,
+select,
+button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Ensure inputs are focusable */
+input:focus,
+textarea:focus {
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Fix iOS zoom on input focus */
+@media screen and (max-width: 768px) {
+
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Drawer keyboard handling */
+[data-vaul-drawer] {
+  max-height: 100dvh !important;
+}

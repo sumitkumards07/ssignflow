@@ -230,7 +230,7 @@ export function StudyAssistant() {
 
             {/* Chat Input */}
             {!activeFeature && (
-                <div className="p-4 border-t border-border bg-background">
+                <div className="p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] border-t border-border bg-background">
                     <div className="relative max-w-md mx-auto">
                         <Input
                             placeholder="Ask anything (e.g., 'What is AI?')..."
