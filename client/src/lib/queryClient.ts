@@ -32,6 +32,11 @@ export async function safeParseJson(res: Response): Promise<any> {
   }
 }
 
+// Get API base URL - use this for direct fetch calls (not using apiRequest)
+export function getApiBaseUrl(): string {
+  return import.meta.env.VITE_API_BASE_URL || "https://assignflow-exuc.onrender.com";
+}
+
 export async function apiRequest(
   method: string,
   url: string,

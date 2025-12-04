@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { apiRequest, safeParseJson } from "@/lib/queryClient";
+import { apiRequest, safeParseJson, getApiBaseUrl } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { QuizInterface } from "@/components/QuizInterface";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -285,7 +285,7 @@ function SolverTab({ isLoading, setIsLoading, toast }: any) {
             const formData = new FormData();
             formData.append("file", image);
 
-            const res = await fetch("/api/ai/analyze-image", {
+            const res = await fetch(`${getApiBaseUrl()}/api/ai/analyze-image`, {
                 method: "POST",
                 body: formData,
             });
@@ -415,7 +415,7 @@ function NotesTab({ isLoading, setIsLoading, toast }: any) {
             const formData = new FormData();
             formData.append("file", file);
 
-            const res = await fetch("/api/ai/pdf-to-notes", {
+            const res = await fetch(`${getApiBaseUrl()}/api/ai/pdf-to-notes`, {
                 method: "POST",
                 body: formData,
             });
@@ -522,7 +522,7 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
                 formData.append("studyTime", studyTime);
             }
 
-            const res = await fetch("/api/ai/pdf-to-timetable", {
+            const res = await fetch(`${getApiBaseUrl()}/api/ai/pdf-to-timetable`, {
                 method: "POST",
                 body: formData,
             });
@@ -935,7 +935,7 @@ function AttendanceTab() {
 
         setLoading(true);
         try {
-            const res = await fetch("/api/ai/attendance", {
+            const res = await fetch(`${getApiBaseUrl()}/api/ai/attendance`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ present, totalConducted, upcoming, required }),
