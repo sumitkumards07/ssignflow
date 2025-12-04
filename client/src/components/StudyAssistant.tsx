@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, safeParseJson } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { QuizInterface } from "@/components/QuizInterface";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -63,7 +63,7 @@ export function StudyAssistant() {
 
         try {
             const res = await apiRequest("POST", "/api/ai/generate", { prompt: userMsg.content });
-            const data = await res.json();
+            const data = await safeParseJson(res);
 
             const aiMsg: Message = {
                 id: (Date.now() + 1).toString(),
@@ -290,9 +290,8 @@ function SolverTab({ isLoading, setIsLoading, toast }: any) {
                 body: formData,
             });
 
-            if (!res.ok) throw new Error("Failed to analyze image");
-
-            const data = await res.json();
+            const data = await safeParseJson(res);
+            if (!res.ok) throw new Error(data.message || "Failed to analyze image");
             setSolution(data.text);
         } catch (error) {
             console.error("Analysis error:", error);
@@ -421,12 +420,10 @@ function NotesTab({ isLoading, setIsLoading, toast }: any) {
                 body: formData,
             });
 
+            const data = await safeParseJson(res);
             if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.message || "Failed to generate notes");
+                throw new Error(data.message || "Failed to generate notes");
             }
-
-            const data = await res.json();
             setNotes(data.notes);
         } catch (error: any) {
             toast({
@@ -732,7 +729,7 @@ function CoursesTab({ isLoading, setIsLoading, toast }: any) {
             if (urlMatch) id = urlMatch[1];
 
             const res = await apiRequest("GET", `/api/youtube/playlist?listId=${id}`);
-            const data = await res.json();
+            const data = await safeParseJson(res);
             setVideos(data);
         } catch (error) {
             toast({
@@ -944,9 +941,8 @@ function AttendanceTab() {
                 body: JSON.stringify({ present, totalConducted, upcoming, required }),
             });
 
-            if (!res.ok) throw new Error("Failed to analyze");
-
-            const data = await res.json();
+            const data = await safeParseJson(res);
+            if (!res.ok) throw new Error(data.message || "Failed to analyze");
             setResult(data.analysis);
         } catch (error) {
             // Fallback logic if AI fails

@@ -21,6 +21,17 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+// Safe JSON parsing utility - use this instead of res.json()
+export async function safeParseJson(res: Response): Promise<any> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    console.error("Failed to parse JSON response:", text.substring(0, 200));
+    throw new Error(`Server Error: ${text.substring(0, 100)}...`);
+  }
+}
+
 export async function apiRequest(
   method: string,
   url: string,
