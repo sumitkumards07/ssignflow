@@ -170,7 +170,16 @@ export default function PomodoroPage() {
     const handlePomodoroComplete = async () => {
         setIsRunning(false);
         localStorage.removeItem('pomodoro_state');
+
+        // Play alarm sound multiple times for reliability
         playAlarmSound();
+        setTimeout(() => playAlarmSound(), 2000);
+        setTimeout(() => playAlarmSound(), 4000);
+
+        // Also vibrate on mobile if supported
+        if (navigator.vibrate) {
+            navigator.vibrate([500, 200, 500, 200, 500]);
+        }
 
         if (dndEnabled) {
             toast({
