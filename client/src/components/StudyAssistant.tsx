@@ -95,90 +95,88 @@ function FeatureChat({ featureId, context }: { featureId: string; context?: stri
         localStorage.removeItem(`ai_chat_${featureId}`);
     };
 
-    if (!isOpen) {
-        return (
-            <button
-                onClick={() => setIsOpen(true)}
-                className="fixed bottom-24 right-4 w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30 flex items-center justify-center z-40 hover:scale-105 transition-transform"
-            >
-                <MessageSquare className="w-6 h-6" />
-                {messages.length > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-[10px] flex items-center justify-center font-bold">
-                        {messages.length}
-                    </span>
-                )}
-            </button>
-        );
-    }
-
+    // Inline chat card that scrolls with page
     return (
-        <div className="fixed bottom-20 right-4 left-4 sm:left-auto sm:w-80 max-h-[60vh] bg-card border border-border rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between p-3 border-b border-border bg-gradient-to-r from-purple-500/10 to-pink-500/10">
-                <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-purple-500" />
-                    <span className="font-semibold text-sm">AI Assistant</span>
-                </div>
-                <div className="flex items-center gap-1">
-                    {messages.length > 0 && (
-                        <button onClick={clearChat} className="p-1.5 hover:bg-secondary rounded-lg text-muted-foreground text-xs">
-                            Clear
-                        </button>
-                    )}
-                    <button onClick={() => setIsOpen(false)} className="p-1.5 hover:bg-secondary rounded-lg">
-                        <X className="w-4 h-4" />
-                    </button>
-                </div>
-            </div>
-
-            {/* Messages */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[200px]">
-                {messages.length === 0 ? (
-                    <div className="text-center text-muted-foreground text-sm py-8">
-                        <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                        <p>Ask follow-up questions about this result</p>
+        <div className="mt-4 mb-20 mx-auto max-w-md">
+            <div className="bg-card border border-border rounded-2xl shadow-lg overflow-hidden">
+                {/* Header */}
+                <div
+                    className="flex items-center justify-between p-3 border-b border-border bg-gradient-to-r from-purple-500/10 to-pink-500/10 cursor-pointer"
+                    onClick={() => setIsOpen(!isOpen)}
+                >
+                    <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-purple-500" />
+                        <span className="font-semibold text-sm">AI Assistant</span>
+                        {messages.length > 0 && (
+                            <span className="bg-purple-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                                {messages.length}
+                            </span>
+                        )}
                     </div>
-                ) : (
-                    messages.map((msg, idx) => (
-                        <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${msg.role === 'user'
-                                ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white'
-                                : 'bg-secondary text-foreground'
-                                }`}>
-                                {msg.content}
+                    <div className="flex items-center gap-1">
+                        {messages.length > 0 && isOpen && (
+                            <button onClick={(e) => { e.stopPropagation(); clearChat(); }} className="p-1.5 hover:bg-secondary rounded-lg text-muted-foreground text-xs">
+                                Clear
+                            </button>
+                        )}
+                        <ChevronLeft className={`w-4 h-4 transition-transform ${isOpen ? '-rotate-90' : 'rotate-0'}`} />
+                    </div>
+                </div>
+
+                {/* Collapsible Content */}
+                {isOpen && (
+                    <>
+                        {/* Messages */}
+                        <div ref={scrollRef} className="p-3 space-y-3 max-h-[300px] overflow-y-auto">
+                            {messages.length === 0 ? (
+                                <div className="text-center text-muted-foreground text-sm py-4">
+                                    <MessageSquare className="w-6 h-6 mx-auto mb-2 opacity-50" />
+                                    <p className="text-xs">Ask follow-up questions about this result</p>
+                                </div>
+                            ) : (
+                                messages.map((msg, idx) => (
+                                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                        <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${msg.role === 'user'
+                                            ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white'
+                                            : 'bg-secondary text-foreground'
+                                            }`}>
+                                            {msg.content}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                            {isLoading && (
+                                <div className="flex justify-start">
+                                    <div className="bg-secondary rounded-xl px-3 py-2 flex items-center gap-2">
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        <span className="text-sm text-muted-foreground">Thinking...</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Input */}
+                        <div className="p-3 border-t border-border">
+                            <div className="flex gap-2">
+                                <Input
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+                                    placeholder="Ask a follow-up..."
+                                    className="flex-1 h-9 text-sm rounded-full bg-secondary border-transparent"
+                                />
+                                <Button
+                                    size="icon"
+                                    onClick={handleSend}
+                                    disabled={!input.trim() || isLoading}
+                                    className="h-9 w-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500"
+                                >
+                                    <Send className="w-4 h-4" />
+                                </Button>
                             </div>
                         </div>
-                    ))
+                    </>
                 )}
-                {isLoading && (
-                    <div className="flex justify-start">
-                        <div className="bg-secondary rounded-xl px-3 py-2 flex items-center gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            <span className="text-sm text-muted-foreground">Thinking...</span>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Input */}
-            <div className="p-3 border-t border-border">
-                <div className="flex gap-2">
-                    <Input
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                        placeholder="Ask a follow-up..."
-                        className="flex-1 h-9 text-sm rounded-full bg-secondary border-transparent"
-                    />
-                    <Button
-                        size="icon"
-                        onClick={handleSend}
-                        disabled={!input.trim() || isLoading}
-                        className="h-9 w-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500"
-                    >
-                        <Send className="w-4 h-4" />
-                    </Button>
-                </div>
             </div>
         </div>
     );
