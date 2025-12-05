@@ -19,6 +19,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       "http://localhost:5173",
       "http://localhost:5001",
       "https://assignflow-exuc.onrender.com",
+      "http://13.235.90.150",
       "capacitor://localhost",
       "http://localhost",
       "https://localhost",

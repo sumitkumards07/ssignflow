@@ -2,8 +2,8 @@
 node_modules
 npm-debug.log
 
-# Build artifacts
-dist
+# Android/Mobile
+android
 
 # Android/Mobile
 android

@@ -34,7 +34,7 @@ export async function safeParseJson(res: Response): Promise<any> {
 
 // Get API base URL - use this for direct fetch calls (not using apiRequest)
 export function getApiBaseUrl(): string {
-  return import.meta.env.VITE_API_BASE_URL || "https://assignflow-exuc.onrender.com";
+  return import.meta.env.VITE_API_BASE_URL || "http://13.235.90.150";
 }
 
 export async function apiRequest(
@@ -56,7 +56,7 @@ export async function apiRequest(
   try {
     // Use relative URL to allow proxying in dev and same-origin in prod
     // Use relative URL to allow proxying in dev and same-origin in prod
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || "https://assignflow-exuc.onrender.com";
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://13.235.90.150";
     const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
 
     // Get token from localStorage
@@ -109,7 +109,7 @@ export const getQueryFn: <T>(options: {
       const url = queryKey.join("/") as string;
       // Use relative URL to allow proxying in dev and same-origin in prod
       // Use relative URL to allow proxying in dev and same-origin in prod
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || "https://assignflow-exuc.onrender.com";
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://13.235.90.150";
       const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
 
       // Get token from localStorage
