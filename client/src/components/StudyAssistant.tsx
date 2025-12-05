@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, FileText, Image as ImageIcon, Youtube, BookOpen, Clock, Check, Loader2, ArrowRight, Plus, BrainCircuit, MessageSquare, ChevronLeft, Mic, Send, Download, Sparkles, Calendar } from "lucide-react";
+import { Upload, FileText, Image as ImageIcon, Youtube, BookOpen, Clock, Check, Loader2, ArrowRight, Plus, BrainCircuit, MessageSquare, ChevronLeft, Mic, Send, Download, Sparkles, Calendar, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +17,171 @@ interface Message {
     role: "user" | "ai";
     content: string;
     timestamp: number;
+}
+
+interface FeatureChatMessage {
+    role: "user" | "ai";
+    content: string;
+}
+
+// Reusable chat component for feature tabs
+function FeatureChat({ featureId, context }: { featureId: string; context?: string }) {
+    const [messages, setMessages] = useState<FeatureChatMessage[]>([]);
+    const [input, setInput] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const { toast } = useToast();
+
+    // Load chat history from localStorage
+    useEffect(() => {
+        const saved = localStorage.getItem(`ai_chat_${featureId}`);
+        if (saved) {
+            try {
+                setMessages(JSON.parse(saved));
+            } catch (e) {
+                console.error("Failed to load chat history:", e);
+            }
+        }
+    }, [featureId]);
+
+    // Save chat history to localStorage
+    useEffect(() => {
+        if (messages.length > 0) {
+            localStorage.setItem(`ai_chat_${featureId}`, JSON.stringify(messages));
+        }
+    }, [messages, featureId]);
+
+    // Scroll to bottom on new messages
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [messages]);
+
+    const handleSend = async () => {
+        if (!input.trim()) return;
+
+        const userMessage: FeatureChatMessage = { role: "user", content: input };
+        setMessages(prev => [...prev, userMessage]);
+        setInput("");
+        setIsLoading(true);
+
+        try {
+            // Build context-aware prompt
+            const prompt = context
+                ? `Context: ${context}\n\nUser question: ${input}\n\nProvide a helpful response based on the context above.`
+                : input;
+
+            const res = await apiRequest("POST", "/api/ai/generate", { prompt });
+            const data = await safeParseJson(res);
+
+            const aiMessage: FeatureChatMessage = { role: "ai", content: data.text };
+            setMessages(prev => [...prev, aiMessage]);
+        } catch (error) {
+            console.error("Chat error:", error);
+            toast({
+                title: "Error",
+                description: "Failed to get response",
+                variant: "destructive"
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const clearChat = () => {
+        setMessages([]);
+        localStorage.removeItem(`ai_chat_${featureId}`);
+    };
+
+    if (!isOpen) {
+        return (
+            <button
+                onClick={() => setIsOpen(true)}
+                className="fixed bottom-24 right-4 w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30 flex items-center justify-center z-40 hover:scale-105 transition-transform"
+            >
+                <MessageSquare className="w-6 h-6" />
+                {messages.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-[10px] flex items-center justify-center font-bold">
+                        {messages.length}
+                    </span>
+                )}
+            </button>
+        );
+    }
+
+    return (
+        <div className="fixed bottom-20 right-4 left-4 sm:left-auto sm:w-80 max-h-[60vh] bg-card border border-border rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-3 border-b border-border bg-gradient-to-r from-purple-500/10 to-pink-500/10">
+                <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-purple-500" />
+                    <span className="font-semibold text-sm">AI Assistant</span>
+                </div>
+                <div className="flex items-center gap-1">
+                    {messages.length > 0 && (
+                        <button onClick={clearChat} className="p-1.5 hover:bg-secondary rounded-lg text-muted-foreground text-xs">
+                            Clear
+                        </button>
+                    )}
+                    <button onClick={() => setIsOpen(false)} className="p-1.5 hover:bg-secondary rounded-lg">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+            </div>
+
+            {/* Messages */}
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[200px]">
+                {messages.length === 0 ? (
+                    <div className="text-center text-muted-foreground text-sm py-8">
+                        <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p>Ask follow-up questions about this result</p>
+                    </div>
+                ) : (
+                    messages.map((msg, idx) => (
+                        <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${msg.role === 'user'
+                                ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white'
+                                : 'bg-secondary text-foreground'
+                                }`}>
+                                {msg.content}
+                            </div>
+                        </div>
+                    ))
+                )}
+                {isLoading && (
+                    <div className="flex justify-start">
+                        <div className="bg-secondary rounded-xl px-3 py-2 flex items-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span className="text-sm text-muted-foreground">Thinking...</span>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Input */}
+            <div className="p-3 border-t border-border">
+                <div className="flex gap-2">
+                    <Input
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+                        placeholder="Ask a follow-up..."
+                        className="flex-1 h-9 text-sm rounded-full bg-secondary border-transparent"
+                    />
+                    <Button
+                        size="icon"
+                        onClick={handleSend}
+                        disabled={!input.trim() || isLoading}
+                        className="h-9 w-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500"
+                    >
+                        <Send className="w-4 h-4" />
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
 }
 
 export function StudyAssistant() {
@@ -355,6 +520,9 @@ function SolverTab({ isLoading, setIsLoading, toast }: any) {
                     </Card>
                 )}
             </div>
+
+            {/* AI Chat for follow-up questions */}
+            {solution && <FeatureChat featureId="solver" context={solution} />}
         </ScrollArea>
     );
 }
@@ -484,6 +652,9 @@ function NotesTab({ isLoading, setIsLoading, toast }: any) {
                     </Card>
                 )}
             </div>
+
+            {/* AI Chat for follow-up questions */}
+            {notes && <FeatureChat featureId="notes" context={notes} />}
         </ScrollArea>
     );
 }
@@ -710,6 +881,9 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
                     </div>
                 )}
             </div>
+
+            {/* AI Chat for follow-up questions */}
+            {timetable.length > 0 && <FeatureChat featureId="timetable" context={JSON.stringify(timetable)} />}
         </ScrollArea>
     );
 }
