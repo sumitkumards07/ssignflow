@@ -18,6 +18,7 @@ export const users = pgTable("users", {
   lastFocusDate: text("last_focus_date"), // YYYY-MM-DD
   avatar: text("avatar"),
   pushToken: text("push_token"),
+  clashChatNotifications: boolean("clash_chat_notifications").default(true),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -31,10 +32,26 @@ export const insertUserSchema = createInsertSchema(users).pick({
   todayFocusTime: true,
   lastFocusDate: true,
   avatar: true,
+  clashChatNotifications: true,
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+
+export const clashMessages = pgTable("clash_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  content: text("content").notNull(),
+  timestamp: text("timestamp").default(new Date().toISOString()),
+});
+
+export const insertClashMessageSchema = createInsertSchema(clashMessages).pick({
+  userId: true,
+  content: true,
+});
+
+export type InsertClashMessage = z.infer<typeof insertClashMessageSchema>;
+export type ClashMessage = typeof clashMessages.$inferSelect;
 
 export const tasks = pgTable("tasks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

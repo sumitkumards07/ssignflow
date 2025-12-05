@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Task, type InsertTask, type Feedback, type InsertFeedback, type Group, type InsertGroup, type GroupMember, type InsertGroupMember, type AppVersion, type InsertAppVersion, users, tasks, feedback, groups, groupMembers, notifications, appVersions } from "@shared/schema";
+import { type User, type InsertUser, type Task, type InsertTask, type Feedback, type InsertFeedback, type Group, type InsertGroup, type GroupMember, type InsertGroupMember, type AppVersion, type InsertAppVersion, type ClashMessage, users, tasks, feedback, groups, groupMembers, notifications, appVersions, clashMessages } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
@@ -47,6 +47,11 @@ export interface IStorage {
   seed(): Promise<void>;
   createAppVersion(version: InsertAppVersion): Promise<AppVersion>;
   getLatestAppVersion(): Promise<AppVersion | undefined>;
+
+  // Clash Chat
+  createClashMessage(userId: string, content: string): Promise<ClashMessage>;
+  getClashMessages(): Promise<ClashMessage[]>;
+  toggleClashNotifications(userId: string, enabled: boolean): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -79,7 +84,8 @@ export class MemStorage implements IStorage {
       todayFocusTime: 0,
       lastFocusDate: null,
       avatar: null,
-      pushToken: null
+      pushToken: null,
+      clashChatNotifications: true
     });
   }
 
@@ -120,7 +126,8 @@ export class MemStorage implements IStorage {
       todayFocusTime: 0,
       lastFocusDate: null,
       avatar: insertUser.avatar ?? null,
-      pushToken: null
+      pushToken: null,
+      clashChatNotifications: insertUser.clashChatNotifications ?? true
     };
     this.users.set(id, user);
     return user;
@@ -168,7 +175,7 @@ export class MemStorage implements IStorage {
     const task: Task = {
       ...insertTask,
       id,
-      userId: insertTask.userId ?? null,
+      userId: (insertTask as any).userId ?? null,
       completed: insertTask.completed ?? false,
       notificationTime: insertTask.notificationTime ?? 1440 // Default 24h
     };
@@ -343,6 +350,31 @@ export class MemStorage implements IStorage {
 
   async getLatestAppVersion(): Promise<AppVersion | undefined> {
     return this.appVersions.sort((a, b) => b.versionCode - a.versionCode)[0];
+  }
+
+  private clashMessages: ClashMessage[] = [];
+
+  async createClashMessage(userId: string, content: string): Promise<ClashMessage> {
+    const id = randomUUID();
+    const message: ClashMessage = {
+      id,
+      userId,
+      content,
+      timestamp: new Date().toISOString()
+    };
+    this.clashMessages.push(message);
+    return message;
+  }
+
+  async getClashMessages(): Promise<ClashMessage[]> {
+    return this.clashMessages.sort((a, b) => new Date(a.timestamp || "").getTime() - new Date(b.timestamp || "").getTime());
+  }
+
+  async toggleClashNotifications(userId: string, enabled: boolean): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      this.users.set(userId, { ...user, clashChatNotifications: enabled });
+    }
   }
 }
 
@@ -655,6 +687,33 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(appVersions.versionCode))
       .limit(1);
     return version;
+  }
+
+  async createClashMessage(userId: string, content: string): Promise<ClashMessage> {
+    const [message] = await db
+      .insert(clashMessages)
+      .values({
+        userId,
+        content,
+        timestamp: new Date().toISOString()
+      })
+      .returning();
+    return message;
+  }
+
+  async getClashMessages(): Promise<ClashMessage[]> {
+    return await db
+      .select()
+      .from(clashMessages)
+      .orderBy(desc(clashMessages.timestamp))
+      .limit(50); // Limit to last 50 messages
+  }
+
+  async toggleClashNotifications(userId: string, enabled: boolean): Promise<void> {
+    await db
+      .update(users)
+      .set({ clashChatNotifications: enabled })
+      .where(eq(users.id, userId));
   }
 }
 

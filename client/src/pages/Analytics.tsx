@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, User, Sword } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronLeft, ChevronRight, User, Sword, MessageCircle } from "lucide-react";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, isSameMonth, subDays, subWeeks, startOfYear, endOfYear, eachMonthOfInterval, getYear, getWeek } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { useLocation } from "wouter";
+import { ClashChat } from "@/components/ClashChat";
 
 interface PomodoroSession {
     taskId: string;
@@ -18,6 +19,7 @@ export default function AnalyticsPage() {
     const [activeTab, setActiveTab] = useState<"pomodoro" | "battlefield">("pomodoro");
     const [chartView, setChartView] = useState<"daily" | "weekly" | "monthly" | "yearly">("daily");
     const [currentMonth, setCurrentMonth] = useState(new Date());
+    const [showChat, setShowChat] = useState(false);
     const [, setLocation] = useLocation();
 
     const sessions: PomodoroSession[] = JSON.parse(localStorage.getItem("pomodoro_sessions") || "[]");
@@ -536,8 +538,16 @@ export default function AnalyticsPage() {
                                     <h3 className="text-lg font-bold flex items-center gap-2">
                                         <span className="text-2xl">👥</span> {selectedGroup.name}
                                     </h3>
-                                    <div className="text-xs text-muted-foreground bg-secondary px-3 py-1 rounded-full">
-                                        Code: <span className="font-mono select-all">{selectedGroup.code}</span>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setShowChat(!showChat)}
+                                            className={`p-2 rounded-full transition-colors ${showChat ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground'}`}
+                                        >
+                                            <MessageCircle className="w-5 h-5" />
+                                        </button>
+                                        <div className="text-xs text-muted-foreground bg-secondary px-3 py-1 rounded-full">
+                                            Code: <span className="font-mono select-all">{selectedGroup.code}</span>
+                                        </div>
                                     </div>
                                     {(currentUser?.id === selectedGroup.createdBy || currentUser?.role === "admin") && (
                                         <button
@@ -548,6 +558,19 @@ export default function AnalyticsPage() {
                                         </button>
                                     )}
                                 </div>
+
+                                <AnimatePresence>
+                                    {showChat && (
+                                        <motion.div
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: "auto", opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            className="mb-6 overflow-hidden"
+                                        >
+                                            <ClashChat currentUser={currentUser} onClose={() => setShowChat(false)} />
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
 
                                 <div className="space-y-4">
                                     {groupMembers.map((user, index) => (

@@ -1021,6 +1021,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/clash/messages", async (req, res) => {
+    if (!req.user) return res.sendStatus(401);
+    const messages = await storage.getClashMessages();
+    res.json(messages);
+  });
+
+  app.post("/api/clash/messages", async (req, res) => {
+    if (!req.user) return res.sendStatus(401);
+    const { content } = req.body;
+    if (!content) return res.status(400).json({ message: "Content is required" });
+
+    const message = await storage.createClashMessage((req.user as any).id, content);
+    res.json(message);
+  });
+
+  app.post("/api/user/settings/clash-notifications", async (req, res) => {
+    if (!req.user) return res.sendStatus(401);
+    const { enabled } = req.body;
+    if (typeof enabled !== "boolean") return res.status(400).json({ message: "Enabled must be a boolean" });
+
+    await storage.toggleClashNotifications((req.user as any).id, enabled);
+    res.json({ success: true });
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
