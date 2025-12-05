@@ -672,13 +672,14 @@ export default function AnalyticsPage() {
                                             <span className="text-2xl">🏆</span> Global Leaderboard
                                         </h3>
                                         <div className="text-xs text-muted-foreground bg-secondary px-3 py-1 rounded-full">
-                                            Top 50
+                                            Top 10
                                         </div>
                                     </div>
 
                                     <div className="space-y-4">
-                                        {leaderboard.map((user, index) => (
-                                            <div key={user.id} className="flex items-center gap-4 p-3 rounded-xl hover:bg-secondary/50 transition-colors">
+                                        {/* Show only top 10 */}
+                                        {leaderboard.slice(0, 10).map((user, index) => (
+                                            <div key={user.id} className={`flex items-center gap-4 p-3 rounded-xl hover:bg-secondary/50 transition-colors ${currentUser?.id === user.id ? 'ring-2 ring-purple-500 bg-purple-500/10' : ''}`}>
                                                 <div className={`w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm ${index === 0 ? "bg-yellow-500/20 text-yellow-500" :
                                                     index === 1 ? "bg-zinc-400/20 text-zinc-400" :
                                                         index === 2 ? "bg-orange-500/20 text-orange-500" :
@@ -687,7 +688,10 @@ export default function AnalyticsPage() {
                                                     {index + 1}
                                                 </div>
                                                 <div className="flex-1">
-                                                    <div className="font-medium">{user.displayName || user.username}</div>
+                                                    <div className="font-medium flex items-center gap-2">
+                                                        {user.displayName || user.username}
+                                                        {currentUser?.id === user.id && <span className="text-xs bg-purple-500 text-white px-2 py-0.5 rounded-full">You</span>}
+                                                    </div>
                                                     <div className="text-xs text-muted-foreground">
                                                         Today: {Math.round(user.todayFocusTime / 60)}h {user.todayFocusTime % 60}m
                                                     </div>
@@ -700,6 +704,44 @@ export default function AnalyticsPage() {
                                                 </div>
                                             </div>
                                         ))}
+
+                                        {/* Show current user's rank if not in top 10 */}
+                                        {currentUser && leaderboard.length > 10 && !leaderboard.slice(0, 10).some(u => u.id === currentUser.id) && (
+                                            <>
+                                                <div className="flex items-center justify-center gap-2 py-2 text-muted-foreground">
+                                                    <div className="h-px flex-1 bg-border"></div>
+                                                    <span className="text-xs">...</span>
+                                                    <div className="h-px flex-1 bg-border"></div>
+                                                </div>
+                                                {leaderboard.map((user, index) => {
+                                                    if (user.id === currentUser.id) {
+                                                        return (
+                                                            <div key={user.id} className="flex items-center gap-4 p-3 rounded-xl ring-2 ring-purple-500 bg-purple-500/10">
+                                                                <div className="w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm bg-purple-500/20 text-purple-500">
+                                                                    {index + 1}
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    <div className="font-medium flex items-center gap-2">
+                                                                        {user.displayName || user.username}
+                                                                        <span className="text-xs bg-purple-500 text-white px-2 py-0.5 rounded-full">You</span>
+                                                                    </div>
+                                                                    <div className="text-xs text-muted-foreground">
+                                                                        Today: {Math.round(user.todayFocusTime / 60)}h {user.todayFocusTime % 60}m
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <div className="font-bold text-purple-500">
+                                                                        {Math.round(user.totalFocusTime / 60)}h
+                                                                    </div>
+                                                                    <div className="text-[10px] text-muted-foreground">Total</div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })}
+                                            </>
+                                        )}
 
                                         {leaderboard.length === 0 && (
                                             <div className="text-center py-12 text-muted-foreground">

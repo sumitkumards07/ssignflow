@@ -667,6 +667,8 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
     const [syllabusMode, setSyllabusMode] = useState(false);
     const [topicsPerDay, setTopicsPerDay] = useState("2");
     const [studyTime, setStudyTime] = useState("10:00");
+    const [daysToAdd, setDaysToAdd] = useState("7");
+    const [showDaysDialog, setShowDaysDialog] = useState(false);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -736,11 +738,11 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
         }
     };
 
-    const handleAddTask = async (item: any) => {
+    const handleAddTask = async (item: any, dayOffset: number = 0) => {
         try {
             const { apiRequest } = await import("@/lib/queryClient");
 
-            console.log("Adding task from item:", item);
+            console.log("Adding task from item:", item, "dayOffset:", dayOffset);
 
             // Parse time to get a deadline
             // Handle formats like "10:00", "10:00 AM", "10:00-11:00", "10am"
@@ -748,6 +750,7 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
             const timeParts = timeStr.match(/(\d{1,2})[:.]?(\d{2})?\s*(AM|PM)?/i);
 
             let deadline = new Date();
+            deadline.setDate(deadline.getDate() + dayOffset); // Add day offset
 
             if (timeParts) {
                 let hours = parseInt(timeParts[1]);
@@ -878,6 +881,72 @@ function TimetableTab({ isLoading, setIsLoading, toast }: any) {
                                 </CardContent>
                             </Card>
                         ))}
+
+                        {/* Add All Button */}
+                        <Button
+                            onClick={() => setShowDaysDialog(true)}
+                            className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white"
+                        >
+                            <Calendar className="w-4 h-4 mr-2" />
+                            Add All to Tasks
+                        </Button>
+                    </div>
+                )}
+
+                {/* Days Selection Dialog */}
+                {showDaysDialog && (
+                    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6">
+                        <div className="bg-card rounded-2xl p-6 max-w-sm w-full border border-border">
+                            <h3 className="text-lg font-semibold mb-4">Schedule Duration</h3>
+                            <p className="text-sm text-muted-foreground mb-4">
+                                Add these {timetable.length} items to your todo list for how many days?
+                            </p>
+                            <div className="space-y-4">
+                                <div>
+                                    <Label>Number of Days</Label>
+                                    <Input
+                                        type="number"
+                                        value={daysToAdd}
+                                        onChange={(e) => setDaysToAdd(e.target.value)}
+                                        min="1"
+                                        max="30"
+                                        className="bg-background mt-2"
+                                    />
+                                </div>
+                                <div className="flex gap-3">
+                                    <Button
+                                        onClick={async () => {
+                                            const days = parseInt(daysToAdd) || 7;
+                                            for (let d = 0; d < days; d++) {
+                                                for (const item of timetable) {
+                                                    const modifiedItem = { ...item };
+                                                    // Add day offset to the date
+                                                    const today = new Date();
+                                                    today.setDate(today.getDate() + d);
+                                                    modifiedItem.dayOffset = d;
+                                                    await handleAddTask(modifiedItem, d);
+                                                }
+                                            }
+                                            setShowDaysDialog(false);
+                                            toast({
+                                                title: "Tasks Added",
+                                                description: `Added ${timetable.length * days} tasks for ${days} days!`,
+                                            });
+                                        }}
+                                        className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white"
+                                    >
+                                        Add for {daysToAdd} Days
+                                    </Button>
+                                    <Button
+                                        onClick={() => setShowDaysDialog(false)}
+                                        variant="outline"
+                                        className="flex-1"
+                                    >
+                                        Cancel
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
