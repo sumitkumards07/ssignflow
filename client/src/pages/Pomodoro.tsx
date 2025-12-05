@@ -448,7 +448,7 @@ export default function PomodoroPage() {
                 </div>
 
                 {/* Circular Progress Ring */}
-                <div className="relative mb-12">
+                <div className="relative mb-8 sm:mb-12 w-full max-w-[280px] sm:max-w-[320px] lg:max-w-[384px] aspect-square mx-auto">
                     {/* Glow Effect */}
                     <div
                         className="absolute inset-0 rounded-full blur-3xl scale-110 opacity-20"
@@ -456,7 +456,7 @@ export default function PomodoroPage() {
                     />
 
                     {/* SVG Circle */}
-                    <svg className="w-80 h-80 transform -rotate-90 relative z-10">
+                    <svg className="w-full h-full transform -rotate-90 relative z-10" viewBox="0 0 320 320">
                         {/* Background Circle */}
                         <circle
                             cx="160"
@@ -488,13 +488,13 @@ export default function PomodoroPage() {
                     {/* Time Display (Center) */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                         <motion.div
-                            className="text-7xl font-bold tabular-nums tracking-tight"
+                            className="text-5xl sm:text-6xl lg:text-7xl font-bold tabular-nums tracking-tight"
                             animate={{ scale: isRunning ? [1, 1.02, 1] : 1 }}
                             transition={{ duration: 1, repeat: isRunning ? Infinity : 0 }}
                         >
                             {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
                         </motion.div>
-                        <div className="text-sm text-muted-foreground mt-2 font-medium">
+                        <div className="text-xs sm:text-sm text-muted-foreground mt-2 font-medium">
                             {isBreak ? "Break Time" : "Focus Session"}
                         </div>
                     </div>

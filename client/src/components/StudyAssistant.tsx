@@ -103,7 +103,7 @@ export function StudyAssistant() {
     };
 
     return (
-        <div className="h-full flex flex-col bg-background text-foreground relative md:max-w-4xl md:mx-auto md:border-x md:border-border shadow-sm">
+        <div className="h-dvh flex flex-col bg-background text-foreground relative md:max-w-4xl md:mx-auto md:border-x md:border-border shadow-sm overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-border bg-background/95 backdrop-blur z-10 pt-safe sticky top-0">
                 <div className="flex items-center gap-3">

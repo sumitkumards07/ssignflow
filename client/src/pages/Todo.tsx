@@ -264,7 +264,7 @@ export default function TodoPage() {
             </div>
 
             {/* Calendar Week Strip */}
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 px-2 sm:px-4">
                 {weekDays.map((day, index) => {
                     const isSelected = isSameDay(day, selectedDate);
                     const isToday = isSameDay(day, new Date());
@@ -280,7 +280,7 @@ export default function TodoPage() {
                                 {format(day, "EEE")}
                             </span>
                             <div
-                                className={`w-11 h-11 rounded-full flex items-center justify-center text-lg font-semibold transition-all ${isSelected
+                                className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-base sm:text-lg font-semibold transition-all ${isSelected
                                     ? "text-white scale-110 shadow-lg"
                                     : isToday
                                         ? "bg-secondary text-foreground"

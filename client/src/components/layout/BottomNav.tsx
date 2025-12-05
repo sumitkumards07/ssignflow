@@ -15,7 +15,7 @@ export function BottomNav() {
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur-xl pb-safe">
+    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur-xl" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0.5rem)' }}>
       <div className="mx-auto max-w-md flex h-20 items-center justify-around px-0.5">
         {navItems.map((item) => {
           const isActive = location === item.path;
