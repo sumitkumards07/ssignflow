@@ -8,6 +8,10 @@ const getAudioContext = () => {
     if (!audioContext) {
         audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
+    // Resume context if suspended (required for mobile browsers after user interaction)
+    if (audioContext.state === 'suspended') {
+        audioContext.resume();
+    }
     return audioContext;
 };
 
@@ -18,7 +22,7 @@ const checkEnabled = () => {
 };
 
 // Simple beep function
-const playTone = (freq: number, type: OscillatorType, duration: number, startTime: number = 0) => {
+const playTone = (freq: number, type: OscillatorType, duration: number, startTime: number = 0, volume: number = 0.15) => {
     if (!checkEnabled()) return;
     const ctx = getAudioContext();
     if (!ctx) return;
@@ -29,7 +33,7 @@ const playTone = (freq: number, type: OscillatorType, duration: number, startTim
     osc.type = type;
     osc.frequency.setValueAtTime(freq, ctx.currentTime + startTime);
 
-    gain.gain.setValueAtTime(0.1, ctx.currentTime + startTime);
+    gain.gain.setValueAtTime(volume, ctx.currentTime + startTime);
     gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + startTime + duration);
 
     osc.connect(gain);
@@ -107,12 +111,14 @@ export const playAlarmSound = () => {
     }
 };
 
-// Alarm 1: Classic Beep-Beep
+// Alarm 1: Classic Beep-Beep (LOUD)
 const playAlarm1 = () => {
-    const beep = () => playTone(880, 'square', 0.3, 0);
+    // Play louder with 0.25 volume
+    const beep = () => playTone(880, 'square', 0.4, 0, 0.25);
     beep();
-    setTimeout(beep, 400);
-    setTimeout(beep, 800);
+    setTimeout(beep, 500);
+    setTimeout(beep, 1000);
+    setTimeout(beep, 1500);
 };
 
 // Alarm 2: Rising Siren
