@@ -97,16 +97,16 @@ function FeatureChat({ featureId, context }: { featureId: string; context?: stri
 
     // Inline chat card that scrolls with page
     return (
-        <div className="mt-4 mb-20 mx-auto max-w-md">
-            <div className="bg-card border border-border rounded-2xl shadow-lg overflow-hidden">
+        <div className="mt-3 sm:mt-4 mb-16 sm:mb-20 mx-auto max-w-md px-2 sm:px-0">
+            <div className="bg-card border border-border rounded-xl sm:rounded-2xl shadow-lg overflow-hidden">
                 {/* Header */}
                 <div
-                    className="flex items-center justify-between p-3 border-b border-border bg-gradient-to-r from-purple-500/10 to-pink-500/10 cursor-pointer"
+                    className="flex items-center justify-between p-2.5 sm:p-3 border-b border-border bg-gradient-to-r from-purple-500/10 to-pink-500/10 cursor-pointer"
                     onClick={() => setIsOpen(!isOpen)}
                 >
                     <div className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-purple-500" />
-                        <span className="font-semibold text-sm">AI Assistant</span>
+                        <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-500" />
+                        <span className="font-semibold text-xs sm:text-sm">AI Assistant</span>
                         {messages.length > 0 && (
                             <span className="bg-purple-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
                                 {messages.length}
@@ -115,11 +115,11 @@ function FeatureChat({ featureId, context }: { featureId: string; context?: stri
                     </div>
                     <div className="flex items-center gap-1">
                         {messages.length > 0 && isOpen && (
-                            <button onClick={(e) => { e.stopPropagation(); clearChat(); }} className="p-1.5 hover:bg-secondary rounded-lg text-muted-foreground text-xs">
+                            <button onClick={(e) => { e.stopPropagation(); clearChat(); }} className="p-1 sm:p-1.5 hover:bg-secondary rounded-lg text-muted-foreground text-[10px] sm:text-xs">
                                 Clear
                             </button>
                         )}
-                        <ChevronLeft className={`w-4 h-4 transition-transform ${isOpen ? '-rotate-90' : 'rotate-0'}`} />
+                        <ChevronLeft className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform ${isOpen ? '-rotate-90' : 'rotate-0'}`} />
                     </div>
                 </div>
 
@@ -127,16 +127,16 @@ function FeatureChat({ featureId, context }: { featureId: string; context?: stri
                 {isOpen && (
                     <>
                         {/* Messages */}
-                        <div ref={scrollRef} className="p-3 space-y-3 max-h-[300px] overflow-y-auto">
+                        <div ref={scrollRef} className="p-2.5 sm:p-3 space-y-2.5 sm:space-y-3 max-h-[250px] sm:max-h-[300px] overflow-y-auto">
                             {messages.length === 0 ? (
-                                <div className="text-center text-muted-foreground text-sm py-4">
-                                    <MessageSquare className="w-6 h-6 mx-auto mb-2 opacity-50" />
-                                    <p className="text-xs">Ask follow-up questions about this result</p>
+                                <div className="text-center text-muted-foreground text-xs sm:text-sm py-4">
+                                    <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-2 opacity-50" />
+                                    <p className="text-[10px] sm:text-xs">Ask follow-up questions about this result</p>
                                 </div>
                             ) : (
                                 messages.map((msg, idx) => (
                                     <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${msg.role === 'user'
+                                        <div className={`max-w-[90%] sm:max-w-[85%] rounded-lg sm:rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm ${msg.role === 'user'
                                             ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white'
                                             : 'bg-secondary text-foreground'
                                             }`}>
@@ -147,31 +147,31 @@ function FeatureChat({ featureId, context }: { featureId: string; context?: stri
                             )}
                             {isLoading && (
                                 <div className="flex justify-start">
-                                    <div className="bg-secondary rounded-xl px-3 py-2 flex items-center gap-2">
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                        <span className="text-sm text-muted-foreground">Thinking...</span>
+                                    <div className="bg-secondary rounded-lg sm:rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 flex items-center gap-2">
+                                        <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
+                                        <span className="text-xs sm:text-sm text-muted-foreground">Thinking...</span>
                                     </div>
                                 </div>
                             )}
                         </div>
 
                         {/* Input */}
-                        <div className="p-3 border-t border-border">
+                        <div className="p-2.5 sm:p-3 border-t border-border">
                             <div className="flex gap-2">
                                 <Input
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
                                     placeholder="Ask a follow-up..."
-                                    className="flex-1 h-9 text-sm rounded-full bg-secondary border-transparent"
+                                    className="flex-1 h-8 sm:h-9 text-xs sm:text-sm rounded-full bg-secondary border-transparent"
                                 />
                                 <Button
                                     size="icon"
                                     onClick={handleSend}
                                     disabled={!input.trim() || isLoading}
-                                    className="h-9 w-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500"
+                                    className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500"
                                 >
-                                    <Send className="w-4 h-4" />
+                                    <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                                 </Button>
                             </div>
                         </div>
@@ -297,7 +297,7 @@ export function StudyAssistant() {
             </div>
 
             {/* Main Content - Scrollable */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4">
                 <AnimatePresence mode="wait">
                     {activeFeature ? (
                         <motion.div
@@ -305,7 +305,7 @@ export function StudyAssistant() {
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -20 }}
-                            className="min-h-full"
+                            className="min-h-full pb-20"
                         >
                             {activeFeature === "solver" && <SolverTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
                             {activeFeature === "notes" && <NotesTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
@@ -315,47 +315,45 @@ export function StudyAssistant() {
                             {activeFeature === "attendance" && <AttendanceTab />}
                         </motion.div>
                     ) : messages.length > 0 ? (
-                        <div className="flex flex-col" ref={scrollRef}>
-                            <ScrollArea className="flex-1 p-4">
-                                <div className="space-y-4 pb-4">
-                                    {messages.map((msg) => (
+                        <div className="flex flex-col pb-20" ref={scrollRef}>
+                            <div className="space-y-4">
+                                {messages.map((msg) => (
+                                    <div
+                                        key={msg.id}
+                                        className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                                    >
                                         <div
-                                            key={msg.id}
-                                            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                                            className={`max-w-[90%] sm:max-w-[85%] rounded-2xl p-3 sm:p-4 ${msg.role === "user"
+                                                ? "bg-primary text-primary-foreground rounded-br-none"
+                                                : "bg-secondary text-secondary-foreground rounded-bl-none"
+                                                }`}
                                         >
-                                            <div
-                                                className={`max-w-[85%] rounded-2xl p-4 ${msg.role === "user"
-                                                    ? "bg-primary text-primary-foreground rounded-br-none"
-                                                    : "bg-secondary text-secondary-foreground rounded-bl-none"
-                                                    }`}
-                                            >
-                                                <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
-                                                {msg.role === "ai" && (
-                                                    <div className="mt-2 pt-2 border-t border-black/10 flex justify-end">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="h-6 px-2 text-xs"
-                                                            onClick={() => downloadPDF(msg.content)}
-                                                        >
-                                                            <Download className="w-3 h-3 mr-1" />
-                                                            PDF
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                            </div>
+                                            <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
+                                            {msg.role === "ai" && (
+                                                <div className="mt-2 pt-2 border-t border-black/10 flex justify-end">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-6 px-2 text-xs"
+                                                        onClick={() => downloadPDF(msg.content)}
+                                                    >
+                                                        <Download className="w-3 h-3 mr-1" />
+                                                        PDF
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </div>
-                                    ))}
-                                    {isLoading && (
-                                        <div className="flex justify-start">
-                                            <div className="bg-secondary rounded-2xl rounded-bl-none p-4 flex items-center gap-2">
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                                <span className="text-sm text-muted-foreground">Thinking...</span>
-                                            </div>
+                                    </div>
+                                ))}
+                                {isLoading && (
+                                    <div className="flex justify-start">
+                                        <div className="bg-secondary rounded-2xl rounded-bl-none p-3 sm:p-4 flex items-center gap-2">
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            <span className="text-sm text-muted-foreground">Thinking...</span>
                                         </div>
-                                    )}
-                                </div>
-                            </ScrollArea>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     ) : (
                         <motion.div
@@ -363,26 +361,26 @@ export function StudyAssistant() {
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
-                            className="h-full flex flex-col items-center justify-center p-6 text-center"
+                            className="h-full flex flex-col items-center justify-center p-2 sm:p-6 text-center pb-20"
                         >
-                            <div className="mb-8">
-                                <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                                    <BrainCircuit className="w-10 h-10 text-primary" />
+                            <div className="mb-6 sm:mb-8">
+                                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
+                                    <BrainCircuit className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
                                 </div>
-                                <h2 className="text-3xl font-bold mb-2">What can I help with?</h2>
+                                <h2 className="text-2xl sm:text-3xl font-bold mb-2">What can I help with?</h2>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3 w-full max-w-md">
+                            <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full max-w-md">
                                 {features.map((feature) => (
                                     <button
                                         key={feature.id}
                                         onClick={() => setActiveFeature(feature.id)}
-                                        className={`flex flex-col items-center justify-center p-4 rounded-2xl border border-border hover:bg-secondary/50 transition-all ${feature.id === 'quiz' ? 'col-span-2' : ''}`}
+                                        className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-border hover:bg-secondary/50 transition-all ${feature.id === 'quiz' ? 'col-span-2' : ''}`}
                                     >
-                                        <div className={`w-10 h-10 rounded-full ${feature.bg} flex items-center justify-center mb-2`}>
-                                            <feature.icon className={`w-5 h-5 ${feature.color}`} />
+                                        <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full ${feature.bg} flex items-center justify-center mb-1.5 sm:mb-2`}>
+                                            <feature.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${feature.color}`} />
                                         </div>
-                                        <span className="font-medium text-sm">{feature.label}</span>
+                                        <span className="font-medium text-xs sm:text-sm">{feature.label}</span>
                                     </button>
                                 ))}
                             </div>
