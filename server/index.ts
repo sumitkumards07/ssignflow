@@ -43,6 +43,32 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+// CORS Middleware
+app.use((req, res, next) => {
+  const allowedOrigins = [
+    'http://localhost',
+    'https://localhost',
+    'capacitor://localhost',
+    'http://localhost:5001',
+    'http://13.235.90.150',
+    'http://13.235.90.150:8080'
+  ];
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+    return;
+  }
+  next();
+});
+
 app.use(express.json({
   verify: (req, _res, buf) => {
     req.rawBody = buf;
