@@ -23,8 +23,9 @@ interface PomodoroSession {
 }
 
 export default function PomodoroPage() {
-    const [timeLeft, setTimeLeft] = useState(25 * 60);
-    const [totalTime, setTotalTime] = useState(25 * 60);
+    const savedMinutes = parseInt(localStorage.getItem('pomodoro_custom_minutes') || '25', 10);
+    const [timeLeft, setTimeLeft] = useState(savedMinutes * 60);
+    const [totalTime, setTotalTime] = useState(savedMinutes * 60);
     const [isRunning, setIsRunning] = useState(false);
     const [isBreak, setIsBreak] = useState(false); // New state for break mode
     const [selectedTask, setSelectedTask] = useState<string>("focus");
@@ -33,7 +34,10 @@ export default function PomodoroPage() {
     const [showSettings, setShowSettings] = useState(false);
     const [showMusic, setShowMusic] = useState(false);
     const [spotifyLink, setSpotifyLink] = useState("https://open.spotify.com/embed/playlist/37i9dQZF1DX8Uebhn9wzrS?utm_source=generator");
-    const [customMinutes, setCustomMinutes] = useState(25);
+    const [customMinutes, setCustomMinutes] = useState(() => {
+        const saved = localStorage.getItem('pomodoro_custom_minutes');
+        return saved ? parseInt(saved, 10) : 25;
+    });
     const [dndEnabled, setDndEnabled] = useState(() => {
         return localStorage.getItem('pomodoro_dnd') === 'true';
     });
@@ -44,6 +48,10 @@ export default function PomodoroPage() {
     useEffect(() => {
         localStorage.setItem('pomodoro_dnd', String(dndEnabled));
     }, [dndEnabled]);
+
+    useEffect(() => {
+        localStorage.setItem('pomodoro_custom_minutes', String(customMinutes));
+    }, [customMinutes]);
 
     useEffect(() => {
         const allTodos = getTodosFromStorage();
@@ -386,11 +394,17 @@ export default function PomodoroPage() {
                                 <label className="text-sm text-muted-foreground mb-2 block">Focus Minutes</label>
                                 <input
                                     type="number"
-                                    value={customMinutes}
-                                    onChange={(e) => setCustomMinutes(Number(e.target.value))}
+                                    value={customMinutes || ''}
+                                    onChange={(e) => setCustomMinutes(e.target.value === '' ? 0 : Number(e.target.value))}
+                                    onBlur={(e) => {
+                                        const val = Number(e.target.value);
+                                        if (val < 1) setCustomMinutes(1);
+                                        if (val > 120) setCustomMinutes(120);
+                                    }}
                                     className="w-full bg-background border border-border rounded-xl px-4 py-3"
                                     min="1"
                                     max="120"
+                                    placeholder="25"
                                 />
                             </div>
                             <div className="flex items-center justify-between">
