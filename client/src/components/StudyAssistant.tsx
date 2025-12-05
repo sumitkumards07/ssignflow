@@ -269,37 +269,37 @@ export function StudyAssistant() {
 
     return (
         <div className="h-dvh flex flex-col bg-background text-foreground relative md:max-w-4xl md:mx-auto md:border-x md:border-border shadow-sm overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-border bg-background/95 backdrop-blur z-10 pt-safe sticky top-0">
-                <div className="flex items-center gap-3">
+            {/* Header - Responsive */}
+            <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-border bg-background/95 backdrop-blur z-10 pt-safe shrink-0">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                     {activeFeature || messages.length > 0 ? (
-                        <Button variant="ghost" size="icon" onClick={() => { setActiveFeature(null); setMessages([]); }} className="-ml-2">
-                            <ChevronLeft className="w-6 h-6" />
+                        <Button variant="ghost" size="icon" onClick={() => { setActiveFeature(null); setMessages([]); }} className="-ml-1 shrink-0">
+                            <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
                         </Button>
                     ) : (
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                            <BrainCircuit className="w-5 h-5 text-primary" />
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                            <BrainCircuit className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                         </div>
                     )}
-                    <span className="font-semibold text-lg">
-                        {activeFeature ? features.find(f => f.id === activeFeature)?.label : (messages.length > 0 ? "Chat" : "Study Assistant")}
+                    <span className="font-semibold text-base sm:text-lg truncate">
+                        {activeFeature ? features.find(f => f.id === activeFeature)?.label : (messages.length > 0 ? "Chat" : "AI Assistant")}
                     </span>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-1 shrink-0">
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="rounded-full text-muted-foreground hover:text-destructive"
+                        className="rounded-full text-muted-foreground hover:text-destructive h-8 w-8 sm:h-9 sm:w-9"
                         onClick={() => setMessages([])}
                         title="Reset Chat"
                     >
-                        <Sparkles className="w-5 h-5" />
+                        <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
                     </Button>
                 </div>
             </div>
 
-            {/* Main Content */}
-            <div className="flex-1 overflow-hidden relative">
+            {/* Main Content - Scrollable */}
+            <div className="flex-1 overflow-y-auto overflow-x-hidden">
                 <AnimatePresence mode="wait">
                     {activeFeature ? (
                         <motion.div
@@ -307,7 +307,7 @@ export function StudyAssistant() {
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -20 }}
-                            className="h-full"
+                            className="min-h-full"
                         >
                             {activeFeature === "solver" && <SolverTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
                             {activeFeature === "notes" && <NotesTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
@@ -317,7 +317,7 @@ export function StudyAssistant() {
                             {activeFeature === "attendance" && <AttendanceTab />}
                         </motion.div>
                     ) : messages.length > 0 ? (
-                        <div className="h-full flex flex-col" ref={scrollRef}>
+                        <div className="flex flex-col" ref={scrollRef}>
                             <ScrollArea className="flex-1 p-4">
                                 <div className="space-y-4 pb-4">
                                     {messages.map((msg) => (
