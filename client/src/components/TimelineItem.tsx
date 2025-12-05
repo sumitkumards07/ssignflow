@@ -28,12 +28,13 @@ export function TimelineItem({ todo, isLast, onToggle, onDelete }: TimelineItemP
     const youtubeId = extractYouTubeId(todo.text);
 
     const getIcon = () => {
-        if (youtubeId) return <Play className="w-5 h-5 text-white" />;
+        const iconClass = "w-4 h-4 sm:w-5 sm:h-5 text-white";
+        if (youtubeId) return <Play className={iconClass} />;
         switch (todo.category) {
-            case 'morning': return <Sun className="w-5 h-5 text-white" />;
-            case 'night': return <Moon className="w-5 h-5 text-white" />;
-            case 'work': return <Briefcase className="w-5 h-5 text-white" />;
-            default: return <Clock className="w-5 h-5 text-white" />;
+            case 'morning': return <Sun className={iconClass} />;
+            case 'night': return <Moon className={iconClass} />;
+            case 'work': return <Briefcase className={iconClass} />;
+            default: return <Clock className={iconClass} />;
         }
     };
 
@@ -71,25 +72,25 @@ export function TimelineItem({ todo, isLast, onToggle, onDelete }: TimelineItemP
                 <div className="absolute left-[2.25rem] top-12 bottom-[-2rem] w-0.5 bg-border -z-10" />
             )}
 
-            {/* Time Column */}
-            <div className="w-20 pt-3 text-right pr-4">
-                <span className="text-xs text-muted-foreground font-medium">{todo.time || 'All Day'}</span>
+            {/* Time Column - Smaller on mobile */}
+            <div className="w-14 sm:w-20 pt-2 sm:pt-3 text-right pr-2 sm:pr-4">
+                <span className="text-[10px] sm:text-xs text-muted-foreground font-medium">{todo.time || 'All Day'}</span>
             </div>
 
-            {/* Icon Node */}
+            {/* Icon Node - Smaller on mobile */}
             <div className={cn(
-                "relative z-10 w-12 h-12 rounded-full flex items-center justify-center shadow-lg border-4 border-background",
+                "relative z-10 w-9 h-9 sm:w-12 sm:h-12 rounded-full flex items-center justify-center shadow-lg border-2 sm:border-4 border-background shrink-0",
                 getColor()
             )}>
                 {getIcon()}
             </div>
 
             {/* Content */}
-            <div className="flex-1 ml-4 pt-1 pb-8">
-                <div className="flex items-start justify-between">
-                    <div className="flex-1">
+            <div className="flex-1 ml-2 sm:ml-4 pt-1 pb-6 sm:pb-8 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
                         <h3 className={cn(
-                            "text-lg font-semibold text-foreground transition-all",
+                            "text-sm sm:text-lg font-semibold text-foreground transition-all break-words",
                             todo.completed && "line-through text-muted-foreground"
                         )}>
                             {displayText}
