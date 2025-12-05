@@ -125,6 +125,17 @@ app.use((req, res, next) => {
   await storage.seed();
   const server = await registerRoutes(app);
 
+  // Schedule daily cleanup of old messages (7 days retention)
+  setInterval(async () => {
+    try {
+      await storage.cleanupOldMessages();
+      console.log("Cleaned up old chat messages");
+    } catch (error) {
+      console.error("Failed to cleanup old messages:", error);
+    }
+  }, 24 * 60 * 60 * 1000); // Run every 24 hours
+
+  // Global error handler
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";

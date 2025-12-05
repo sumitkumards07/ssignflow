@@ -12,6 +12,12 @@ import { QuizInterface } from "@/components/QuizInterface";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import jsPDF from "jspdf";
 
+declare global {
+    interface Window {
+        Capacitor?: any;
+    }
+}
+
 interface Message {
     id: string;
     role: "user" | "ai";
@@ -254,15 +260,56 @@ export function StudyAssistant() {
         }
     };
 
-    const downloadPDF = (content: string) => {
+    const downloadPDF = async (content: string, filename: string = "study-assistant-response.pdf") => {
         const doc = new jsPDF();
         const splitText = doc.splitTextToSize(content, 180);
         doc.text(splitText, 10, 10);
-        doc.save("study-assistant-response.pdf");
-        toast({
-            title: "Downloaded",
-            description: "Response saved as PDF.",
-        });
+
+        // Check if running on mobile (Capacitor)
+        const isMobile = window.Capacitor?.isNativePlatform();
+
+        if (isMobile) {
+            try {
+                const { Filesystem, Directory } = await import("@capacitor/filesystem");
+                const { Share } = await import("@capacitor/share");
+
+                const base64Data = doc.output('datauristring').split(',')[1];
+
+                const savedFile = await Filesystem.writeFile({
+                    path: filename,
+                    data: base64Data,
+                    directory: Directory.Documents,
+                    recursive: true
+                });
+
+                await Share.share({
+                    title: 'Study Assistant PDF',
+                    text: 'Here is your PDF from Study Assistant',
+                    url: savedFile.uri,
+                    dialogTitle: 'Share PDF',
+                });
+
+                toast({
+                    title: "Ready to Share",
+                    description: "PDF created. Choose an app to save or view it.",
+                });
+            } catch (e) {
+                console.error("Mobile PDF Error:", e);
+                // Fallback or error toast
+                toast({
+                    title: "Error",
+                    description: "Failed to save PDF on device.",
+                    variant: "destructive"
+                });
+            }
+        } else {
+            // Web fallback
+            doc.save(filename);
+            toast({
+                title: "Downloaded",
+                description: "Response saved as PDF.",
+            });
+        }
     };
 
     return (
@@ -556,12 +603,52 @@ function NotesTab({ isLoading, setIsLoading, toast }: any) {
             const splitText = doc.splitTextToSize(notes, 170);
             doc.text(splitText, 20, 40);
 
-            doc.save("study-notes.pdf");
+            // Use the shared downloadPDF function logic or implement similar for Notes
+            // Since downloadPDF is inside the main component, we need to duplicate logic or move it out.
+            // For now, let's just implement the mobile check here too.
 
-            toast({
-                title: "Downloaded",
-                description: "Notes saved as PDF.",
-            });
+            const isMobile = window.Capacitor?.isNativePlatform();
+
+            if (isMobile) {
+                try {
+                    const { Filesystem, Directory } = await import("@capacitor/filesystem");
+                    const { Share } = await import("@capacitor/share");
+
+                    const base64Data = doc.output('datauristring').split(',')[1];
+                    const filename = "study-notes.pdf";
+
+                    const savedFile = await Filesystem.writeFile({
+                        path: filename,
+                        data: base64Data,
+                        directory: Directory.Documents,
+                        recursive: true
+                    });
+
+                    await Share.share({
+                        title: 'Study Notes',
+                        text: 'Here are your study notes',
+                        url: savedFile.uri,
+                        dialogTitle: 'Share Notes',
+                    });
+                    toast({
+                        title: "Ready to Share",
+                        description: "Notes PDF created.",
+                    });
+                } catch (e) {
+                    console.error("Mobile Notes PDF Error", e);
+                    toast({
+                        title: "Error",
+                        description: "Failed to save PDF.",
+                        variant: "destructive"
+                    });
+                }
+            } else {
+                doc.save("study-notes.pdf");
+                toast({
+                    title: "Downloaded",
+                    description: "Notes saved as PDF.",
+                });
+            }
         } catch (error) {
             console.error("PDF download failed:", error);
             toast({

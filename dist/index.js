@@ -167,9 +167,6 @@ var insertAppVersionSchema = createInsertSchema(appVersions).pick({
   releaseNotes: true
 });
 
-// server/storage.ts
-import { randomUUID } from "crypto";
-
 // server/db.ts
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -182,7 +179,9 @@ var pool = new Pool({ connectionString: process.env.DATABASE_URL });
 var db = drizzle(pool, { schema: schema_exports });
 
 // server/storage.ts
-import { eq, desc } from "drizzle-orm";
+import { eq, lt, desc, and } from "drizzle-orm";
+import { randomUUID } from "crypto";
+import * as crypto from "crypto";
 var MemStorage = class {
   users;
   tasks;
@@ -380,20 +379,29 @@ var MemStorage = class {
     const userGroups = [];
     for (const member of memberEntries) {
       const group = this.groups.get(member.groupId);
-      if (group) userGroups.push(group);
+      if (group) {
+        const count = Array.from(this.groupMembers.values()).filter((m) => m.groupId === group.id).length;
+        userGroups.push({ ...group, memberCount: count });
+      }
     }
     return userGroups;
   }
   async joinGroup(groupId, userId) {
-    const existing = Array.from(this.groupMembers.values()).find((m) => m.groupId === groupId && m.userId === userId);
-    if (existing) return;
-    const id = randomUUID();
-    this.groupMembers.set(id, {
-      id,
-      groupId,
-      userId,
-      joinedAt: (/* @__PURE__ */ new Date()).toISOString()
-    });
+    const existing = Array.from(this.groupMembers.values()).find(
+      (m) => m.groupId === groupId && m.userId === userId
+    );
+    if (!existing) {
+      const id = randomUUID();
+      this.groupMembers.set(id, { id, groupId, userId, joinedAt: (/* @__PURE__ */ new Date()).toISOString() });
+    }
+  }
+  async removeGroupMember(groupId, userId) {
+    const member = Array.from(this.groupMembers.values()).find(
+      (m) => m.groupId === groupId && m.userId === userId
+    );
+    if (member) {
+      this.groupMembers.delete(member.id);
+    }
   }
   async getGroupMembers(groupId) {
     const members = Array.from(this.groupMembers.values()).filter((m) => m.groupId === groupId).map((m) => m.userId ? this.users.get(m.userId) : void 0).filter((u) => u !== void 0);
@@ -439,13 +447,28 @@ var MemStorage = class {
     return message;
   }
   async getClashMessages() {
-    return this.clashMessages.sort((a, b) => new Date(a.timestamp || "").getTime() - new Date(b.timestamp || "").getTime());
+    return this.clashMessages.sort((a, b) => new Date(a.timestamp || "").getTime() - new Date(b.timestamp || "").getTime()).map((msg) => {
+      const user = this.users.get(msg.userId || "");
+      return {
+        ...msg,
+        user: {
+          username: user?.username || "Unknown",
+          displayName: user?.displayName || null
+        }
+      };
+    });
   }
   async toggleClashNotifications(userId, enabled) {
     const user = this.users.get(userId);
     if (user) {
-      this.users.set(userId, { ...user, clashChatNotifications: enabled });
+      user.clashChatNotifications = enabled;
+      this.users.set(userId, user);
     }
+  }
+  async cleanupOldMessages() {
+    const sevenDaysAgo = /* @__PURE__ */ new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    this.clashMessages = this.clashMessages.filter((msg) => msg.timestamp && new Date(msg.timestamp) > sevenDaysAgo);
   }
 };
 var DatabaseStorage = class {
@@ -574,20 +597,26 @@ var DatabaseStorage = class {
     for (const member of members) {
       if (member.groupId) {
         const group = await this.getGroup(member.groupId);
-        if (group) userGroups.push(group);
+        if (group) {
+          const memberCount = await db.select({ count: groupMembers.id }).from(groupMembers).where(eq(groupMembers.groupId, group.id));
+          userGroups.push({ ...group, memberCount: memberCount.length });
+        }
       }
     }
     return userGroups;
   }
   async joinGroup(groupId, userId) {
-    const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, groupId));
-    const isMember = members.some((m) => m.userId === userId);
-    if (isMember) return;
-    await db.insert(groupMembers).values({
-      groupId,
-      userId,
-      joinedAt: (/* @__PURE__ */ new Date()).toISOString()
-    });
+    const [existing] = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId)));
+    if (!existing) {
+      await db.insert(groupMembers).values({
+        groupId,
+        userId,
+        joinedAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    }
+  }
+  async removeGroupMember(groupId, userId) {
+    await db.delete(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId)));
   }
   async getGroupMembers(groupId) {
     const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, groupId));
@@ -668,16 +697,66 @@ var DatabaseStorage = class {
     const [version] = await db.select().from(appVersions).orderBy(desc(appVersions.versionCode)).limit(1);
     return version;
   }
+  // Encryption helpers
+  encryptMessage(text2) {
+    const algorithm = "aes-256-cbc";
+    const key = crypto.scryptSync(process.env.SESSION_SECRET || "default_secret", "salt", 32);
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(algorithm, key, iv);
+    let encrypted = cipher.update(text2, "utf8", "hex");
+    encrypted += cipher.final("hex");
+    return iv.toString("hex") + ":" + encrypted;
+  }
+  decryptMessage(text2) {
+    try {
+      const algorithm = "aes-256-cbc";
+      const key = crypto.scryptSync(process.env.SESSION_SECRET || "default_secret", "salt", 32);
+      const textParts = text2.split(":");
+      const iv = Buffer.from(textParts.shift(), "hex");
+      const encryptedText = textParts.join(":");
+      const decipher = crypto.createDecipheriv(algorithm, key, iv);
+      let decrypted = decipher.update(encryptedText, "hex", "utf8");
+      decrypted += decipher.final("utf8");
+      return decrypted;
+    } catch (e) {
+      console.error("Decryption failed:", e);
+      return "[Encrypted Message]";
+    }
+  }
   async createClashMessage(userId, content) {
+    const encryptedContent = this.encryptMessage(content);
     const [message] = await db.insert(clashMessages).values({
       userId,
-      content,
+      content: encryptedContent,
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
     }).returning();
-    return message;
+    return {
+      ...message,
+      content
+      // Return original content to sender
+    };
   }
   async getClashMessages() {
-    return await db.select().from(clashMessages).orderBy(desc(clashMessages.timestamp)).limit(50);
+    const messages = await db.select({
+      id: clashMessages.id,
+      userId: clashMessages.userId,
+      content: clashMessages.content,
+      timestamp: clashMessages.timestamp,
+      user: {
+        username: users.username,
+        displayName: users.displayName
+      }
+    }).from(clashMessages).leftJoin(users, eq(clashMessages.userId, users.id)).orderBy(clashMessages.timestamp);
+    return messages.map((msg) => ({
+      ...msg,
+      content: this.decryptMessage(msg.content),
+      user: msg.user || { username: "Unknown", displayName: "Unknown" }
+    }));
+  }
+  async cleanupOldMessages() {
+    const sevenDaysAgo = /* @__PURE__ */ new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    await db.delete(clashMessages).where(lt(clashMessages.timestamp, sevenDaysAgo.toISOString()));
   }
   async toggleClashNotifications(userId, enabled) {
     await db.update(users).set({ clashChatNotifications: enabled }).where(eq(users.id, userId));
@@ -1083,6 +1162,27 @@ async function registerRoutes(app2) {
       }
       await storage.deleteGroup(req.params.id);
       res.json({ message: "Group deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+  app2.delete("/api/groups/:id/members/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+      if (group.createdBy !== req.user.id && req.user.role !== "admin") {
+        return res.status(403).json({ message: "Only the group creator can remove members" });
+      }
+      if (req.params.userId === group.createdBy) {
+        return res.status(400).json({ message: "Cannot remove the group creator" });
+      }
+      await storage.removeGroupMember(req.params.id, req.params.userId);
+      res.json({ message: "Member removed successfully" });
     } catch (error) {
       res.status(500).json({ message: error.message });
     }
@@ -1541,6 +1641,10 @@ async function registerRoutes(app2) {
   });
   app2.post("/api/clash/messages", async (req, res) => {
     if (!req.user) return res.sendStatus(401);
+    const userGroups = await storage.getUserGroups(req.user.id);
+    if (userGroups.length === 0) {
+      return res.status(403).json({ message: "You must join a group to participate in Clash Chat" });
+    }
     const { content } = req.body;
     if (!content) return res.status(400).json({ message: "Content is required" });
     const message = await storage.createClashMessage(req.user.id, content);

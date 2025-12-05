@@ -1,7 +1,11 @@
-import { type User, type InsertUser, type Task, type InsertTask, type Feedback, type InsertFeedback, type Group, type InsertGroup, type GroupMember, type InsertGroupMember, type AppVersion, type InsertAppVersion, type ClashMessage, users, tasks, feedback, groups, groupMembers, notifications, appVersions, clashMessages } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { users, tasks, groups, groupMembers, clashMessages, feedback, appVersions, notifications, type User, type InsertUser, type Task, type InsertTask, type Group, type InsertGroup, type GroupMember, type InsertGroupMember, type ClashMessage, type Feedback, type InsertFeedback, type AppVersion, type InsertAppVersion } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, lt, desc, and } from "drizzle-orm";
+import session from "express-session";
+import connectPg from "connect-pg-simple";
+import { pool } from "./db";
+import { randomUUID } from "crypto";
+import * as crypto from "crypto";
 
 // modify the interface with any CRUD methods
 // you might need
@@ -40,8 +44,9 @@ export interface IStorage {
   createGroup(name: string, userId: string): Promise<Group>;
   getGroup(id: string): Promise<Group | undefined>;
   getGroupByCode(code: string): Promise<Group | undefined>;
-  getUserGroups(userId: string): Promise<Group[]>;
+  getUserGroups(userId: string): Promise<(Group & { memberCount: number })[]>;
   joinGroup(groupId: string, userId: string): Promise<void>;
+  removeGroupMember(groupId: string, userId: string): Promise<void>;
   getGroupMembers(groupId: string): Promise<User[]>;
   deleteGroup(groupId: string): Promise<void>;
   seed(): Promise<void>;
@@ -50,8 +55,9 @@ export interface IStorage {
 
   // Clash Chat
   createClashMessage(userId: string, content: string): Promise<ClashMessage>;
-  getClashMessages(): Promise<ClashMessage[]>;
+  getClashMessages(): Promise<(ClashMessage & { user: { username: string, displayName: string | null } })[]>;
   toggleClashNotifications(userId: string, enabled: boolean): Promise<void>;
+  cleanupOldMessages(): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -282,32 +288,38 @@ export class MemStorage implements IStorage {
     return Array.from(this.groups.values()).find(g => g.code === code);
   }
 
-  async getUserGroups(userId: string): Promise<Group[]> {
+  async getUserGroups(userId: string): Promise<(Group & { memberCount: number })[]> {
     const memberEntries = Array.from(this.groupMembers.values())
       .filter(m => m.userId === userId);
 
-    const userGroups: Group[] = [];
+    const userGroups: (Group & { memberCount: number })[] = [];
     for (const member of memberEntries) {
       const group = this.groups.get(member.groupId!);
-      if (group) userGroups.push(group);
+      if (group) {
+        const count = Array.from(this.groupMembers.values()).filter(m => m.groupId === group.id).length;
+        userGroups.push({ ...group, memberCount: count });
+      }
     }
     return userGroups;
   }
 
   async joinGroup(groupId: string, userId: string): Promise<void> {
-    // Check if already member
-    const existing = Array.from(this.groupMembers.values())
-      .find(m => m.groupId === groupId && m.userId === userId);
+    const existing = Array.from(this.groupMembers.values()).find(
+      m => m.groupId === groupId && m.userId === userId
+    );
+    if (!existing) {
+      const id = randomUUID(); // Changed from (this.currentId++).toString() to randomUUID() to match existing pattern
+      this.groupMembers.set(id, { id, groupId, userId, joinedAt: new Date().toISOString() });
+    }
+  }
 
-    if (existing) return;
-
-    const id = randomUUID();
-    this.groupMembers.set(id, {
-      id,
-      groupId,
-      userId,
-      joinedAt: new Date().toISOString()
-    });
+  async removeGroupMember(groupId: string, userId: string): Promise<void> {
+    const member = Array.from(this.groupMembers.values()).find(
+      m => m.groupId === groupId && m.userId === userId
+    );
+    if (member) {
+      this.groupMembers.delete(member.id);
+    }
   }
 
   async getGroupMembers(groupId: string): Promise<User[]> {
@@ -366,15 +378,33 @@ export class MemStorage implements IStorage {
     return message;
   }
 
-  async getClashMessages(): Promise<ClashMessage[]> {
-    return this.clashMessages.sort((a, b) => new Date(a.timestamp || "").getTime() - new Date(b.timestamp || "").getTime());
+  async getClashMessages(): Promise<(ClashMessage & { user: { username: string, displayName: string | null } })[]> {
+    return this.clashMessages
+      .sort((a, b) => new Date(a.timestamp || "").getTime() - new Date(b.timestamp || "").getTime())
+      .map(msg => {
+        const user = this.users.get(msg.userId || "");
+        return {
+          ...msg,
+          user: {
+            username: user?.username || 'Unknown',
+            displayName: user?.displayName || null
+          }
+        };
+      });
   }
 
   async toggleClashNotifications(userId: string, enabled: boolean): Promise<void> {
     const user = this.users.get(userId);
     if (user) {
-      this.users.set(userId, { ...user, clashChatNotifications: enabled });
+      user.clashChatNotifications = enabled;
+      this.users.set(userId, user);
     }
+  }
+
+  async cleanupOldMessages(): Promise<void> {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    this.clashMessages = this.clashMessages.filter(msg => msg.timestamp && new Date(msg.timestamp) > sevenDaysAgo);
   }
 }
 
@@ -553,36 +583,49 @@ export class DatabaseStorage implements IStorage {
     return group;
   }
 
-  async getUserGroups(userId: string): Promise<Group[]> {
+  async getUserGroups(userId: string): Promise<(Group & { memberCount: number })[]> {
     const members = await db
       .select()
       .from(groupMembers)
       .where(eq(groupMembers.userId, userId));
 
-    const userGroups: Group[] = [];
+    const userGroups: (Group & { memberCount: number })[] = [];
     for (const member of members) {
       if (member.groupId) {
         const group = await this.getGroup(member.groupId);
-        if (group) userGroups.push(group);
+        if (group) {
+          const memberCount = await db
+            .select({ count: groupMembers.id })
+            .from(groupMembers)
+            .where(eq(groupMembers.groupId, group.id));
+
+          userGroups.push({ ...group, memberCount: memberCount.length });
+        }
       }
     }
     return userGroups;
   }
 
   async joinGroup(groupId: string, userId: string): Promise<void> {
-    const members = await db
+    // Check if already member
+    const [existing] = await db
       .select()
       .from(groupMembers)
-      .where(eq(groupMembers.groupId, groupId));
+      .where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId)));
 
-    const isMember = members.some(m => m.userId === userId);
-    if (isMember) return;
+    if (!existing) {
+      await db.insert(groupMembers).values({
+        groupId,
+        userId,
+        joinedAt: new Date().toISOString()
+      });
+    }
+  }
 
-    await db.insert(groupMembers).values({
-      groupId,
-      userId,
-      joinedAt: new Date().toISOString()
-    });
+  async removeGroupMember(groupId: string, userId: string): Promise<void> {
+    await db
+      .delete(groupMembers)
+      .where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId)));
   }
 
   async getGroupMembers(groupId: string): Promise<User[]> {
@@ -689,24 +732,80 @@ export class DatabaseStorage implements IStorage {
     return version;
   }
 
+  // Encryption helpers
+  private encryptMessage(text: string): string {
+    const algorithm = 'aes-256-cbc';
+    const key = crypto.scryptSync(process.env.SESSION_SECRET || 'default_secret', 'salt', 32);
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(algorithm, key, iv);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return iv.toString('hex') + ':' + encrypted;
+  }
+
+  private decryptMessage(text: string): string {
+    try {
+      const algorithm = 'aes-256-cbc';
+      const key = crypto.scryptSync(process.env.SESSION_SECRET || 'default_secret', 'salt', 32);
+      const textParts = text.split(':');
+      const iv = Buffer.from(textParts.shift()!, 'hex');
+      const encryptedText = textParts.join(':');
+      const decipher = crypto.createDecipheriv(algorithm, key, iv);
+      let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      return decrypted;
+    } catch (e) {
+      console.error("Decryption failed:", e);
+      return "[Encrypted Message]";
+    }
+  }
+
   async createClashMessage(userId: string, content: string): Promise<ClashMessage> {
+    const encryptedContent = this.encryptMessage(content);
     const [message] = await db
       .insert(clashMessages)
       .values({
         userId,
-        content,
+        content: encryptedContent,
         timestamp: new Date().toISOString()
       })
       .returning();
-    return message;
+
+    return {
+      ...message,
+      content: content // Return original content to sender
+    };
   }
 
-  async getClashMessages(): Promise<ClashMessage[]> {
-    return await db
-      .select()
+  async getClashMessages(): Promise<(ClashMessage & { user: { username: string, displayName: string | null } })[]> {
+    const messages = await db
+      .select({
+        id: clashMessages.id,
+        userId: clashMessages.userId,
+        content: clashMessages.content,
+        timestamp: clashMessages.timestamp,
+        user: {
+          username: users.username,
+          displayName: users.displayName
+        }
+      })
       .from(clashMessages)
-      .orderBy(desc(clashMessages.timestamp))
-      .limit(50); // Limit to last 50 messages
+      .leftJoin(users, eq(clashMessages.userId, users.id))
+      .orderBy(clashMessages.timestamp);
+
+    return messages.map(msg => ({
+      ...msg,
+      content: this.decryptMessage(msg.content),
+      user: msg.user || { username: 'Unknown', displayName: 'Unknown' }
+    }));
+  }
+
+  async cleanupOldMessages(): Promise<void> {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    await db.delete(clashMessages)
+      .where(lt(clashMessages.timestamp, sevenDaysAgo.toISOString()));
   }
 
   async toggleClashNotifications(userId: string, enabled: boolean): Promise<void> {
@@ -718,4 +817,3 @@ export class DatabaseStorage implements IStorage {
 }
 
 export const storage = process.env.DATABASE_URL ? new DatabaseStorage() : new MemStorage();
-

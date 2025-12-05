@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, User, Sword, MessageCircle } from "lucide-react";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -6,6 +6,8 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMont
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { useLocation } from "wouter";
 import { ClashChat } from "@/components/ClashChat";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { LocalNotifications } from "@capacitor/local-notifications";
 
 interface PomodoroSession {
     taskId: string;
@@ -21,6 +23,8 @@ export default function AnalyticsPage() {
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [showChat, setShowChat] = useState(false);
     const [, setLocation] = useLocation();
+    const queryClient = useQueryClient();
+    const lastSeenMsgIdRef = useRef<string | null>(null);
 
     const sessions: PomodoroSession[] = JSON.parse(localStorage.getItem("pomodoro_sessions") || "[]");
 
@@ -192,6 +196,87 @@ export default function AnalyticsPage() {
         };
         fetchUser();
     }, []);
+
+    // Initialize messages from local cache
+    const [cachedMessages, setCachedMessages] = useState<any[]>(() => {
+        try {
+            const saved = localStorage.getItem("clash_messages_cache");
+            return saved ? JSON.parse(saved) : [];
+        } catch {
+            return [];
+        }
+    });
+
+    // Poll for messages globally (Real-time feel)
+    const { data: messages = cachedMessages, isLoading: isMessagesLoading, refetch: refetchMessages } = useQuery<any[]>({
+        queryKey: ["clashMessages"],
+        queryFn: async () => {
+            const { apiRequest } = await import("@/lib/queryClient");
+            const res = await apiRequest("GET", "/api/clash/messages");
+            const data = await res.json();
+            // Update cache
+            localStorage.setItem("clash_messages_cache", JSON.stringify(data));
+            setCachedMessages(data);
+            return data;
+        },
+        refetchInterval: 1000, // 1 second polling
+        enabled: !!currentUser && groups.length > 0, // Only fetch if user has groups
+    });
+
+    // Handle notifications permission
+    useEffect(() => {
+        const checkPermission = async () => {
+            try {
+                const permission = await LocalNotifications.checkPermissions();
+                if (permission.display !== 'granted') {
+                    await LocalNotifications.requestPermissions();
+                }
+            } catch (e) {
+                console.error("Notification permission error:", e);
+            }
+        };
+        checkPermission();
+    }, []);
+
+    // Global Notification Logic
+    useEffect(() => {
+        if (!currentUser || messages.length === 0) return;
+
+        // Check if notifications are enabled for user
+        if (currentUser.clashChatNotifications === false) return;
+
+        const lastMessage = messages[messages.length - 1];
+
+        // Initialize ref if empty
+        if (!lastSeenMsgIdRef.current) {
+            lastSeenMsgIdRef.current = lastMessage.id;
+            return;
+        }
+
+        // Check if new message is different from last seen
+        if (lastMessage.id !== lastSeenMsgIdRef.current) {
+            lastSeenMsgIdRef.current = lastMessage.id;
+
+            // Don't notify for own messages
+            if (lastMessage.userId === currentUser.id) return;
+
+            // Don't notify if chat is open (optional, but usually desired behavior)
+            // if (showChat) return; 
+
+            LocalNotifications.schedule({
+                notifications: [{
+                    title: "Clash Zone",
+                    body: `${lastMessage.user?.displayName || 'User'}: ${lastMessage.content}`,
+                    id: Math.floor(Math.random() * 100000),
+                    schedule: { at: new Date(Date.now() + 100) },
+                    sound: "default",
+                    smallIcon: "ic_stat_notifications",
+                    actionTypeId: "",
+                    extra: null
+                }]
+            }).catch(e => console.error("Notification schedule error:", e));
+        }
+    }, [messages, currentUser, showChat]);
 
     // Sync stats to server
     useEffect(() => {
@@ -536,27 +621,27 @@ export default function AnalyticsPage() {
                             <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
                                 <div className="flex items-center justify-between mb-6">
                                     <h3 className="text-lg font-bold flex items-center gap-2">
-                                        <span className="text-2xl">👥</span> {selectedGroup.name}
+                                        <span className="text-2xl">👥</span>
+                                        {selectedGroup.name}
+                                        <span className="text-sm font-normal text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
+                                            {(selectedGroup as any).memberCount || 0} members
+                                        </span>
                                     </h3>
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={() => setShowChat(!showChat)}
-                                            className={`p-2 rounded-full transition-colors ${showChat ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground'}`}
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 shadow-md hover:shadow-primary/25 active:scale-95 ${showChat
+                                                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white ring-2 ring-purple-500/50 ring-offset-2 ring-offset-background'
+                                                : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:opacity-90'
+                                                }`}
                                         >
-                                            <MessageCircle className="w-5 h-5" />
+                                            <MessageCircle className="w-3.5 h-3.5 animate-pulse" />
+                                            {showChat ? 'Hide' : 'Chat'}
                                         </button>
-                                        <div className="text-xs text-muted-foreground bg-secondary px-3 py-1 rounded-full">
-                                            Code: <span className="font-mono select-all">{selectedGroup.code}</span>
+                                        <div className="text-xs text-muted-foreground bg-secondary/50 backdrop-blur-sm px-3 py-1 rounded-full border border-border/50">
+                                            Code: <span className="font-mono select-all font-bold text-foreground">{selectedGroup.code}</span>
                                         </div>
                                     </div>
-                                    {(currentUser?.id === selectedGroup.createdBy || currentUser?.role === "admin") && (
-                                        <button
-                                            onClick={() => handleDeleteGroup(selectedGroup.id)}
-                                            className="text-xs bg-red-500/10 text-red-500 hover:bg-red-500/20 px-3 py-1 rounded-full transition-colors ml-2"
-                                        >
-                                            Delete Group
-                                        </button>
-                                    )}
                                 </div>
 
                                 <AnimatePresence>
@@ -567,14 +652,21 @@ export default function AnalyticsPage() {
                                             exit={{ height: 0, opacity: 0 }}
                                             className="mb-6 overflow-hidden"
                                         >
-                                            <ClashChat currentUser={currentUser} onClose={() => setShowChat(false)} />
+                                            <ClashChat
+                                                currentUser={currentUser}
+                                                onClose={() => setShowChat(false)}
+                                                hasGroups={groups.length > 0}
+                                                messages={messages}
+                                                isLoading={isMessagesLoading}
+                                                onMessageSent={() => refetchMessages()}
+                                            />
                                         </motion.div>
                                     )}
                                 </AnimatePresence>
 
                                 <div className="space-y-4">
                                     {groupMembers.map((user, index) => (
-                                        <div key={user.id} className="flex items-center gap-4 p-3 rounded-xl hover:bg-secondary/50 transition-colors">
+                                        <div key={user.id} className="flex items-center gap-4 p-3 rounded-xl hover:bg-secondary/50 transition-colors group">
                                             <div className={`w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm ${index === 0 ? "bg-yellow-500/20 text-yellow-500" :
                                                 index === 1 ? "bg-zinc-400/20 text-zinc-400" :
                                                     index === 2 ? "bg-orange-500/20 text-orange-500" :
@@ -583,20 +675,58 @@ export default function AnalyticsPage() {
                                                 {index + 1}
                                             </div>
                                             <div className="flex-1">
-                                                <div className="font-medium">{user.displayName || user.username}</div>
+                                                <div className="font-medium flex items-center gap-2">
+                                                    {user.displayName || user.username}
+                                                    {user.id === selectedGroup.createdBy && (
+                                                        <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded border border-primary/20">Admin</span>
+                                                    )}
+                                                </div>
                                                 <div className="text-xs text-muted-foreground">
                                                     Today: {Math.round(user.todayFocusTime / 60)}h {user.todayFocusTime % 60}m
                                                 </div>
                                             </div>
-                                            <div className="text-right">
-                                                <div className="font-bold text-primary" style={{ color: 'var(--theme-primary)' }}>
-                                                    {Math.round(user.totalFocusTime / 60)}h
+                                            <div className="text-right flex items-center gap-3">
+                                                <div>
+                                                    <div className="font-bold text-primary" style={{ color: 'var(--theme-primary)' }}>
+                                                        {Math.round(user.totalFocusTime / 60)}h
+                                                    </div>
+                                                    <div className="text-[10px] text-muted-foreground">Total</div>
                                                 </div>
-                                                <div className="text-[10px] text-muted-foreground">Total</div>
+
+                                                {/* Remove Member Button (Only for Creator) */}
+                                                {selectedGroup.createdBy === currentUser.id && user.id !== currentUser.id && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (!confirm(`Remove ${user.username} from the group?`)) return;
+                                                            try {
+                                                                await apiRequest("DELETE", `/api/groups/${selectedGroup.id}/members/${user.id}`);
+                                                                queryClient.invalidateQueries({ queryKey: ["groupMembers", selectedGroup.id] });
+                                                                toast({ title: "Member removed" });
+                                                            } catch (e) {
+                                                                toast({ title: "Failed to remove member", variant: "destructive" });
+                                                            }
+                                                        }}
+                                                        className="opacity-0 group-hover:opacity-100 p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-all"
+                                                        title="Remove from group"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     ))}
                                 </div>
+
+                                {(currentUser?.id === selectedGroup.createdBy || currentUser?.role === "admin") && (
+                                    <div className="mt-8 pt-6 border-t border-border flex justify-center">
+                                        <button
+                                            onClick={() => handleDeleteGroup(selectedGroup.id)}
+                                            className="flex items-center gap-2 text-sm bg-red-500/10 text-red-500 hover:bg-red-500/20 px-4 py-2 rounded-full transition-colors"
+                                        >
+                                            <span className="text-lg">🗑️</span> Delete Group
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <>

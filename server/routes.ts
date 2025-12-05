@@ -444,6 +444,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/groups/:id/members/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    try {
+      const group = await storage.getGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+
+      // Only creator or admin can remove members
+      if (group.createdBy !== (req.user as any).id && (req.user as any).role !== "admin") {
+        return res.status(403).json({ message: "Only the group creator can remove members" });
+      }
+
+      // Cannot remove the creator
+      if (req.params.userId === group.createdBy) {
+        return res.status(400).json({ message: "Cannot remove the group creator" });
+      }
+
+      await storage.removeGroupMember(req.params.id, req.params.userId);
+      res.json({ message: "Member removed successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Admin Routes
   app.get("/api/admin/tasks", async (req, res) => {
     const user = req.user as any;
@@ -1029,6 +1056,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/clash/messages", async (req, res) => {
     if (!req.user) return res.sendStatus(401);
+
+    // Check if user is in any group
+    const userGroups = await storage.getUserGroups((req.user as any).id);
+    if (userGroups.length === 0) {
+      return res.status(403).json({ message: "You must join a group to participate in Clash Chat" });
+    }
+
     const { content } = req.body;
     if (!content) return res.status(400).json({ message: "Content is required" });
 
