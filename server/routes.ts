@@ -520,7 +520,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const tokens = users.map(u => u.pushToken).filter(t => t) as string[];
 
     if (tokens.length > 0) {
-      await sendMulticastNotification(tokens, title, body);
+      try {
+        await sendMulticastNotification(tokens, title, body);
+      } catch (error) {
+        console.error("Firebase notification error:", error);
+        // Don't fail the request if push fails
+      }
     }
 
     res.json({ success: true, message: "Notification created and queued for sending" });
@@ -563,7 +568,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const tokens = users.map(u => u.pushToken).filter(t => t) as string[];
 
     if (tokens.length > 0) {
-      await sendMulticastNotification(tokens, "Update Available", `Version ${versionName} is now available.`);
+      try {
+        await sendMulticastNotification(tokens, "Update Available", `Version ${versionName} is now available.`);
+      } catch (error) {
+        console.error("Firebase update notification error:", error);
+        // Don't fail the request if push fails
+      }
     }
 
     res.json({ success: true });

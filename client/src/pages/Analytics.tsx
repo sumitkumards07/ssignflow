@@ -326,7 +326,8 @@ export default function AnalyticsPage() {
     // Invalidate messages query when switching groups
     useEffect(() => {
         if (selectedGroup?.id) {
-            queryClient.invalidateQueries({ queryKey: ["clashMessages"] });
+            // Use resetQueries to completely clear the cache and force fresh fetch
+            queryClient.resetQueries({ queryKey: ["clashMessages"] });
         }
     }, [selectedGroup?.id, queryClient]);
 

@@ -60,21 +60,39 @@ export default function AdminDashboard() {
 
     const handleSendNotification = async () => {
         try {
-            await apiRequest("POST", "/api/admin/notifications", notification);
+            const res = await apiRequest("POST", "/api/admin/notifications", notification);
+            if (!res.ok) {
+                const error = await res.json();
+                throw new Error(error.message || "Failed to send notification");
+            }
             toast({ title: "Success", description: "Notification sent successfully" });
             setNotification({ title: "", body: "" });
-        } catch (error) {
-            toast({ title: "Error", description: "Failed to send notification", variant: "destructive" });
+        } catch (error: any) {
+            console.error("Notification error:", error);
+            toast({
+                title: "Error",
+                description: error.message || "Failed to send notification",
+                variant: "destructive"
+            });
         }
     };
 
     const handlePushUpdate = async () => {
         try {
-            await apiRequest("POST", "/api/admin/updates", update);
+            const res = await apiRequest("POST", "/api/admin/updates", update);
+            if (!res.ok) {
+                const error = await res.json();
+                throw new Error(error.message || "Failed to push update");
+            }
             toast({ title: "Success", description: "Update pushed successfully" });
             setUpdate({ versionCode: "", versionName: "", apkUrl: "", releaseNotes: "" });
-        } catch (error) {
-            toast({ title: "Error", description: "Failed to push update", variant: "destructive" });
+        } catch (error: any) {
+            console.error("Update error:", error);
+            toast({
+                title: "Error",
+                description: error.message || "Failed to push update",
+                variant: "destructive"
+            });
         }
     };
 
