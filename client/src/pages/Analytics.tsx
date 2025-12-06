@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, User, Sword, MessageCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, User, Sword, MessageCircle, Loader2, X } from "lucide-react";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, isSameMonth, subDays, subWeeks, startOfYear, endOfYear, eachMonthOfInterval, getYear, getWeek } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
@@ -8,6 +8,7 @@ import { useLocation } from "wouter";
 import { ClashChat } from "@/components/ClashChat";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LocalNotifications } from "@capacitor/local-notifications";
+import { useToast } from "@/hooks/use-toast";
 
 interface PomodoroSession {
     taskId: string;
@@ -22,9 +23,11 @@ export default function AnalyticsPage() {
     const [chartView, setChartView] = useState<"daily" | "weekly" | "monthly" | "yearly">("daily");
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [showChat, setShowChat] = useState(false);
+    const [isGroupLoading, setIsGroupLoading] = useState(false);
     const [, setLocation] = useLocation();
     const queryClient = useQueryClient();
     const lastSeenMsgIdRef = useRef<string | null>(null);
+    const { toast } = useToast();
 
     const sessions: PomodoroSession[] = JSON.parse(localStorage.getItem("pomodoro_sessions") || "[]");
 
@@ -197,30 +200,22 @@ export default function AnalyticsPage() {
         fetchUser();
     }, []);
 
-    // Initialize messages from local cache
-    const [cachedMessages, setCachedMessages] = useState<any[]>(() => {
-        try {
-            const saved = localStorage.getItem("clash_messages_cache");
-            return saved ? JSON.parse(saved) : [];
-        } catch {
-            return [];
-        }
-    });
-
-    // Poll for messages globally (Real-time feel)
-    const { data: messages = cachedMessages, isLoading: isMessagesLoading, refetch: refetchMessages } = useQuery<any[]>({
-        queryKey: ["clashMessages"],
+    // Poll for messages
+    const { data: messages = [], isLoading: isMessagesLoading, refetch: refetchMessages } = useQuery<any[]>({
+        queryKey: ["clashMessages", selectedGroup?.id],
         queryFn: async () => {
+            if (!selectedGroup?.id) return [];
             const { apiRequest } = await import("@/lib/queryClient");
-            const res = await apiRequest("GET", "/api/clash/messages");
+            const res = await apiRequest("GET", `/api/clash/messages?groupId=${selectedGroup.id}`);
+            if (!res.ok) return [];
             const data = await res.json();
-            // Update cache
-            localStorage.setItem("clash_messages_cache", JSON.stringify(data));
-            setCachedMessages(data);
+            if (!Array.isArray(data)) return [];
             return data;
         },
-        refetchInterval: 1000, // 1 second polling
-        enabled: !!currentUser && groups.length > 0, // Only fetch if user has groups
+        refetchInterval: selectedGroup?.id ? 2000 : false, // Poll every 2 seconds when a group is selected (optimized for performance)
+        enabled: !!currentUser && groups.length > 0 && !!selectedGroup?.id, // Only fetch if user has groups and a group is selected
+        staleTime: 0, // Always consider data stale to force refetch on group change
+        gcTime: 0, // Don't cache old group messages
     });
 
     // Handle notifications permission
@@ -270,7 +265,6 @@ export default function AnalyticsPage() {
                     id: Math.floor(Math.random() * 100000),
                     schedule: { at: new Date(Date.now() + 100) },
                     sound: "default",
-                    smallIcon: "ic_stat_notifications",
                     actionTypeId: "",
                     extra: null
                 }]
@@ -316,20 +310,25 @@ export default function AnalyticsPage() {
 
     // Fetch groups
     useEffect(() => {
-        if (activeTab === "battlefield") {
-            const fetchGroups = async () => {
-                try {
-                    const { apiRequest } = await import("@/lib/queryClient");
-                    const res = await apiRequest("GET", "/api/groups");
-                    const data = await res.json();
-                    setGroups(data);
-                } catch (error) {
-                    console.error("Failed to fetch groups:", error);
-                }
-            };
-            fetchGroups();
+        const fetchGroups = async () => {
+            try {
+                const { apiRequest } = await import("@/lib/queryClient");
+                const res = await apiRequest("GET", "/api/groups");
+                const data = await res.json();
+                setGroups(data);
+            } catch (error) {
+                console.error("Failed to fetch groups:", error);
+            }
+        };
+        fetchGroups();
+    }, []);
+
+    // Invalidate messages query when switching groups
+    useEffect(() => {
+        if (selectedGroup?.id) {
+            queryClient.invalidateQueries({ queryKey: ["clashMessages"] });
         }
-    }, [activeTab]);
+    }, [selectedGroup?.id, queryClient]);
 
     const handleCreateGroup = async () => {
         try {
@@ -359,14 +358,32 @@ export default function AnalyticsPage() {
     };
 
     const handleGroupClick = async (groupId: string) => {
+        setIsGroupLoading(true);
         try {
             const { apiRequest } = await import("@/lib/queryClient");
             const res = await apiRequest("GET", `/api/groups/${groupId}`);
+
+            if (!res.ok) {
+                throw new Error("Failed to fetch group");
+            }
+
             const data = await res.json();
+
+            if (!data.group) {
+                throw new Error("Invalid group data");
+            }
+
             setSelectedGroup(data.group);
             setGroupMembers(data.members);
         } catch (error) {
             console.error("Failed to fetch group details:", error);
+            toast({
+                title: "Error",
+                description: "Failed to load group. Please try again.",
+                variant: "destructive"
+            });
+        } finally {
+            setIsGroupLoading(false);
         }
     };
 
@@ -384,9 +401,9 @@ export default function AnalyticsPage() {
     };
 
     return (
-        <div className="min-h-screen bg-background text-foreground pb-24">
+        <div className="min-h-screen bg-background text-foreground pb-40 max-w-screen-xl mx-auto w-full">
             {/* Header */}
-            <div className="px-6 pt-safe pb-4 flex items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border">
+            <div className="px-4 sm:px-6 pt-safe pb-4 flex items-center justify-between sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border">
                 <button
                     onClick={() => selectedGroup ? setSelectedGroup(null) : window.history.back()}
                     className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-secondary transition-colors"
@@ -446,9 +463,9 @@ export default function AnalyticsPage() {
             {/* Content */}
             <div className="overflow-y-auto">
                 {activeTab === "pomodoro" && !selectedGroup ? (
-                    <div className="space-y-6 p-6">
+                    <div className="space-y-6 p-4 sm:p-6">
                         {/* Stats Cards */}
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div className="bg-card border border-border rounded-2xl p-4 text-center shadow-sm">
                                 <div className="text-3xl font-bold" style={{ color: 'var(--theme-primary)' }}>{stats.total}</div>
                                 <div className="text-[10px] text-muted-foreground mt-1">Total Focus Time(h)</div>
@@ -616,16 +633,12 @@ export default function AnalyticsPage() {
                         </div>
                     </div>
                 ) : activeTab === "battlefield" ? (
-                    <div className="p-6 space-y-6">
+                    <div className="p-4 sm:p-6 space-y-6">
                         {selectedGroup ? (
                             <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
                                 <div className="flex items-center justify-between mb-6">
-                                    <h3 className="text-lg font-bold flex items-center gap-2">
-                                        <span className="text-2xl">👥</span>
+                                    <h3 className="text-lg font-bold">
                                         {selectedGroup.name}
-                                        <span className="text-sm font-normal text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
-                                            {(selectedGroup as any).memberCount || 0} members
-                                        </span>
                                     </h3>
                                     <div className="flex items-center gap-2">
                                         <button
@@ -656,9 +669,10 @@ export default function AnalyticsPage() {
                                                 currentUser={currentUser}
                                                 onClose={() => setShowChat(false)}
                                                 hasGroups={groups.length > 0}
-                                                messages={messages}
+                                                messages={Array.isArray(messages) ? messages : []}
                                                 isLoading={isMessagesLoading}
                                                 onMessageSent={() => refetchMessages()}
+                                                groupId={selectedGroup?.id}
                                             />
                                         </motion.div>
                                     )}
@@ -699,6 +713,7 @@ export default function AnalyticsPage() {
                                                         onClick={async () => {
                                                             if (!confirm(`Remove ${user.username} from the group?`)) return;
                                                             try {
+                                                                const { apiRequest } = await import("@/lib/queryClient");
                                                                 await apiRequest("DELETE", `/api/groups/${selectedGroup.id}/members/${user.id}`);
                                                                 queryClient.invalidateQueries({ queryKey: ["groupMembers", selectedGroup.id] });
                                                                 toast({ title: "Member removed" });
@@ -814,6 +829,11 @@ export default function AnalyticsPage() {
                                                     <ChevronRight className="w-5 h-5 text-muted-foreground" />
                                                 </button>
                                             ))}
+                                            {isGroupLoading && (
+                                                <div className="flex justify-center py-4">
+                                                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>

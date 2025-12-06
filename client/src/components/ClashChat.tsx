@@ -22,9 +22,11 @@ interface ClashChatProps {
     messages: ClashMessage[];
     isLoading: boolean;
     onMessageSent: () => void;
+    groupId?: string;
 }
 
-export function ClashChat({ currentUser, onClose, hasGroups, messages, isLoading, onMessageSent }: ClashChatProps) {
+export function ClashChat({ currentUser, onClose, hasGroups, messages, isLoading, onMessageSent, groupId }: ClashChatProps) {
+    if (!currentUser) return null;
     const [input, setInput] = useState("");
     const scrollRef = useRef<HTMLDivElement>(null);
     const queryClient = useQueryClient();
@@ -46,12 +48,21 @@ export function ClashChat({ currentUser, onClose, hasGroups, messages, isLoading
     // Send message mutation
     const sendMessageMutation = useMutation({
         mutationFn: async (content: string) => {
-            const res = await apiRequest("POST", "/api/clash/messages", { content });
+            if (!groupId) throw new Error("No group selected");
+            const res = await apiRequest("POST", "/api/clash/messages", { content, groupId });
+            if (!res.ok) {
+                const error = await res.json();
+                throw new Error(error.message || "Failed to send message");
+            }
             return res.json();
         },
         onSuccess: () => {
             setInput(""); // Clear input on success
             onMessageSent(); // Trigger refetch in parent
+        },
+        onError: (error: Error) => {
+            // Show error message to user
+            alert(error.message);
         },
     });
 
@@ -67,7 +78,7 @@ export function ClashChat({ currentUser, onClose, hasGroups, messages, isLoading
     });
 
     const handleSend = () => {
-        if (!input.trim() || sendMessageMutation.isPending || !hasGroups) return;
+        if (!input.trim() || sendMessageMutation.isPending || !hasGroups || !groupId) return;
         sendMessageMutation.mutate(input);
     };
 
@@ -80,7 +91,7 @@ export function ClashChat({ currentUser, onClose, hasGroups, messages, isLoading
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="flex flex-col h-[500px] bg-background/95 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden ring-1 ring-white/5 relative"
+            className="flex flex-col h-[60vh] md:h-[500px] w-full bg-background/95 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden ring-1 ring-white/5 relative"
         >
             {/* Access Control Overlay */}
             {!hasGroups && (
@@ -101,9 +112,6 @@ export function ClashChat({ currentUser, onClose, hasGroups, messages, isLoading
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-white/10 bg-gradient-to-r from-purple-500/10 via-background to-pink-500/10">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg ring-2 ring-white/10">
-                        <span className="text-xl">💬</span>
-                    </div>
                     <div>
                         <h3 className="font-bold text-lg leading-tight bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-400">Clash Chat</h3>
                         <p className="text-xs text-muted-foreground font-medium">

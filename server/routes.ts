@@ -6,7 +6,31 @@ import { insertTaskSchema } from "@shared/schema";
 import { randomUUID } from "crypto";
 import multer from "multer";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { sendMulticastNotification } from "./firebase";
 // pdf-parse is dynamically imported in the upload route to avoid loading it at server startup
+
+// Profanity filter utility
+function containsProfanity(text: string): boolean {
+  const profanityList = [
+    // Common offensive words (partial list - add more as needed)
+    'fuck', 'shit', 'bitch', 'ass', 'damn', 'hell', 'bastard', 'crap',
+    'dick', 'pussy', 'cock', 'slut', 'whore', 'fag', 'nigger', 'nigga',
+    'retard', 'cunt', 'piss', 'asshole', 'motherfucker', 'bullshit',
+    // Add variations and common bypasses
+    'f*ck', 'sh*t', 'b*tch', 'a$$', 'fuk', 'fck', 'sht', 'btch',
+    // Abusive terms
+    'idiot', 'stupid', 'dumb', 'moron', 'loser', 'kill yourself', 'kys',
+    'die', 'hate you', 'ugly', 'fat', 'worthless'
+  ];
+
+  const lowerText = text.toLowerCase();
+
+  // Check for exact matches and word boundaries
+  return profanityList.some(word => {
+    const regex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    return regex.test(lowerText) || lowerText.includes(word);
+  });
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Add CORS headers for mobile app
@@ -492,17 +516,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     await storage.createNotification(title, body);
 
     // Send Push Notification (Broadcast)
-    // In a real app, we would fetch all user tokens. 
-    // For now, we'll assume we have a way to get tokens or just log it.
-    // Let's import the sendMulticastNotification function.
-    // Since we don't have tokens stored yet, we'll just log/mock.
+    const users = await storage.getAllUsers();
+    const tokens = users.map(u => u.pushToken).filter(t => t) as string[];
 
-    // TODO: Fetch tokens from DB (need to add token storage to user schema/storage)
-    // const users = await storage.getAllUsers();
-    // const tokens = users.map(u => u.pushToken).filter(t => t);
-    // if (tokens.length > 0) {
-    //   await sendMulticastNotification(tokens, title, body);
-    // }
+    if (tokens.length > 0) {
+      await sendMulticastNotification(tokens, title, body);
+    }
 
     res.json({ success: true, message: "Notification created and queued for sending" });
   });
@@ -540,11 +559,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
 
     // Send Push Notification about update
-    // const users = await storage.getAllUsers();
-    // const tokens = users.map(u => u.pushToken).filter(t => t);
-    // if (tokens.length > 0) {
-    //   await sendMulticastNotification(tokens, "Update Available", `Version ${versionName} is now available.`);
-    // }
+    const users = await storage.getAllUsers();
+    const tokens = users.map(u => u.pushToken).filter(t => t) as string[];
+
+    if (tokens.length > 0) {
+      await sendMulticastNotification(tokens, "Update Available", `Version ${versionName} is now available.`);
+    }
 
     res.json({ success: true });
   });
@@ -1050,23 +1070,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/clash/messages", async (req, res) => {
     if (!req.user) return res.sendStatus(401);
-    const messages = await storage.getClashMessages();
+    const groupId = req.query.groupId as string;
+    if (!groupId) return res.status(400).json({ message: "Group ID is required" });
+
+    // Check if user is member of this group
+    const members = await storage.getGroupMembers(groupId);
+    const isMember = members.some(m => m.id === (req.user as any).id);
+    if (!isMember) return res.status(403).json({ message: "Not a member of this group" });
+
+    const messages = await storage.getClashMessages(groupId);
     res.json(messages);
   });
 
   app.post("/api/clash/messages", async (req, res) => {
     if (!req.user) return res.sendStatus(401);
 
-    // Check if user is in any group
-    const userGroups = await storage.getUserGroups((req.user as any).id);
-    if (userGroups.length === 0) {
-      return res.status(403).json({ message: "You must join a group to participate in Clash Chat" });
+    const { content, groupId } = req.body;
+    if (!content) return res.status(400).json({ message: "Content is required" });
+    if (!groupId) return res.status(400).json({ message: "Group ID is required" });
+
+    // Check for profanity
+    if (containsProfanity(content)) {
+      return res.status(400).json({ message: "Message contains inappropriate language. Please keep the chat respectful." });
     }
 
-    const { content } = req.body;
-    if (!content) return res.status(400).json({ message: "Content is required" });
+    // Check if user is member of this group
+    const members = await storage.getGroupMembers(groupId);
+    const isMember = members.some(m => m.id === (req.user as any).id);
+    if (!isMember) return res.status(403).json({ message: "Not a member of this group" });
 
-    const message = await storage.createClashMessage((req.user as any).id, content);
+    const message = await storage.createClashMessage((req.user as any).id, content, groupId);
     res.json(message);
   });
 
@@ -1077,6 +1110,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     await storage.toggleClashNotifications((req.user as any).id, enabled);
     res.json({ success: true });
+  });
+
+  app.delete("/api/groups/:groupId/members/:userId", async (req, res) => {
+    if (!req.user) return res.sendStatus(401);
+    const { groupId, userId } = req.params;
+
+    const group = await storage.getGroup(groupId);
+    if (!group) return res.status(404).json({ message: "Group not found" });
+
+    // Only creator can remove members
+    if (group.createdBy !== (req.user as any).id) {
+      return res.status(403).json({ message: "Only the group admin can remove members" });
+    }
+
+    // Cannot remove self (use leave group instead)
+    if (userId === (req.user as any).id) {
+      return res.status(400).json({ message: "Cannot remove yourself" });
+    }
+
+    await storage.removeGroupMember(groupId, userId);
+    res.sendStatus(200);
   });
 
   const httpServer = createServer(app);
