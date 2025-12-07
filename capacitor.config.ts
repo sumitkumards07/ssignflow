@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'AssignFlow',
   webDir: 'dist/public',
   server: {
-    androidScheme: 'https'
+    androidScheme: 'http'
   },
   android: {
     buildOptions: {

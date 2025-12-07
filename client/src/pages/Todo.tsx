@@ -214,9 +214,9 @@ export default function TodoPage() {
     };
 
     return (
-        <div className="min-h-screen bg-background">
+        <div className="min-h-screen bg-background max-w-screen-xl mx-auto w-full">
             {/* Header with User Profile */}
-            <div className="relative px-6 pb-4" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1.5rem)' }}>
+            <div className="relative px-4 sm:px-6 pb-4" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1.5rem)' }}>
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -300,7 +300,7 @@ export default function TodoPage() {
 
 
             {/* Tasks Section */}
-            <div className="px-6 pb-24">
+            <div className="px-4 sm:px-6 pb-40">
                 <div className="bg-card/50 backdrop-blur-sm rounded-2xl p-6 min-h-[400px]">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-lg font-semibold">

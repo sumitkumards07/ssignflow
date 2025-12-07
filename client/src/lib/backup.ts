@@ -4,27 +4,58 @@ import { Toast } from '@capacitor/toast';
 const BACKUP_FILENAME = 'assignflow_backup.json';
 
 export const backupData = async (silent = false) => {
+    // Check permissions first
     try {
-        const data = {
-            user: localStorage.getItem('user'),
-            my_tasks: localStorage.getItem('my_tasks'),
-            pomodoro_settings: localStorage.getItem('pomodoro_settings'),
-            ui_theme: localStorage.getItem('ui-theme'),
-            theme_color: localStorage.getItem('theme-color'),
-            timestamp: new Date().toISOString(),
-        };
+        const perm = await Filesystem.checkPermissions();
+        if (perm.publicStorage !== 'granted') {
+            const req = await Filesystem.requestPermissions();
+            if (req.publicStorage !== 'granted') {
+                throw new Error("Storage permission denied");
+            }
+        }
+    } catch (e) {
+        console.warn("Permission check failed:", e);
+        // Continue anyway as some devices might not need explicit permission for app-private storage
+    }
 
+    const data = {
+        user: localStorage.getItem('user'),
+        my_tasks: localStorage.getItem('my_tasks'),
+        pomodoro_settings: localStorage.getItem('pomodoro_settings'),
+        ui_theme: localStorage.getItem('ui-theme'),
+        theme_color: localStorage.getItem('theme-color'),
+        timestamp: new Date().toISOString(),
+    };
+
+    const tryBackup = async (directory: Directory) => {
         await Filesystem.writeFile({
             path: BACKUP_FILENAME,
             data: JSON.stringify(data),
-            directory: Directory.Documents,
+            directory: directory,
             encoding: Encoding.UTF8,
         });
+    };
+
+    try {
+        // Try Documents first (User visible)
+        try {
+            await tryBackup(Directory.Documents);
+        } catch (e) {
+            console.warn('Backup to Documents failed, trying External:', e);
+            // Try External (User visible on some Androids)
+            try {
+                await tryBackup(Directory.External);
+            } catch (e2) {
+                console.warn('Backup to External failed, trying Data:', e2);
+                // Fallback to Data (App specific, but persistent)
+                await tryBackup(Directory.Data);
+            }
+        }
 
         localStorage.setItem('last_backup_time', data.timestamp);
         if (!silent) {
             await Toast.show({
-                text: 'Backup saved to Documents folder',
+                text: 'Backup saved successfully',
             });
         }
         return true;
@@ -32,7 +63,7 @@ export const backupData = async (silent = false) => {
         console.error('Backup failed:', error);
         if (!silent) {
             await Toast.show({
-                text: 'Backup failed: ' + (error as any).message,
+                text: 'Backup failed: ' + (error instanceof Error ? error.message : String(error)),
             });
         }
         return false;
@@ -40,12 +71,35 @@ export const backupData = async (silent = false) => {
 };
 
 export const restoreData = async (silent = false) => {
+    // Check permissions first
     try {
-        const result = await Filesystem.readFile({
+        const perm = await Filesystem.checkPermissions();
+        if (perm.publicStorage !== 'granted') {
+            await Filesystem.requestPermissions();
+        }
+    } catch (e) {
+        console.warn("Permission check failed:", e);
+    }
+
+    const tryRestore = async (directory: Directory) => {
+        return await Filesystem.readFile({
             path: BACKUP_FILENAME,
-            directory: Directory.Documents,
+            directory: directory,
             encoding: Encoding.UTF8,
         });
+    };
+
+    try {
+        let result;
+        try {
+            result = await tryRestore(Directory.Documents);
+        } catch (e) {
+            try {
+                result = await tryRestore(Directory.External);
+            } catch (e2) {
+                result = await tryRestore(Directory.Data);
+            }
+        }
 
         const data = JSON.parse(result.data as string);
 

@@ -74,6 +74,8 @@ var insertUserSchema = createInsertSchema(users).pick({
 var clashMessages = pgTable("clash_messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id),
+  groupId: varchar("group_id").references(() => groups.id),
+  // Added groupId
   content: text("content").notNull(),
   timestamp: text("timestamp").default((/* @__PURE__ */ new Date()).toISOString())
 });
@@ -435,19 +437,20 @@ var MemStorage = class {
     return this.appVersions.sort((a, b) => b.versionCode - a.versionCode)[0];
   }
   clashMessages = [];
-  async createClashMessage(userId, content) {
+  async createClashMessage(userId, content, groupId) {
     const id = randomUUID();
     const message = {
       id,
       userId,
+      groupId,
       content,
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
     };
     this.clashMessages.push(message);
     return message;
   }
-  async getClashMessages() {
-    return this.clashMessages.sort((a, b) => new Date(a.timestamp || "").getTime() - new Date(b.timestamp || "").getTime()).map((msg) => {
+  async getClashMessages(groupId) {
+    return this.clashMessages.filter((msg) => msg.groupId === groupId).sort((a, b) => new Date(a.timestamp || "").getTime() - new Date(b.timestamp || "").getTime()).map((msg) => {
       const user = this.users.get(msg.userId || "");
       return {
         ...msg,
@@ -723,10 +726,11 @@ var DatabaseStorage = class {
       return "[Encrypted Message]";
     }
   }
-  async createClashMessage(userId, content) {
+  async createClashMessage(userId, content, groupId) {
     const encryptedContent = this.encryptMessage(content);
     const [message] = await db.insert(clashMessages).values({
       userId,
+      groupId,
       content: encryptedContent,
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
     }).returning();
@@ -736,17 +740,18 @@ var DatabaseStorage = class {
       // Return original content to sender
     };
   }
-  async getClashMessages() {
+  async getClashMessages(groupId) {
     const messages = await db.select({
       id: clashMessages.id,
       userId: clashMessages.userId,
+      groupId: clashMessages.groupId,
       content: clashMessages.content,
       timestamp: clashMessages.timestamp,
       user: {
         username: users.username,
         displayName: users.displayName
       }
-    }).from(clashMessages).leftJoin(users, eq(clashMessages.userId, users.id)).orderBy(clashMessages.timestamp);
+    }).from(clashMessages).leftJoin(users, eq(clashMessages.userId, users.id)).where(eq(clashMessages.groupId, groupId)).orderBy(clashMessages.timestamp);
     return messages.map((msg) => ({
       ...msg,
       content: this.decryptMessage(msg.content),
@@ -798,6 +803,98 @@ var auth_default = passport;
 import { createServer } from "http";
 import multer from "multer";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// server/firebase.ts
+import admin from "firebase-admin";
+var firebaseApp = null;
+try {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    firebaseApp = admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    console.log("Firebase Admin initialized successfully");
+  } else {
+    console.warn("FIREBASE_SERVICE_ACCOUNT not found. Push notifications will be mocked.");
+  }
+} catch (error) {
+  console.error("Failed to initialize Firebase Admin:", error);
+}
+async function sendMulticastNotification(tokens, title, body) {
+  if (!firebaseApp) {
+    console.log(`[MOCK] Sending multicast push to ${tokens.length} tokens: ${title} - ${body}`);
+    return { successCount: tokens.length, failureCount: 0 };
+  }
+  try {
+    const response = await firebaseApp.messaging().sendEachForMulticast({
+      tokens,
+      notification: {
+        title,
+        body
+      }
+    });
+    return response;
+  } catch (error) {
+    console.error("Error sending multicast notification:", error);
+    return { successCount: 0, failureCount: tokens.length };
+  }
+}
+
+// server/routes.ts
+function containsProfanity(text2) {
+  const profanityList = [
+    // Common offensive words (partial list - add more as needed)
+    "fuck",
+    "shit",
+    "bitch",
+    "ass",
+    "damn",
+    "hell",
+    "bastard",
+    "crap",
+    "dick",
+    "pussy",
+    "cock",
+    "slut",
+    "whore",
+    "fag",
+    "nigger",
+    "nigga",
+    "retard",
+    "cunt",
+    "piss",
+    "asshole",
+    "motherfucker",
+    "bullshit",
+    // Add variations and common bypasses
+    "f*ck",
+    "sh*t",
+    "b*tch",
+    "a$$",
+    "fuk",
+    "fck",
+    "sht",
+    "btch",
+    // Abusive terms
+    "idiot",
+    "stupid",
+    "dumb",
+    "moron",
+    "loser",
+    "kill yourself",
+    "kys",
+    "die",
+    "hate you",
+    "ugly",
+    "fat",
+    "worthless"
+  ];
+  const lowerText = text2.toLowerCase();
+  return profanityList.some((word) => {
+    const regex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+    return regex.test(lowerText) || lowerText.includes(word);
+  });
+}
 async function registerRoutes(app2) {
   app2.use("/api", async (req, res, next) => {
     if (!process.env.GEMINI_API_KEY) {
@@ -1202,6 +1299,11 @@ async function registerRoutes(app2) {
     }
     const { title, body } = req.body;
     await storage.createNotification(title, body);
+    const users2 = await storage.getAllUsers();
+    const tokens = users2.map((u) => u.pushToken).filter((t) => t);
+    if (tokens.length > 0) {
+      await sendMulticastNotification(tokens, title, body);
+    }
     res.json({ success: true, message: "Notification created and queued for sending" });
   });
   app2.post("/api/notifications/register", async (req, res) => {
@@ -1228,6 +1330,11 @@ async function registerRoutes(app2) {
       apkUrl,
       releaseNotes
     });
+    const users2 = await storage.getAllUsers();
+    const tokens = users2.map((u) => u.pushToken).filter((t) => t);
+    if (tokens.length > 0) {
+      await sendMulticastNotification(tokens, "Update Available", `Version ${versionName} is now available.`);
+    }
     res.json({ success: true });
   });
   app2.get("/api/updates", async (req, res) => {
@@ -1636,18 +1743,26 @@ async function registerRoutes(app2) {
   });
   app2.get("/api/clash/messages", async (req, res) => {
     if (!req.user) return res.sendStatus(401);
-    const messages = await storage.getClashMessages();
+    const groupId = req.query.groupId;
+    if (!groupId) return res.status(400).json({ message: "Group ID is required" });
+    const members = await storage.getGroupMembers(groupId);
+    const isMember = members.some((m) => m.id === req.user.id);
+    if (!isMember) return res.status(403).json({ message: "Not a member of this group" });
+    const messages = await storage.getClashMessages(groupId);
     res.json(messages);
   });
   app2.post("/api/clash/messages", async (req, res) => {
     if (!req.user) return res.sendStatus(401);
-    const userGroups = await storage.getUserGroups(req.user.id);
-    if (userGroups.length === 0) {
-      return res.status(403).json({ message: "You must join a group to participate in Clash Chat" });
-    }
-    const { content } = req.body;
+    const { content, groupId } = req.body;
     if (!content) return res.status(400).json({ message: "Content is required" });
-    const message = await storage.createClashMessage(req.user.id, content);
+    if (!groupId) return res.status(400).json({ message: "Group ID is required" });
+    if (containsProfanity(content)) {
+      return res.status(400).json({ message: "Message contains inappropriate language. Please keep the chat respectful." });
+    }
+    const members = await storage.getGroupMembers(groupId);
+    const isMember = members.some((m) => m.id === req.user.id);
+    if (!isMember) return res.status(403).json({ message: "Not a member of this group" });
+    const message = await storage.createClashMessage(req.user.id, content, groupId);
     res.json(message);
   });
   app2.post("/api/user/settings/clash-notifications", async (req, res) => {
@@ -1656,6 +1771,20 @@ async function registerRoutes(app2) {
     if (typeof enabled !== "boolean") return res.status(400).json({ message: "Enabled must be a boolean" });
     await storage.toggleClashNotifications(req.user.id, enabled);
     res.json({ success: true });
+  });
+  app2.delete("/api/groups/:groupId/members/:userId", async (req, res) => {
+    if (!req.user) return res.sendStatus(401);
+    const { groupId, userId } = req.params;
+    const group = await storage.getGroup(groupId);
+    if (!group) return res.status(404).json({ message: "Group not found" });
+    if (group.createdBy !== req.user.id) {
+      return res.status(403).json({ message: "Only the group admin can remove members" });
+    }
+    if (userId === req.user.id) {
+      return res.status(400).json({ message: "Cannot remove yourself" });
+    }
+    await storage.removeGroupMember(groupId, userId);
+    res.sendStatus(200);
   });
   const httpServer = createServer(app2);
   return httpServer;

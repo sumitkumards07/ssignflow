@@ -88,7 +88,7 @@ function FeatureChat({ featureId, context }: { featureId: string; context?: stri
             console.error("Chat error:", error);
             toast({
                 title: "Error",
-                description: "Failed to get response",
+                description: error instanceof Error ? error.message : "Failed to get response",
                 variant: "destructive"
             });
         } finally {

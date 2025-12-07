@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import { insertTaskSchema } from "@shared/schema";
 import { randomUUID } from "crypto";
 import multer from "multer";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { callOpenRouter } from "./utils";
 import { sendMulticastNotification } from "./firebase";
 // pdf-parse is dynamically imported in the upload route to avoid loading it at server startup
 
@@ -630,15 +630,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        res.status(500).json({ message: "Gemini API Key not configured" });
-        return;
-      }
-
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
       const prompt = `
         Generate a quiz with 5 multiple-choice questions based on the following text.
         Return the result as a JSON array of objects.
@@ -650,14 +641,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         Text: ${text.substring(0, 10000)}
       `;
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const quiz = JSON.parse(response.text().replace(/```json/g, "").replace(/```/g, "").trim());
+      const responseText = await callOpenRouter(prompt);
+      const quiz = JSON.parse(responseText.replace(/```json/g, "").replace(/```/g, "").trim());
 
       res.json(quiz);
     } catch (error: any) {
       console.error("Quiz generation error:", error);
-      res.status(500).json({ message: "Failed to generate quiz" });
+      const errorMessage = error.message?.toLowerCase() || "";
+      if (errorMessage.includes("429") || errorMessage.includes("quota") || errorMessage.includes("resource_exhausted")) {
+        res.status(429).json({ message: "AI Quota Exceeded. Please try again later or update API Key." });
+      } else {
+        res.status(500).json({ message: "Failed to generate quiz: " + (error.message || "Unknown error") });
+      }
     }
   });
 
@@ -668,15 +663,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.status(400).json({ message: "Prompt is required" });
         return;
       }
-
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        res.status(500).json({ message: "Gemini API Key not configured" });
-        return;
-      }
-
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
       const systemPrompt = `
         You are an advanced AI Research Assistant. 
@@ -690,14 +676,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         - Be helpful, polite, and professional.
       `;
 
-      const result = await model.generateContent([systemPrompt, prompt]);
-      const response = await result.response;
-      const text = response.text();
+      const text = await callOpenRouter(prompt, systemPrompt);
 
       res.json({ text });
     } catch (error: any) {
       console.error("AI generation error:", error);
-      res.status(500).json({ message: "Failed to generate content" });
+      const errorMessage = error.message?.toLowerCase() || "";
+      if (errorMessage.includes("429") || errorMessage.includes("quota") || errorMessage.includes("resource_exhausted")) {
+        res.status(429).json({ message: "AI Quota Exceeded. Please try again later or update API Key." });
+      } else {
+        res.status(500).json({ message: "Failed to generate content: " + (error.message || "Unknown error") });
+      }
     }
   });
 
@@ -717,36 +706,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        res.status(500).json({ message: "Gemini API Key not configured" });
-        return;
-      }
-
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
       const prompt = "Analyze this content and provide a solution or explanation. If it's a math problem, solve it step-by-step. If it's a schedule, extract the timetable.";
-
-      let content: any[] = [prompt];
+      let text = "";
 
       if (req.file.mimetype === "application/pdf") {
         const { createRequire } = await import("module");
         const require = createRequire(import.meta.url);
         const pdfParse = require("pdf-parse");
         const data = await pdfParse(req.file.buffer);
-        content.push(data.text);
+        text = await callOpenRouter(prompt + "\n\nContent:\n" + data.text);
       } else {
-        content.push({
-          inlineData: {
-            data: req.file.buffer.toString("base64"),
-            mimeType: req.file.mimetype,
-          },
-        });
+        text = await callOpenRouter(prompt, undefined, req.file.buffer, req.file.mimetype);
       }
-
-      const result = await model.generateContent(content);
-      const response = await result.response;
-      const text = response.text();
 
       res.json({ text });
     } catch (error: any) {
@@ -771,55 +742,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        console.error("Gemini API Key is missing in environment variables!");
-        res.status(500).json({ message: "Server Error: Gemini API Key not configured. Please set GEMINI_API_KEY in Render." });
-        return;
-      }
-      if (!apiKey) {
-        res.status(500).json({ message: "Gemini API Key not configured" });
-        return;
-      }
-
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
       const promptText = `
         Summarize the following content into concise, handwritten-style study notes. 
         Focus on key concepts, definitions, and important points. 
         Use bullet points and short paragraphs.
       `;
 
-      let content: any[] = [promptText];
-
+      let text = "";
       if (req.file.mimetype === "application/pdf") {
-        // Send PDF directly to Gemini (supports up to 20MB for Flash 1.5/2.0)
-        // This avoids pdf-parse errors (DOMMatrix) and supports handwritten notes
-        content.push({
-          inlineData: {
-            data: req.file.buffer.toString("base64"),
-            mimeType: "application/pdf",
-          },
-        });
+        const { createRequire } = await import("module");
+        const require = createRequire(import.meta.url);
+        const pdfParse = require("pdf-parse");
+        const data = await pdfParse(req.file.buffer);
+        text = await callOpenRouter(promptText + "\n\nContent:\n" + data.text);
       } else {
-        // Image
-        content.push({
-          inlineData: {
-            data: req.file.buffer.toString("base64"),
-            mimeType: req.file.mimetype,
-          },
-        });
+        text = await callOpenRouter(promptText, undefined, req.file.buffer, req.file.mimetype);
       }
 
-      const result = await model.generateContent(content);
-      const response = await result.response;
-      const notes = response.text();
-
-      res.json({ notes });
+      res.json({ text });
     } catch (error: any) {
-      console.error("File to notes error:", error);
-      res.status(500).json({ message: "Failed to generate notes: " + error.message });
+      console.error("Notes generation error:", error);
+      res.status(500).json({ message: "Failed to generate notes" });
     }
   });
 
@@ -838,15 +781,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.status(400).json({ message: "No file uploaded" });
         return;
       }
-
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        res.status(500).json({ message: "Gemini API Key not configured" });
-        return;
-      }
-
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
       const mode = req.body.mode;
       const topicsPerDay = req.body.topicsPerDay || "2";
@@ -878,26 +812,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           `;
       }
 
-      let content: any[] = [promptText];
-
+      let responseText = "";
       if (req.file.mimetype === "application/pdf") {
         const { createRequire } = await import("module");
         const require = createRequire(import.meta.url);
         const pdfParse = require("pdf-parse");
         const data = await pdfParse(req.file.buffer);
-        content.push(data.text.substring(0, 20000));
+        responseText = await callOpenRouter(promptText + "\n\nContent:\n" + data.text.substring(0, 20000));
       } else {
-        content.push({
-          inlineData: {
-            data: req.file.buffer.toString("base64"),
-            mimeType: req.file.mimetype,
-          },
-        });
+        responseText = await callOpenRouter(promptText, undefined, req.file.buffer, req.file.mimetype);
       }
 
-      const result = await model.generateContent(content);
-      const response = await result.response;
-      const jsonString = response.text().replace(/```json/g, "").replace(/```/g, "").trim();
+      const jsonString = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
       const timetable = JSON.parse(jsonString);
 
       res.json(timetable);
@@ -944,9 +870,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status = `You are safe! You can bunk ${canBunk} upcoming classes and still stay above ${r}%.`;
       }
 
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
       const prompt = `
         The user wants to know their attendance status.
         Here is the mathematically correct data:
@@ -967,13 +890,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         Return JSON: { "analysis": "Your short bulleted response here" }
       `;
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
+      const responseText = await callOpenRouter(prompt);
 
       // Extract JSON if needed
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      const json = jsonMatch ? JSON.parse(jsonMatch[0]) : { analysis: text };
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      const json = jsonMatch ? JSON.parse(jsonMatch[0]) : { analysis: responseText };
 
       res.json(json);
     } catch (error: any) {

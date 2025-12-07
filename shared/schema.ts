@@ -41,6 +41,7 @@ export type User = typeof users.$inferSelect;
 export const clashMessages = pgTable("clash_messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id),
+  groupId: varchar("group_id").references(() => groups.id), // Added groupId
   content: text("content").notNull(),
   timestamp: text("timestamp").default(new Date().toISOString()),
 });

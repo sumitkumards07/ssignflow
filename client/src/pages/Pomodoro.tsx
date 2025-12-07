@@ -325,9 +325,9 @@ export default function PomodoroPage() {
         .length;
 
     return (
-        <div className="min-h-screen bg-background text-foreground flex flex-col pb-24">
+        <div className="min-h-screen bg-background text-foreground flex flex-col pb-40 max-w-screen-xl mx-auto w-full">
             {/* Header */}
-            <div className="px-6 pb-6 flex items-center justify-between" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 2rem)' }}>
+            <div className="px-4 sm:px-6 pb-6 flex items-center justify-between" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 2rem)' }}>
                 <h1 className="text-2xl font-medium">Pomodoro Timer</h1>
                 <div className="flex gap-2">
                     <button
@@ -444,7 +444,7 @@ export default function PomodoroPage() {
             )}
 
             {/* Main Content */}
-            <div className="flex-1 flex flex-col items-center justify-center px-6">
+            <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6">
                 {/* Task Selection */}
                 <div className="w-full max-w-sm mb-8">
                     <Select value={selectedTask} onValueChange={setSelectedTask} disabled={isRunning}>
@@ -588,7 +588,7 @@ export default function PomodoroPage() {
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-3 gap-6 w-full max-w-sm">
+                <div className="grid grid-cols-3 gap-4 sm:gap-6 w-full max-w-sm">
                     <div className="text-center">
                         <div className="text-2xl font-bold" style={{ color: 'var(--theme-primary)' }}>{todaySessions}</div>
                         <div className="text-xs text-muted-foreground mt-1">Today</div>

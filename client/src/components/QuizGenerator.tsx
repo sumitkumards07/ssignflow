@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import confetti from "canvas-confetti";
 import { cn } from "@/lib/utils";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { apiRequest } from "@/lib/queryClient";
 import * as pdfjsLib from "pdfjs-dist";
 
 // Set worker source
@@ -51,6 +51,8 @@ export function QuizGenerator({ trigger }: { trigger?: React.ReactNode }) {
         return fullText;
     };
 
+
+
     const generateQuiz = async () => {
         if (!file) return;
 
@@ -63,18 +65,11 @@ export function QuizGenerator({ trigger }: { trigger?: React.ReactNode }) {
                 throw new Error("Not enough text found in PDF");
             }
 
-            // 2. Call Gemini API
-            const apiKey = localStorage.getItem('gemini_api_key') || "AIzaSyDtmaA4fpRwigLfQbjMhb3IX5bVC_gYCTA";
-            if (!apiKey || apiKey === 'your_api_key_here') {
-                throw new Error("Gemini API Key not configured. Please go to Settings to configure it.");
-            }
-
-            const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
+            // 2. Call Server API
             const prompt = `
         Generate a quiz with 5 multiple-choice questions based on the following text.
         Return the result ONLY as a JSON array of objects.
+        Do not wrap the response in markdown code blocks.
         Each object should have:
         - "question": string
         - "options": array of 4 strings
@@ -84,13 +79,32 @@ export function QuizGenerator({ trigger }: { trigger?: React.ReactNode }) {
         ${text.substring(0, 30000)}
       `;
 
-            const result = await model.generateContent(prompt);
-            const response = await result.response;
-            const textResponse = response.text();
+            const res = await apiRequest("POST", "/api/ai/generate", { prompt });
 
-            // Clean up markdown code blocks if present
-            const jsonString = textResponse.replace(/```json/g, "").replace(/```/g, "").trim();
-            const generatedQuiz = JSON.parse(jsonString);
+            // Check if response is valid
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.message || "Failed to generate quiz");
+            }
+
+            const data = await res.json();
+
+            // Clean up potentially wrapped JSON (just in case the server/AI wraps it despite instructions)
+            const cleanText = data.text.replace(/```json/g, "").replace(/```/g, "").trim();
+
+            let generatedQuiz;
+            try {
+                generatedQuiz = JSON.parse(cleanText);
+            } catch (e) {
+                console.error("JSON Parse Error:", e);
+                console.log("Raw text:", cleanText);
+                throw new Error("Failed to parse quiz data from AI response");
+            }
+
+            // Validate quiz structure
+            if (!Array.isArray(generatedQuiz) || generatedQuiz.length === 0) {
+                throw new Error("AI returned invalid quiz format");
+            }
 
             setQuiz(generatedQuiz);
             setCurrentQuestion(0);

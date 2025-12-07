@@ -54,8 +54,8 @@ export interface IStorage {
   getLatestAppVersion(): Promise<AppVersion | undefined>;
 
   // Clash Chat
-  createClashMessage(userId: string, content: string): Promise<ClashMessage>;
-  getClashMessages(): Promise<(ClashMessage & { user: { username: string, displayName: string | null } })[]>;
+  createClashMessage(userId: string, content: string, groupId: string): Promise<ClashMessage>;
+  getClashMessages(groupId: string): Promise<(ClashMessage & { user: { username: string, displayName: string | null } })[]>;
   toggleClashNotifications(userId: string, enabled: boolean): Promise<void>;
   cleanupOldMessages(): Promise<void>;
 }
@@ -366,11 +366,12 @@ export class MemStorage implements IStorage {
 
   private clashMessages: ClashMessage[] = [];
 
-  async createClashMessage(userId: string, content: string): Promise<ClashMessage> {
+  async createClashMessage(userId: string, content: string, groupId: string): Promise<ClashMessage> {
     const id = randomUUID();
     const message: ClashMessage = {
       id,
       userId,
+      groupId,
       content,
       timestamp: new Date().toISOString()
     };
@@ -378,8 +379,9 @@ export class MemStorage implements IStorage {
     return message;
   }
 
-  async getClashMessages(): Promise<(ClashMessage & { user: { username: string, displayName: string | null } })[]> {
+  async getClashMessages(groupId: string): Promise<(ClashMessage & { user: { username: string, displayName: string | null } })[]> {
     return this.clashMessages
+      .filter(msg => msg.groupId === groupId)
       .sort((a, b) => new Date(a.timestamp || "").getTime() - new Date(b.timestamp || "").getTime())
       .map(msg => {
         const user = this.users.get(msg.userId || "");
@@ -760,12 +762,13 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async createClashMessage(userId: string, content: string): Promise<ClashMessage> {
+  async createClashMessage(userId: string, content: string, groupId: string): Promise<ClashMessage> {
     const encryptedContent = this.encryptMessage(content);
     const [message] = await db
       .insert(clashMessages)
       .values({
         userId,
+        groupId,
         content: encryptedContent,
         timestamp: new Date().toISOString()
       })
@@ -777,11 +780,12 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getClashMessages(): Promise<(ClashMessage & { user: { username: string, displayName: string | null } })[]> {
+  async getClashMessages(groupId: string): Promise<(ClashMessage & { user: { username: string, displayName: string | null } })[]> {
     const messages = await db
       .select({
         id: clashMessages.id,
         userId: clashMessages.userId,
+        groupId: clashMessages.groupId,
         content: clashMessages.content,
         timestamp: clashMessages.timestamp,
         user: {
@@ -791,6 +795,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(clashMessages)
       .leftJoin(users, eq(clashMessages.userId, users.id))
+      .where(eq(clashMessages.groupId, groupId))
       .orderBy(clashMessages.timestamp);
 
     return messages.map(msg => ({
@@ -816,4 +821,4 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = process.env.DATABASE_URL ? new DatabaseStorage() : new MemStorage();
+export const storage = (process.env.DATABASE_URL && process.env.DATABASE_URL !== "your_database_url") ? new DatabaseStorage() : new MemStorage();

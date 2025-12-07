@@ -13,6 +13,8 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
 const app = express();
 app.set("trust proxy", 1); // Trust first proxy (Render/Cloudflare)
 
@@ -23,14 +25,23 @@ declare module 'http' {
 }
 
 // Session middleware
+const isDatabaseAvailable = process.env.DATABASE_URL && process.env.DATABASE_URL !== "your_database_url";
+const store = isDatabaseAvailable
+  ? new (require("connect-pg-simple")(session))({
+    conString: process.env.DATABASE_URL,
+    createTableIfMissing: true,
+  })
+  : new session.MemoryStore();
+
+if (!isDatabaseAvailable) {
+  console.warn("WARNING: DATABASE_URL not configured. Using MemoryStore for sessions. Data will not persist.");
+}
+
 app.use(session({
   secret: process.env.SESSION_SECRET || "dev-secret",
   resave: false,
   saveUninitialized: false,
-  store: new (require("connect-pg-simple")(session))({
-    conString: process.env.DATABASE_URL,
-    createTableIfMissing: true,
-  }),
+  store: store,
   cookie: {
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
