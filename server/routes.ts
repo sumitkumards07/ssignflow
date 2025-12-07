@@ -630,7 +630,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY || "AIzaSyBd0NMTnu6n-MqKQB-dFgyXyr4220N9auo";
       if (!apiKey) {
         res.status(500).json({ message: "Gemini API Key not configured" });
         return;
@@ -669,7 +669,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY || "AIzaSyBd0NMTnu6n-MqKQB-dFgyXyr4220N9auo";
       if (!apiKey) {
         res.status(500).json({ message: "Gemini API Key not configured" });
         return;
@@ -717,7 +717,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY || "AIzaSyBd0NMTnu6n-MqKQB-dFgyXyr4220N9auo";
       if (!apiKey) {
         res.status(500).json({ message: "Gemini API Key not configured" });
         return;
@@ -771,7 +771,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY || "AIzaSyBd0NMTnu6n-MqKQB-dFgyXyr4220N9auo";
       if (!apiKey) {
         console.error("Gemini API Key is missing in environment variables!");
         res.status(500).json({ message: "Server Error: Gemini API Key not configured. Please set GEMINI_API_KEY in Render." });
@@ -839,7 +839,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY || "AIzaSyBd0NMTnu6n-MqKQB-dFgyXyr4220N9auo";
       if (!apiKey) {
         res.status(500).json({ message: "Gemini API Key not configured" });
         return;
@@ -913,7 +913,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/ai/attendance", async (req, res) => {
     try {
       const { present, totalConducted, upcoming, required } = req.body;
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY || "AIzaSyBd0NMTnu6n-MqKQB-dFgyXyr4220N9auo";
 
       if (!apiKey) {
         res.status(500).json({ message: "Gemini API Key not configured" });
