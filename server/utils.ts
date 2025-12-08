@@ -7,13 +7,14 @@ import { dirname } from "path";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-export async function callOpenRouter(
+// OpenRouter Implementation
+export async function callAI(
   prompt: string,
   systemPrompt?: string,
   imageBuffer?: Buffer,
   mimeType?: string
 ): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY; // Keeping env var name for compatibility
   if (!apiKey) {
     throw new Error("API Key not configured");
   }
@@ -48,13 +49,12 @@ export async function callOpenRouter(
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://assignflow.app", // Optional, for OpenRouter rankings
+        "HTTP-Referer": "https://assignflow.app",
         "X-Title": "AssignFlow"
       },
       body: JSON.stringify({
-        model: "google/gemini-2.0-flash-exp:free", // Using a likely valid OpenRouter model
-        messages: messages,
-        temperature: 0.7
+        model: process.env.OPENROUTER_MODEL || "openrouter/auto",
+        messages: messages
       })
     });
 
@@ -66,7 +66,7 @@ export async function callOpenRouter(
     const data = await response.json();
     return data.choices[0].message.content || "";
   } catch (error) {
-    console.error("OpenRouter Call Failed:", error);
+    console.error("AI Call Failed:", error);
     throw error;
   }
 }

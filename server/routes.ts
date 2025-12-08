@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import { insertTaskSchema } from "@shared/schema";
 import { randomUUID } from "crypto";
 import multer from "multer";
-import { callOpenRouter } from "./utils";
+import { callAI } from "./utils";
 import { sendMulticastNotification } from "./firebase";
 // pdf-parse is dynamically imported in the upload route to avoid loading it at server startup
 
@@ -641,7 +641,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         Text: ${text.substring(0, 10000)}
       `;
 
-      const responseText = await callOpenRouter(prompt);
+      const responseText = await callAI(prompt);
       const quiz = JSON.parse(responseText.replace(/```json/g, "").replace(/```/g, "").trim());
 
       res.json(quiz);
@@ -676,7 +676,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         - Be helpful, polite, and professional.
       `;
 
-      const text = await callOpenRouter(prompt, systemPrompt);
+      const text = await callAI(prompt, systemPrompt);
 
       res.json({ text });
     } catch (error: any) {
@@ -714,9 +714,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const require = createRequire(import.meta.url);
         const pdfParse = require("pdf-parse");
         const data = await pdfParse(req.file.buffer);
-        text = await callOpenRouter(prompt + "\n\nContent:\n" + data.text);
+        text = await callAI(prompt + "\n\nContent:\n" + data.text);
       } else {
-        text = await callOpenRouter(prompt, undefined, req.file.buffer, req.file.mimetype);
+        text = await callAI(prompt, undefined, req.file.buffer, req.file.mimetype);
       }
 
       res.json({ text });
@@ -754,9 +754,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const require = createRequire(import.meta.url);
         const pdfParse = require("pdf-parse");
         const data = await pdfParse(req.file.buffer);
-        text = await callOpenRouter(promptText + "\n\nContent:\n" + data.text);
+        text = await callAI(promptText + "\n\nContent:\n" + data.text);
       } else {
-        text = await callOpenRouter(promptText, undefined, req.file.buffer, req.file.mimetype);
+        text = await callAI(promptText, undefined, req.file.buffer, req.file.mimetype);
       }
 
       res.json({ text });
@@ -818,9 +818,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const require = createRequire(import.meta.url);
         const pdfParse = require("pdf-parse");
         const data = await pdfParse(req.file.buffer);
-        responseText = await callOpenRouter(promptText + "\n\nContent:\n" + data.text.substring(0, 20000));
+        responseText = await callAI(promptText + "\n\nContent:\n" + data.text.substring(0, 20000));
       } else {
-        responseText = await callOpenRouter(promptText, undefined, req.file.buffer, req.file.mimetype);
+        responseText = await callAI(promptText, undefined, req.file.buffer, req.file.mimetype);
       }
 
       const jsonString = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
@@ -890,7 +890,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         Return JSON: { "analysis": "Your short bulleted response here" }
       `;
 
-      const responseText = await callOpenRouter(prompt);
+      const responseText = await callAI(prompt);
 
       // Extract JSON if needed
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);

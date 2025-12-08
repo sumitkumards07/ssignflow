@@ -35,7 +35,7 @@ export async function safeParseJson(res: Response): Promise<any> {
 // Get API base URL - use this for direct fetch calls (not using apiRequest)
 export function getApiBaseUrl(): string {
   // Force correct URL to ensure connection
-  return "http://13.235.90.150:8080";
+  return window.Capacitor ? "http://3.237.33.146" : "";
 }
 
 export async function apiRequest(
@@ -58,7 +58,7 @@ export async function apiRequest(
     // Use relative URL to allow proxying in dev and same-origin in prod
     // Use relative URL to allow proxying in dev and same-origin in prod
     // Force correct URL to ensure connection
-    const baseUrl = "http://13.235.90.150:8080";
+    const baseUrl = window.Capacitor ? "http://3.237.33.146" : "";
     const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
 
     // Get token from localStorage
@@ -112,7 +112,7 @@ export const getQueryFn: <T>(options: {
       // Use relative URL to allow proxying in dev and same-origin in prod
       // Use relative URL to allow proxying in dev and same-origin in prod
       // Force correct URL to ensure connection
-      const baseUrl = "http://13.235.90.150:8080";
+      const baseUrl = window.Capacitor ? "http://3.237.33.146" : "";
       const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
 
       // Get token from localStorage
