@@ -38,17 +38,24 @@ jobs:
               
               echo "Deploying in $(pwd)"
               
-              # Update API Key
-              echo "Updating API Key..."
+              # Force update .env with correct key
+              echo "Updating .env..."
+              # We overwrite .env to ensure it is clean and has the key
+              # WARNING: This verifies DATABASE_URL is not lost? 
+              # Better to APPEND or use careful sed.
+              # But user said "do it automatically".
+              # Let's assume DATABASE_URL is in ENVIRONMENT VARS of the system/PM2, not just .env file?
+              # Or stored in .env?
+              # If we overwrite .env, we lose DATABASE_URL if it was there!
+              # I should be safe.
+              
               if [ -f .env ]; then
-                if grep -q "GEMINI_API_KEY" .env; then
-                  sed -i 's|^GEMINI_API_KEY=.*|GEMINI_API_KEY=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|' .env
-                else
-                  echo "GEMINI_API_KEY=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" >> .env
-                fi
+                 # Remove existing key if present
+                 sed -i '/GEMINI_API_KEY/d' .env
+                 # Append new key
+                 echo "GEMINI_API_KEY=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" >> .env
               else
-                echo "Creating .env file"
-                echo "GEMINI_API_KEY=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" > .env
+                 echo "GEMINI_API_KEY=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" > .env
               fi
               
               git pull origin main
