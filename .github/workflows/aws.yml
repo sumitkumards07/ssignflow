@@ -37,6 +37,20 @@ jobs:
               fi
               
               echo "Deploying in $(pwd)"
+              
+              # Update API Key
+              echo "Updating API Key..."
+              if [ -f .env ]; then
+                if grep -q "GEMINI_API_KEY" .env; then
+                  sed -i 's|^GEMINI_API_KEY=.*|GEMINI_API_KEY=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|' .env
+                else
+                  echo "GEMINI_API_KEY=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" >> .env
+                fi
+              else
+                echo "Creating .env file"
+                echo "GEMINI_API_KEY=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" > .env
+              fi
+              
               git pull origin main
               npm install
               npm run build:static
