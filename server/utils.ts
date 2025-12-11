@@ -68,7 +68,14 @@ export async function callAI(
       stream: false
     });
 
-    return completion.choices[0]?.message?.content || "";
+    const content = completion.choices[0]?.message?.content;
+    if (Array.isArray(content)) {
+      return content
+        .filter((item: any) => item.type === "text")
+        .map((item: any) => item.text)
+        .join("");
+    }
+    return content || "";
   } catch (error) {
     console.error("AI Call Failed:", error);
     throw error;
