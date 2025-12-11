@@ -759,7 +759,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         text = await callAI(promptText, undefined, req.file.buffer, req.file.mimetype);
       }
 
-      res.json({ text });
+      res.json({ notes: text });
     } catch (error: any) {
       console.error("Notes generation error:", error);
       res.status(500).json({ message: "Failed to generate notes" });
@@ -842,7 +842,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const apiKey = process.env.GEMINI_API_KEY;
 
       if (!apiKey) {
-        res.status(500).json({ message: "Gemini API Key not configured" });
+        res.status(500).json({ message: "AI API Key not configured" });
         return;
       }
 
