@@ -8,16 +8,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // OpenRouter Implementation
+// OpenRouter Implementation
+import { OpenRouter } from "@openrouter/sdk";
+
 export async function callAI(
   prompt: string,
   systemPrompt?: string,
   imageBuffer?: Buffer,
   mimeType?: string
 ): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY; // Keeping env var name for compatibility
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("API Key not configured");
   }
+
+  const openrouter = new OpenRouter({
+    apiKey: apiKey
+  });
 
   const messages: any[] = [];
 
@@ -47,33 +54,21 @@ export async function callAI(
   }
 
   try {
-    // Use a vision-capable model for image requests
-    // amazon/nova-lite-v1 does NOT support images, so we use gemini for vision tasks
+    // Determine model
+    // Note: amazon/nova-lite-v1 was causing issues, using gemini for vision or fallback
+    // User requested amazon/nova-2-lite-v1:free in the snippet but also wants vision.
+    // For vision we MUST use a vision model.
     const textModel = process.env.OPENROUTER_MODEL || "amazon/nova-lite-v1";
     const visionModel = process.env.OPENROUTER_VISION_MODEL || "google/gemini-2.0-flash-exp:free";
     const modelToUse = isImageRequest ? visionModel : textModel;
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://assignflow.app",
-        "X-Title": "AssignFlow"
-      },
-      body: JSON.stringify({
-        model: modelToUse,
-        messages: messages
-      })
+    const completion = await openrouter.chat.send({
+      model: modelToUse,
+      messages: messages,
+      stream: false
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenRouter API Error: ${response.status} - ${errorText}`);
-    }
-
-    const data = await response.json();
-    return data.choices[0].message.content || "";
+    return completion.choices[0]?.message?.content || "";
   } catch (error) {
     console.error("AI Call Failed:", error);
     throw error;
