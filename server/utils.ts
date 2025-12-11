@@ -25,7 +25,10 @@ export async function callAI(
     messages.push({ role: "system", content: systemPrompt });
   }
 
-  if (imageBuffer && mimeType) {
+  // Determine if this is an image analysis request
+  const isImageRequest = imageBuffer && mimeType;
+
+  if (isImageRequest) {
     const base64Image = imageBuffer.toString("base64");
     messages.push({
       role: "user",
@@ -44,6 +47,12 @@ export async function callAI(
   }
 
   try {
+    // Use a vision-capable model for image requests
+    // amazon/nova-lite-v1 does NOT support images, so we use gemini for vision tasks
+    const textModel = process.env.OPENROUTER_MODEL || "amazon/nova-lite-v1";
+    const visionModel = process.env.OPENROUTER_VISION_MODEL || "google/gemini-2.0-flash-exp:free";
+    const modelToUse = isImageRequest ? visionModel : textModel;
+
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -53,7 +62,7 @@ export async function callAI(
         "X-Title": "AssignFlow"
       },
       body: JSON.stringify({
-        model: process.env.OPENROUTER_MODEL || "openrouter/auto",
+        model: modelToUse,
         messages: messages
       })
     });
