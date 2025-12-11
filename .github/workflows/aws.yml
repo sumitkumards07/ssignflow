@@ -19,8 +19,26 @@ jobs:
           username: ec2-user
           key: ${{ secrets.SSH_KEY }}
           script: |
-              cd Assignflow
+              export PATH=$PATH:/usr/local/bin:/home/ec2-user/.nvm/versions/node/v20.18.0/bin
+              echo "Starting Deployment..."
+              pwd
+              ls -la
+              
+              # Try to find the directory
+              if [ -d "Assignflow" ]; then
+                cd Assignflow
+              elif [ -d "assignflow" ]; then
+                cd assignflow
+              elif [ -d "ssignflow" ]; then
+                cd ssignflow
+              else
+                echo "❌ Project directory not found!"
+                exit 1
+              fi
+              
+              echo "Deploying in $(pwd)"
               git pull origin main
               npm install
               npm run build:static
-              pm2 restart all
+              pm2 restart all || pm2 start dist/index.js --name "assignflow"
+              echo "✅ Deployment Complete"
