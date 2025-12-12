@@ -38,9 +38,12 @@ jobs:
               
               echo "Deploying in $(pwd)"
               
-              # Securely inject API Key from GitHub Secrets
-              # This ensures the key is NEVER in the code
+              # Securely inject ALL Secrets
+              # This reconstructs the .env file on every deploy
               echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
+              echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
+              echo "SESSION_SECRET=${{ secrets.SESSION_SECRET }}" >> .env
+              echo "PORT=8080" >> .env
               
               # Clean Clean Clean!
               echo "Cleaning dependencies and artifacts..."
