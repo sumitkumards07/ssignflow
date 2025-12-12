@@ -172,13 +172,8 @@ var insertAppVersionSchema = createInsertSchema(appVersions).pick({
 // server/db.ts
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?"
-  );
-}
-var pool = new Pool({ connectionString: process.env.DATABASE_URL });
-var db = drizzle(pool, { schema: schema_exports });
+var pool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env.DATABASE_URL }) : null;
+var db = pool ? drizzle(pool, { schema: schema_exports }) : null;
 
 // server/storage.ts
 import { eq, lt, desc, and } from "drizzle-orm";
@@ -767,7 +762,7 @@ var DatabaseStorage = class {
     await db.update(users).set({ clashChatNotifications: enabled }).where(eq(users.id, userId));
   }
 };
-var storage = process.env.DATABASE_URL ? new DatabaseStorage() : new MemStorage();
+var storage = process.env.DATABASE_URL && process.env.DATABASE_URL !== "your_database_url" ? new DatabaseStorage() : new MemStorage();
 
 // server/auth.ts
 passport.use(
@@ -802,7 +797,93 @@ var auth_default = passport;
 // server/routes.ts
 import { createServer } from "http";
 import multer from "multer";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// server/utils.ts
+import express from "express";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+var __filename = fileURLToPath(import.meta.url);
+var __dirname = dirname(__filename);
+async function callAI(prompt, systemPrompt, imageBuffer, mimeType) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("API Key not configured");
+  }
+  const messages = [];
+  if (systemPrompt) {
+    messages.push({ role: "system", content: systemPrompt });
+  }
+  const isImageRequest = imageBuffer && mimeType;
+  if (isImageRequest) {
+    const base64Image = imageBuffer.toString("base64");
+    messages.push({
+      role: "user",
+      content: [
+        { type: "text", text: prompt },
+        {
+          type: "image_url",
+          image_url: {
+            url: `data:${mimeType};base64,${base64Image}`
+          }
+        }
+      ]
+    });
+  } else {
+    messages.push({ role: "user", content: prompt });
+  }
+  try {
+    const textModel = process.env.OPENROUTER_MODEL || "amazon/nova-lite-v1";
+    const visionModel = process.env.OPENROUTER_VISION_MODEL || "google/gemini-2.0-flash-exp:free";
+    const modelToUse = isImageRequest ? visionModel : textModel;
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://assignflow.app",
+        "X-Title": "AssignFlow"
+      },
+      body: JSON.stringify({
+        model: modelToUse,
+        messages
+      })
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenRouter API Error: ${response.status} - ${errorText}`);
+    }
+    const data = await response.json();
+    return data.choices[0].message.content || "";
+  } catch (error) {
+    console.error("AI Call Failed:", error);
+    throw error;
+  }
+}
+function log(message, source = "express") {
+  const formattedTime = (/* @__PURE__ */ new Date()).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  });
+  console.log(`${formattedTime} [${source}] ${message}`);
+}
+function serveStatic(app2) {
+  const distPath = path.resolve(__dirname, "public");
+  console.log("Serving static files from:", distPath);
+  console.log("Current directory:", __dirname);
+  if (!fs.existsSync(distPath)) {
+    throw new Error(
+      `Could not find the build directory: ${distPath}, make sure to build the client first`
+    );
+  }
+  app2.use(express.static(distPath));
+  app2.use("*", (_req, res) => {
+    res.sendFile(path.resolve(distPath, "index.html"));
+  });
+}
 
 // server/firebase.ts
 import admin from "firebase-admin";
@@ -1302,7 +1383,11 @@ async function registerRoutes(app2) {
     const users2 = await storage.getAllUsers();
     const tokens = users2.map((u) => u.pushToken).filter((t) => t);
     if (tokens.length > 0) {
-      await sendMulticastNotification(tokens, title, body);
+      try {
+        await sendMulticastNotification(tokens, title, body);
+      } catch (error) {
+        console.error("Firebase notification error:", error);
+      }
     }
     res.json({ success: true, message: "Notification created and queued for sending" });
   });
@@ -1333,7 +1418,11 @@ async function registerRoutes(app2) {
     const users2 = await storage.getAllUsers();
     const tokens = users2.map((u) => u.pushToken).filter((t) => t);
     if (tokens.length > 0) {
-      await sendMulticastNotification(tokens, "Update Available", `Version ${versionName} is now available.`);
+      try {
+        await sendMulticastNotification(tokens, "Update Available", `Version ${versionName} is now available.`);
+      } catch (error) {
+        console.error("Firebase update notification error:", error);
+      }
     }
     res.json({ success: true });
   });
@@ -1379,13 +1468,6 @@ async function registerRoutes(app2) {
         res.status(400).json({ message: "Not enough text found in PDF" });
         return;
       }
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        res.status(500).json({ message: "Gemini API Key not configured" });
-        return;
-      }
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
       const prompt = `
         Generate a quiz with 5 multiple-choice questions based on the following text.
         Return the result as a JSON array of objects.
@@ -1396,13 +1478,17 @@ async function registerRoutes(app2) {
         
         Text: ${text2.substring(0, 1e4)}
       `;
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const quiz = JSON.parse(response.text().replace(/```json/g, "").replace(/```/g, "").trim());
+      const responseText = await callAI(prompt);
+      const quiz = JSON.parse(responseText.replace(/```json/g, "").replace(/```/g, "").trim());
       res.json(quiz);
     } catch (error) {
       console.error("Quiz generation error:", error);
-      res.status(500).json({ message: "Failed to generate quiz" });
+      const errorMessage = error.message?.toLowerCase() || "";
+      if (errorMessage.includes("429") || errorMessage.includes("quota") || errorMessage.includes("resource_exhausted")) {
+        res.status(429).json({ message: "AI Quota Exceeded. Please try again later or update API Key." });
+      } else {
+        res.status(500).json({ message: "Failed to generate quiz: " + (error.message || "Unknown error") });
+      }
     }
   });
   app2.post("/api/ai/generate", async (req, res) => {
@@ -1412,13 +1498,6 @@ async function registerRoutes(app2) {
         res.status(400).json({ message: "Prompt is required" });
         return;
       }
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        res.status(500).json({ message: "Gemini API Key not configured" });
-        return;
-      }
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
       const systemPrompt = `
         You are an advanced AI Research Assistant. 
         Your goal is to provide comprehensive, accurate, and well-structured answers.
@@ -1430,13 +1509,16 @@ async function registerRoutes(app2) {
         - If you don't know the answer, admit it and suggest what you do know.
         - Be helpful, polite, and professional.
       `;
-      const result = await model.generateContent([systemPrompt, prompt]);
-      const response = await result.response;
-      const text2 = response.text();
+      const text2 = await callAI(prompt, systemPrompt);
       res.json({ text: text2 });
     } catch (error) {
       console.error("AI generation error:", error);
-      res.status(500).json({ message: "Failed to generate content" });
+      const errorMessage = error.message?.toLowerCase() || "";
+      if (errorMessage.includes("429") || errorMessage.includes("quota") || errorMessage.includes("resource_exhausted")) {
+        res.status(429).json({ message: "AI Quota Exceeded. Please try again later or update API Key." });
+      } else {
+        res.status(500).json({ message: "Failed to generate content: " + (error.message || "Unknown error") });
+      }
     }
   });
   app2.post("/api/ai/analyze-image", (req, res, next) => {
@@ -1453,32 +1535,17 @@ async function registerRoutes(app2) {
         res.status(400).json({ message: "No file uploaded" });
         return;
       }
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        res.status(500).json({ message: "Gemini API Key not configured" });
-        return;
-      }
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
       const prompt = "Analyze this content and provide a solution or explanation. If it's a math problem, solve it step-by-step. If it's a schedule, extract the timetable.";
-      let content = [prompt];
+      let text2 = "";
       if (req.file.mimetype === "application/pdf") {
         const { createRequire: createRequire2 } = await import("module");
         const require3 = createRequire2(import.meta.url);
         const pdfParse = require3("pdf-parse");
         const data = await pdfParse(req.file.buffer);
-        content.push(data.text);
+        text2 = await callAI(prompt + "\n\nContent:\n" + data.text);
       } else {
-        content.push({
-          inlineData: {
-            data: req.file.buffer.toString("base64"),
-            mimeType: req.file.mimetype
-          }
-        });
+        text2 = await callAI(prompt, void 0, req.file.buffer, req.file.mimetype);
       }
-      const result = await model.generateContent(content);
-      const response = await result.response;
-      const text2 = response.text();
       res.json({ text: text2 });
     } catch (error) {
       console.error("Analysis error:", error);
@@ -1499,46 +1566,25 @@ async function registerRoutes(app2) {
         res.status(400).json({ message: "No file uploaded" });
         return;
       }
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        console.error("Gemini API Key is missing in environment variables!");
-        res.status(500).json({ message: "Server Error: Gemini API Key not configured. Please set GEMINI_API_KEY in Render." });
-        return;
-      }
-      if (!apiKey) {
-        res.status(500).json({ message: "Gemini API Key not configured" });
-        return;
-      }
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
       const promptText = `
         Summarize the following content into concise, handwritten-style study notes. 
         Focus on key concepts, definitions, and important points. 
         Use bullet points and short paragraphs.
       `;
-      let content = [promptText];
+      let text2 = "";
       if (req.file.mimetype === "application/pdf") {
-        content.push({
-          inlineData: {
-            data: req.file.buffer.toString("base64"),
-            mimeType: "application/pdf"
-          }
-        });
+        const { createRequire: createRequire2 } = await import("module");
+        const require3 = createRequire2(import.meta.url);
+        const pdfParse = require3("pdf-parse");
+        const data = await pdfParse(req.file.buffer);
+        text2 = await callAI(promptText + "\n\nContent:\n" + data.text);
       } else {
-        content.push({
-          inlineData: {
-            data: req.file.buffer.toString("base64"),
-            mimeType: req.file.mimetype
-          }
-        });
+        text2 = await callAI(promptText, void 0, req.file.buffer, req.file.mimetype);
       }
-      const result = await model.generateContent(content);
-      const response = await result.response;
-      const notes = response.text();
-      res.json({ notes });
+      res.json({ notes: text2 });
     } catch (error) {
-      console.error("File to notes error:", error);
-      res.status(500).json({ message: "Failed to generate notes: " + error.message });
+      console.error("Notes generation error:", error);
+      res.status(500).json({ message: "Failed to generate notes" });
     }
   });
   app2.post("/api/ai/pdf-to-timetable", (req, res, next) => {
@@ -1555,13 +1601,6 @@ async function registerRoutes(app2) {
         res.status(400).json({ message: "No file uploaded" });
         return;
       }
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        res.status(500).json({ message: "Gemini API Key not configured" });
-        return;
-      }
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
       const mode = req.body.mode;
       const topicsPerDay = req.body.topicsPerDay || "2";
       const studyTime = req.body.studyTime || "10:00";
@@ -1590,24 +1629,17 @@ async function registerRoutes(app2) {
             {"error": "no_schedule_found", "mode": "syllabus_required"}
           `;
       }
-      let content = [promptText];
+      let responseText = "";
       if (req.file.mimetype === "application/pdf") {
         const { createRequire: createRequire2 } = await import("module");
         const require3 = createRequire2(import.meta.url);
         const pdfParse = require3("pdf-parse");
         const data = await pdfParse(req.file.buffer);
-        content.push(data.text.substring(0, 2e4));
+        responseText = await callAI(promptText + "\n\nContent:\n" + data.text.substring(0, 2e4));
       } else {
-        content.push({
-          inlineData: {
-            data: req.file.buffer.toString("base64"),
-            mimeType: req.file.mimetype
-          }
-        });
+        responseText = await callAI(promptText, void 0, req.file.buffer, req.file.mimetype);
       }
-      const result = await model.generateContent(content);
-      const response = await result.response;
-      const jsonString = response.text().replace(/```json/g, "").replace(/```/g, "").trim();
+      const jsonString = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
       const timetable = JSON.parse(jsonString);
       res.json(timetable);
     } catch (error) {
@@ -1620,7 +1652,7 @@ async function registerRoutes(app2) {
       const { present, totalConducted, upcoming, required } = req.body;
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        res.status(500).json({ message: "Gemini API Key not configured" });
+        res.status(500).json({ message: "AI API Key not configured" });
         return;
       }
       const p = parseInt(present);
@@ -1642,8 +1674,6 @@ async function registerRoutes(app2) {
       } else {
         status = `You are safe! You can bunk ${canBunk} upcoming classes and still stay above ${r}%.`;
       }
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
       const prompt = `
         The user wants to know their attendance status.
         Here is the mathematically correct data:
@@ -1663,11 +1693,9 @@ async function registerRoutes(app2) {
         
         Return JSON: { "analysis": "Your short bulleted response here" }
       `;
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text2 = response.text();
-      const jsonMatch = text2.match(/\{[\s\S]*\}/);
-      const json = jsonMatch ? JSON.parse(jsonMatch[0]) : { analysis: text2 };
+      const responseText = await callAI(prompt);
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      const json = jsonMatch ? JSON.parse(jsonMatch[0]) : { analysis: responseText };
       res.json(json);
     } catch (error) {
       console.error("AI Attendance error:", error);
@@ -1788,38 +1816,6 @@ async function registerRoutes(app2) {
   });
   const httpServer = createServer(app2);
   return httpServer;
-}
-
-// server/utils.ts
-import express from "express";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-import { dirname } from "path";
-var __filename = fileURLToPath(import.meta.url);
-var __dirname = dirname(__filename);
-function log(message, source = "express") {
-  const formattedTime = (/* @__PURE__ */ new Date()).toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true
-  });
-  console.log(`${formattedTime} [${source}] ${message}`);
-}
-function serveStatic(app2) {
-  const distPath = path.resolve(__dirname, "public");
-  console.log("Serving static files from:", distPath);
-  console.log("Current directory:", __dirname);
-  if (!fs.existsSync(distPath)) {
-    throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`
-    );
-  }
-  app2.use(express.static(distPath));
-  app2.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
-  });
 }
 
 // server/index.prod.ts

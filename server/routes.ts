@@ -979,7 +979,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       app.post("/api/admin/promote-temp", async (req, res) => {
         try {
           const { username, secret } = req.body;
-          if (secret !== "temp-secret-123") {
+          if (secret !== process.env.ADMIN_SECRET) {
             return res.status(403).json({ message: "Forbidden" });
           }
 

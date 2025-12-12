@@ -79,7 +79,7 @@ export class MemStorage implements IStorage {
     this.users.set(adminId, {
       id: adminId,
       username: "sumitkumar",
-      password: "sk2007@",
+      password: process.env.ADMIN_PASSWORD || "change_me",
       googleId: "admin_google_id",
       email: "admin@assignflow.com",
       displayName: "Sumit Kumar (Admin)",
@@ -665,7 +665,7 @@ export class DatabaseStorage implements IStorage {
     if (!existing) {
       await db.insert(users).values({
         username: "sumitkumar",
-        password: "sk2007@",
+        password: process.env.ADMIN_PASSWORD || "change_me",
         googleId: "admin_google_id",
         email: adminEmail,
         displayName: "Sumit Kumar (Admin)",
@@ -687,7 +687,7 @@ export class DatabaseStorage implements IStorage {
       console.log("Seeding sumitkumar user...");
       await db.insert(users).values({
         username: "sumitkumar",
-        password: "sk2007@",
+        password: process.env.ADMIN_PASSWORD || "change_me",
         role: "admin",
         displayName: "Sumit Kumar",
         avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=sumitkumar",

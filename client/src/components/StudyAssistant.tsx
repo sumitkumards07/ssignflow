@@ -505,7 +505,7 @@ function SolverTab({ isLoading, setIsLoading, toast }: any) {
             console.error("Analysis error:", error);
             toast({
                 title: "Analysis Failed",
-                description: "Could not analyze image. Ensure GEMINI_API_KEY is set.",
+                description: "Could not analyze image. Please try again or check your internet.",
                 variant: "destructive",
             });
         } finally {
