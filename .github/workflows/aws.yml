@@ -38,6 +38,10 @@ jobs:
               
               echo "Deploying in $(pwd)"
               
+              # Securely inject API Key from GitHub Secrets
+              # This ensures the key is NEVER in the code
+              echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
+              
               # Clean Clean Clean!
               echo "Cleaning dependencies and artifacts..."
               rm -rf node_modules dist
