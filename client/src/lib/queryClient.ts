@@ -34,8 +34,9 @@ export async function safeParseJson(res: Response): Promise<any> {
 
 // Get API base URL - use this for direct fetch calls (not using apiRequest)
 export function getApiBaseUrl(): string {
-  // Force correct URL to ensure connection
-  return window.Capacitor ? "http://3.237.33.146" : "";
+  // Use environment variable for API base URL
+  // For Capacitor (mobile) apps, VITE_API_BASE_URL should be set to the server IP
+  return import.meta.env.VITE_API_BASE_URL || "";
 }
 
 export async function apiRequest(
@@ -55,10 +56,7 @@ export async function apiRequest(
   }
 
   try {
-    // Use relative URL to allow proxying in dev and same-origin in prod
-    // Use relative URL to allow proxying in dev and same-origin in prod
-    // Force correct URL to ensure connection
-    const baseUrl = window.Capacitor ? "http://3.237.33.146" : "";
+    const baseUrl = getApiBaseUrl();
     const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
 
     // Get token from localStorage
@@ -109,10 +107,7 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
     async ({ queryKey }) => {
       const url = queryKey.join("/") as string;
-      // Use relative URL to allow proxying in dev and same-origin in prod
-      // Use relative URL to allow proxying in dev and same-origin in prod
-      // Force correct URL to ensure connection
-      const baseUrl = window.Capacitor ? "http://3.237.33.146" : "";
+      const baseUrl = getApiBaseUrl();
       const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
 
       // Get token from localStorage
