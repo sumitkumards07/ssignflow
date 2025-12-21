@@ -19,6 +19,8 @@ jobs:
           username: ec2-user
           key: ${{ secrets.SSH_KEY }}
           command_timeout: 20m
+          debug: true
+          use_insecure_cipher: true
           script: |
               # Load nvm and use Node 20
               export NVM_DIR="$HOME/.nvm"
@@ -33,7 +35,12 @@ jobs:
               pwd
               ls -la
               
-              # Try to find the directory
+              echo "Node version: $(node -v)"
+              echo "Starting Deployment..."
+              pwd
+              ls -la
+              
+              # Target directory
               if [ -d "Assignflow" ]; then
                 cd Assignflow
               elif [ -d "assignflow" ]; then
@@ -41,6 +48,9 @@ jobs:
               elif [ -d "ssignflow" ]; then
                 cd ssignflow
               else
+                echo "Directory not found, listing home:"
+                ls -la
+                # Try to handle case where directory is missing
                 echo "❌ Project directory not found!"
                 exit 1
               fi
@@ -48,7 +58,6 @@ jobs:
               echo "Deploying in $(pwd)"
               
               # Securely inject ALL Secrets
-              # This reconstructs the .env file on every deploy
               echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
               echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
               echo "SESSION_SECRET=${{ secrets.SESSION_SECRET }}" >> .env
@@ -65,7 +74,6 @@ jobs:
               npm run build:static
               
               echo "Restarting Server..."
-              # Ensure process is started
               pm2 delete all || true
               pm2 start dist/index.js --name "assignflow"
               pm2 save
