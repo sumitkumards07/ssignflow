@@ -18,8 +18,17 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
           key: ${{ secrets.SSH_KEY }}
+          command_timeout: 20m
           script: |
-              export PATH=$PATH:/usr/local/bin:/home/ec2-user/.nvm/versions/node/v20.18.0/bin
+              # Load nvm and use Node 20
+              export NVM_DIR="$HOME/.nvm"
+              [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+              
+              # Install Node 20 if not present, then use it
+              nvm install 20 || true
+              nvm use 20
+              
+              echo "Node version: $(node -v)"
               echo "Starting Deployment..."
               pwd
               ls -la
