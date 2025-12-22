@@ -21,10 +21,11 @@ jobs:
           port: 22
           command_timeout: 20m
           script: |
-              # Install Node.js 18 and Git if missing
-              if ! command -v node &> /dev/null; then
-                echo "Installing Node.js & Git..."
-                curl -sL https://rpm.nodesource.com/setup_18.x | sudo bash -
+              # Install/Upgrade Node.js to 20
+              NODE_VER=$(node -v 2>/dev/null || echo "none")
+              if [[ "$NODE_VER" != v20* ]]; then
+                echo "Installing/Upgrading Node.js to 20..."
+                curl -sL https://rpm.nodesource.com/setup_20.x | sudo bash -
                 sudo yum install -y nodejs git
               fi
 
@@ -51,7 +52,7 @@ jobs:
               echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
               echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
               echo "SESSION_SECRET=${{ secrets.SESSION_SECRET }}" >> .env
-              echo "PORT=8080" >> .env
+              echo "PORT=5001" >> .env
               
               # Clean install
               echo "Cleaning dependencies..."
