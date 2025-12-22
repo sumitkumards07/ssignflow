@@ -68,6 +68,7 @@ jobs:
               rm -rf node_modules dist
               
               echo "Installing Dependencies..."
+              export NODE_OPTIONS="--max-old-space-size=2048"
               npm config set fetch-retries 5
               npm config set fetch-retry-mintimeout 20000
               npm install --legacy-peer-deps
