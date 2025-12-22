@@ -690,8 +690,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // AI Image/PDF Analysis Route (Solver)
-  app.post("/api/ai/analyze-image", (req, res, next) => {
+
+  // Health check route
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", version: "1.0.1", timestamp: new Date().toISOString() });
+  });
+
+  app.post("/api/ai/analyze-image", upload.single("image"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No image provided" });
+      }
+
+      const prompt = req.body.prompt || "Analyze this image and solve the problem shown. Provide step-by-step solution.";
+      const imageBuffer = req.file.buffer;
+      const mimeType = req.file.mimetype;
+
+      const text = await callAI(prompt, undefined, imageBuffer, mimeType);
+      res.json({ text });
+    } catch (error: any) {
+      console.error("Image analysis error:", error);
+      // Return the actual error message for debugging
+      res.status(500).json({ message: error.message || "Failed to analyze image" });
+    }
+  });
+
+  app.post("/api/ai/pdf-to-notes", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file provided" });
+      }
+
+      let text = "";
+
+      if (req.file.mimetype === "application/pdf") {
+        const dataBuffer = req.file.buffer;
+        const { createRequire } = await import("module");
+        const require = createRequire(import.meta.url);
+        const pdfParse = require("pdf-parse");
+        const pdfData = await pdfParse(dataBuffer);
+        text = pdfData.text;
+      } else {
+        // Handle image files for notes
+        const prompt = "Transcribe these handwritten notes into clear, organized text notes. Use markdown formatting.";
+        text = await callAI(prompt, undefined, req.file.buffer, req.file.mimetype);
+      }
+
+      if (!text || text.trim().length === 0) {
+        return res.status(400).json({ message: "Could not extract text from file" });
+      }
+
+      // Generate summary/notes from the text
+      const prompt = `Create comprehensive study notes from the following text. 
+      Format with clear headings, bullet points, and key concepts.
+      
+      Text:
+      ${text.slice(0, 15000)}`; // Limit text length for API
+
+      const notes = await callAI(prompt);
+
+      // Return 'notes' field as expected by client
+      res.json({ notes });
+    } catch (error: any) {
+      console.error("Notes generation error:", error);
+      res.status(500).json({ message: error.message || "Failed to generate notes" });
+    }
+  });
+
+  // PDF/Image to Timetable Route
+  app.post("/api/ai/pdf-to-timetable", (req, res, next) => {
     upload.single("file")(req, res, (err) => {
       if (err) {
         console.error("Multer error:", err);
@@ -705,95 +772,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.status(400).json({ message: "No file uploaded" });
         return;
       }
-      // Health check route
-      app.get("/api/health", (_req, res) => {
-        res.json({ status: "ok", version: "1.0.1", timestamp: new Date().toISOString() });
-      });
 
-      app.post("/api/ai/analyze-image", upload.single("image"), async (req, res) => {
-        try {
-          if (!req.file) {
-            return res.status(400).json({ message: "No image provided" });
-          }
+      const mode = req.body.mode;
+      const topicsPerDay = req.body.topicsPerDay || "2";
+      const studyTime = req.body.studyTime || "10:00";
 
-          const prompt = req.body.prompt || "Analyze this image and solve the problem shown. Provide step-by-step solution.";
-          const imageBuffer = req.file.buffer;
-          const mimeType = req.file.mimetype;
-
-          const text = await callAI(prompt, undefined, imageBuffer, mimeType);
-          res.json({ text });
-        } catch (error: any) {
-          console.error("Image analysis error:", error);
-          // Return the actual error message for debugging
-          res.status(500).json({ message: error.message || "Failed to analyze image" });
-        }
-      });
-
-      app.post("/api/ai/pdf-to-notes", upload.single("file"), async (req, res) => {
-        try {
-          if (!req.file) {
-            return res.status(400).json({ message: "No file provided" });
-          }
-
-          let text = "";
-
-          if (req.file.mimetype === "application/pdf") {
-            const dataBuffer = req.file.buffer;
-            const { createRequire } = await import("module");
-            const require = createRequire(import.meta.url);
-            const pdfParse = require("pdf-parse");
-            const pdfData = await pdfParse(dataBuffer);
-            text = pdfData.text;
-          } else {
-            // Handle image files for notes
-            const prompt = "Transcribe these handwritten notes into clear, organized text notes. Use markdown formatting.";
-            text = await callAI(prompt, undefined, req.file.buffer, req.file.mimetype);
-          }
-
-          if (!text || text.trim().length === 0) {
-            return res.status(400).json({ message: "Could not extract text from file" });
-          }
-
-          // Generate summary/notes from the text
-          const prompt = `Create comprehensive study notes from the following text. 
-      Format with clear headings, bullet points, and key concepts.
-      
-      Text:
-      ${text.slice(0, 15000)}`; // Limit text length for API
-
-          const notes = await callAI(prompt);
-
-          // Return 'notes' field as expected by client
-          res.json({ notes });
-        } catch (error: any) {
-          console.error("Notes generation error:", error);
-          res.status(500).json({ message: error.message || "Failed to generate notes" });
-        }
-      });
-
-      // PDF/Image to Timetable Route
-      app.post("/api/ai/pdf-to-timetable", (req, res, next) => {
-        upload.single("file")(req, res, (err) => {
-          if (err) {
-            console.error("Multer error:", err);
-            return res.status(400).json({ message: "File upload failed: " + err.message });
-          }
-          next();
-        });
-      }, async (req, res) => {
-        try {
-          if (!req.file) {
-            res.status(400).json({ message: "No file uploaded" });
-            return;
-          }
-
-          const mode = req.body.mode;
-          const topicsPerDay = req.body.topicsPerDay || "2";
-          const studyTime = req.body.studyTime || "10:00";
-
-          let promptText = "";
-          if (mode === "syllabus") {
-            promptText = `
+      let promptText = "";
+      if (mode === "syllabus") {
+        promptText = `
             Create a study schedule from the following syllabus content.
             The user wants to study ${topicsPerDay} topics per day starting at ${studyTime}.
             Start from tomorrow.
@@ -803,8 +789,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             - "subject": string (Course Name)
             - "task": string (Topic to study)
           `;
-          } else {
-            promptText = `
+      } else {
+        promptText = `
             Extract a study timetable or schedule from the following content.
             Return a JSON array of objects with:
             - "day": string (e.g., "Monday", "2023-10-27")
@@ -815,67 +801,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
             If NO explicit schedule (dates/times) is found, return exactly this JSON:
             {"error": "no_schedule_found", "mode": "syllabus_required"}
           `;
-          }
+      }
 
-          let responseText = "";
-          if (req.file.mimetype === "application/pdf") {
-            const { createRequire } = await import("module");
-            const require = createRequire(import.meta.url);
-            const pdfParse = require("pdf-parse");
-            const data = await pdfParse(req.file.buffer);
-            responseText = await callAI(promptText + "\n\nContent:\n" + data.text.substring(0, 20000));
-          } else {
-            responseText = await callAI(promptText, undefined, req.file.buffer, req.file.mimetype);
-          }
+      let responseText = "";
+      if (req.file.mimetype === "application/pdf") {
+        const { createRequire } = await import("module");
+        const require = createRequire(import.meta.url);
+        const pdfParse = require("pdf-parse");
+        const data = await pdfParse(req.file.buffer);
+        responseText = await callAI(promptText + "\n\nContent:\n" + data.text.substring(0, 20000));
+      } else {
+        responseText = await callAI(promptText, undefined, req.file.buffer, req.file.mimetype);
+      }
 
-          const jsonString = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
-          const timetable = JSON.parse(jsonString);
+      const jsonString = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
+      const timetable = JSON.parse(jsonString);
 
-          res.json(timetable);
-        } catch (error: any) {
-          console.error("File to timetable error:", error);
-          res.status(500).json({ message: "Failed to generate timetable" });
-        }
-      });
+      res.json(timetable);
+    } catch (error: any) {
+      console.error("File to timetable error:", error);
+      res.status(500).json({ message: "Failed to generate timetable" });
+    }
+  });
 
 
 
-      // AI Attendance Route
-      app.post("/api/ai/attendance", async (req, res) => {
-        try {
-          const { present, totalConducted, upcoming, required } = req.body;
-          const apiKey = process.env.GEMINI_API_KEY;
+  // AI Attendance Route
+  app.post("/api/ai/attendance", async (req, res) => {
+    try {
+      const { present, totalConducted, upcoming, required } = req.body;
+      const apiKey = process.env.GEMINI_API_KEY;
 
-          if (!apiKey) {
-            res.status(500).json({ message: "AI API Key not configured" });
-            return;
-          }
+      if (!apiKey) {
+        res.status(500).json({ message: "AI API Key not configured" });
+        return;
+      }
 
-          // Hardcoded Math Logic to prevent AI hallucinations
-          const p = parseInt(present);
-          const t = parseInt(totalConducted);
-          const u = parseInt(upcoming);
-          const r = parseInt(required);
+      // Hardcoded Math Logic to prevent AI hallucinations
+      const p = parseInt(present);
+      const t = parseInt(totalConducted);
+      const u = parseInt(upcoming);
+      const r = parseInt(required);
 
-          const totalClasses = t + u;
-          const requiredClasses = Math.ceil((totalClasses * r) / 100);
-          const deficit = requiredClasses - p;
+      const totalClasses = t + u;
+      const requiredClasses = Math.ceil((totalClasses * r) / 100);
+      const deficit = requiredClasses - p;
 
-          const mustAttend = Math.max(0, deficit);
-          const canBunk = Math.max(0, u - mustAttend);
-          const currentPercentage = ((p / t) * 100).toFixed(2);
-          const maxPossiblePercentage = (((p + u) / totalClasses) * 100).toFixed(2);
+      const mustAttend = Math.max(0, deficit);
+      const canBunk = Math.max(0, u - mustAttend);
+      const currentPercentage = ((p / t) * 100).toFixed(2);
+      const maxPossiblePercentage = (((p + u) / totalClasses) * 100).toFixed(2);
 
-          let status = "";
-          if (mustAttend > u) {
-            status = `Even if you attend ALL ${u} upcoming classes, you will only reach ${maxPossiblePercentage}%. You cannot reach ${r}%.`;
-          } else if (mustAttend > 0) {
-            status = `You MUST attend ${mustAttend} out of ${u} upcoming classes to reach ${r}%. You can bunk ${canBunk}.`;
-          } else {
-            status = `You are safe! You can bunk ${canBunk} upcoming classes and still stay above ${r}%.`;
-          }
+      let status = "";
+      if (mustAttend > u) {
+        status = `Even if you attend ALL ${u} upcoming classes, you will only reach ${maxPossiblePercentage}%. You cannot reach ${r}%.`;
+      } else if (mustAttend > 0) {
+        status = `You MUST attend ${mustAttend} out of ${u} upcoming classes to reach ${r}%. You can bunk ${canBunk}.`;
+      } else {
+        status = `You are safe! You can bunk ${canBunk} upcoming classes and still stay above ${r}%.`;
+      }
 
-          const prompt = `
+      const prompt = `
         The user wants to know their attendance status.
         Here is the mathematically correct data:
         - Current Percentage: ${currentPercentage}%
@@ -895,181 +881,181 @@ export async function registerRoutes(app: Express): Promise<Server> {
         Return JSON: { "analysis": "Your short bulleted response here" }
       `;
 
-          const responseText = await callAI(prompt);
+      const responseText = await callAI(prompt);
 
-          // Extract JSON if needed
-          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-          const json = jsonMatch ? JSON.parse(jsonMatch[0]) : { analysis: responseText };
+      // Extract JSON if needed
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      const json = jsonMatch ? JSON.parse(jsonMatch[0]) : { analysis: responseText };
 
-          res.json(json);
-        } catch (error: any) {
-          console.error("AI Attendance error:", error);
-          res.status(500).json({ message: "Failed to analyze attendance" });
-        }
-      });
-
-      // YouTube Playlist Route
-      app.get("/api/youtube/playlist", async (req, res) => {
-        try {
-          const { listId } = req.query;
-          if (!listId) {
-            res.status(400).json({ message: "Playlist ID is required" });
-            return;
-          }
-
-          const apiKey = process.env.YOUTUBE_API_KEY;
-          if (!apiKey) {
-            // Fallback or error if no key. For now, error.
-            res.status(500).json({ message: "YouTube API Key not configured" });
-            return;
-          }
-
-          const response = await fetch(
-            `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=${listId}&key=${apiKey}`
-          );
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            console.error("YouTube API Error:", JSON.stringify(errorData, null, 2));
-
-            if (response.status === 403) {
-              return res.status(403).json({ message: "YouTube API Quota Exceeded or Invalid Key" });
-            }
-            if (response.status === 404) {
-              return res.status(404).json({ message: "Playlist not found" });
-            }
-
-            throw new Error(errorData.error?.message || "Failed to fetch playlist");
-          }
-
-          const data = await response.json();
-
-          const videoIds = data.items.map((item: any) => item.snippet.resourceId.videoId).join(",");
-
-          // Fetch video details (duration)
-          const videosResponse = await fetch(
-            `https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoIds}&key=${apiKey}`
-          );
-
-          if (!videosResponse.ok) {
-            throw new Error("Failed to fetch video details");
-          }
-
-          const videosData = await videosResponse.json();
-          const durationMap = new Map(
-            videosData.items.map((item: any) => [item.id, item.contentDetails.duration])
-          );
-
-          const videos = data.items.map((item: any) => ({
-            id: item.snippet.resourceId.videoId,
-            title: item.snippet.title,
-            thumbnail: item.snippet.thumbnails?.default?.url || "",
-            position: item.snippet.position,
-            duration: durationMap.get(item.snippet.resourceId.videoId) || "PT0M"
-          }));
-
-          res.json(videos);
-        } catch (error: any) {
-          console.error("YouTube playlist error:", error);
-          res.status(500).json({ message: error.message || "Internal Server Error" });
-        }
-      });
-
-      // Temporary route to promote admin
-      app.post("/api/admin/promote-temp", async (req, res) => {
-        try {
-          const { username, secret } = req.body;
-          if (secret !== process.env.ADMIN_SECRET) {
-            return res.status(403).json({ message: "Forbidden" });
-          }
-
-          const user = await storage.getUserByUsername(username);
-          if (!user) {
-            return res.status(404).json({ message: "User not found" });
-          }
-
-          // Direct DB update to bypass storage interface if needed, or add method to storage
-          // For now, we'll assume we can use a raw query or just add a method to storage.
-          // But wait, storage interface doesn't have updateUserRole.
-          // Let's add it to storage.ts first or just use db directly here if we import it.
-          // Importing db directly in routes is fine for this temp fix.
-
-          // Actually, let's just use a raw SQL query via db if possible, or add to storage.
-          // Adding to storage is cleaner.
-          await storage.updateUserRole(user.id, "admin");
-
-          res.json({ message: `User ${username} promoted to admin` });
-        } catch (error: any) {
-          res.status(500).json({ message: error.message });
-        }
-      });
-
-      app.get("/api/clash/messages", async (req, res) => {
-        if (!req.user) return res.sendStatus(401);
-        const groupId = req.query.groupId as string;
-        if (!groupId) return res.status(400).json({ message: "Group ID is required" });
-
-        // Check if user is member of this group
-        const members = await storage.getGroupMembers(groupId);
-        const isMember = members.some(m => m.id === (req.user as any).id);
-        if (!isMember) return res.status(403).json({ message: "Not a member of this group" });
-
-        const messages = await storage.getClashMessages(groupId);
-        res.json(messages);
-      });
-
-      app.post("/api/clash/messages", async (req, res) => {
-        if (!req.user) return res.sendStatus(401);
-
-        const { content, groupId } = req.body;
-        if (!content) return res.status(400).json({ message: "Content is required" });
-        if (!groupId) return res.status(400).json({ message: "Group ID is required" });
-
-        // Check for profanity
-        if (containsProfanity(content)) {
-          return res.status(400).json({ message: "Message contains inappropriate language. Please keep the chat respectful." });
-        }
-
-        // Check if user is member of this group
-        const members = await storage.getGroupMembers(groupId);
-        const isMember = members.some(m => m.id === (req.user as any).id);
-        if (!isMember) return res.status(403).json({ message: "Not a member of this group" });
-
-        const message = await storage.createClashMessage((req.user as any).id, content, groupId);
-        res.json(message);
-      });
-
-      app.post("/api/user/settings/clash-notifications", async (req, res) => {
-        if (!req.user) return res.sendStatus(401);
-        const { enabled } = req.body;
-        if (typeof enabled !== "boolean") return res.status(400).json({ message: "Enabled must be a boolean" });
-
-        await storage.toggleClashNotifications((req.user as any).id, enabled);
-        res.json({ success: true });
-      });
-
-      app.delete("/api/groups/:groupId/members/:userId", async (req, res) => {
-        if (!req.user) return res.sendStatus(401);
-        const { groupId, userId } = req.params;
-
-        const group = await storage.getGroup(groupId);
-        if (!group) return res.status(404).json({ message: "Group not found" });
-
-        // Only creator can remove members
-        if (group.createdBy !== (req.user as any).id) {
-          return res.status(403).json({ message: "Only the group admin can remove members" });
-        }
-
-        // Cannot remove self (use leave group instead)
-        if (userId === (req.user as any).id) {
-          return res.status(400).json({ message: "Cannot remove yourself" });
-        }
-
-        await storage.removeGroupMember(groupId, userId);
-        res.sendStatus(200);
-      });
-
-      const httpServer = createServer(app);
-
-      return httpServer;
+      res.json(json);
+    } catch (error: any) {
+      console.error("AI Attendance error:", error);
+      res.status(500).json({ message: "Failed to analyze attendance" });
     }
+  });
+
+  // YouTube Playlist Route
+  app.get("/api/youtube/playlist", async (req, res) => {
+    try {
+      const { listId } = req.query;
+      if (!listId) {
+        res.status(400).json({ message: "Playlist ID is required" });
+        return;
+      }
+
+      const apiKey = process.env.YOUTUBE_API_KEY;
+      if (!apiKey) {
+        // Fallback or error if no key. For now, error.
+        res.status(500).json({ message: "YouTube API Key not configured" });
+        return;
+      }
+
+      const response = await fetch(
+        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=${listId}&key=${apiKey}`
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("YouTube API Error:", JSON.stringify(errorData, null, 2));
+
+        if (response.status === 403) {
+          return res.status(403).json({ message: "YouTube API Quota Exceeded or Invalid Key" });
+        }
+        if (response.status === 404) {
+          return res.status(404).json({ message: "Playlist not found" });
+        }
+
+        throw new Error(errorData.error?.message || "Failed to fetch playlist");
+      }
+
+      const data = await response.json();
+
+      const videoIds = data.items.map((item: any) => item.snippet.resourceId.videoId).join(",");
+
+      // Fetch video details (duration)
+      const videosResponse = await fetch(
+        `https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoIds}&key=${apiKey}`
+      );
+
+      if (!videosResponse.ok) {
+        throw new Error("Failed to fetch video details");
+      }
+
+      const videosData = await videosResponse.json();
+      const durationMap = new Map(
+        videosData.items.map((item: any) => [item.id, item.contentDetails.duration])
+      );
+
+      const videos = data.items.map((item: any) => ({
+        id: item.snippet.resourceId.videoId,
+        title: item.snippet.title,
+        thumbnail: item.snippet.thumbnails?.default?.url || "",
+        position: item.snippet.position,
+        duration: durationMap.get(item.snippet.resourceId.videoId) || "PT0M"
+      }));
+
+      res.json(videos);
+    } catch (error: any) {
+      console.error("YouTube playlist error:", error);
+      res.status(500).json({ message: error.message || "Internal Server Error" });
+    }
+  });
+
+  // Temporary route to promote admin
+  app.post("/api/admin/promote-temp", async (req, res) => {
+    try {
+      const { username, secret } = req.body;
+      if (secret !== process.env.ADMIN_SECRET) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const user = await storage.getUserByUsername(username);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Direct DB update to bypass storage interface if needed, or add method to storage
+      // For now, we'll assume we can use a raw query or just add a method to storage.
+      // But wait, storage interface doesn't have updateUserRole.
+      // Let's add it to storage.ts first or just use db directly here if we import it.
+      // Importing db directly in routes is fine for this temp fix.
+
+      // Actually, let's just use a raw SQL query via db if possible, or add to storage.
+      // Adding to storage is cleaner.
+      await storage.updateUserRole(user.id, "admin");
+
+      res.json({ message: `User ${username} promoted to admin` });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/clash/messages", async (req, res) => {
+    if (!req.user) return res.sendStatus(401);
+    const groupId = req.query.groupId as string;
+    if (!groupId) return res.status(400).json({ message: "Group ID is required" });
+
+    // Check if user is member of this group
+    const members = await storage.getGroupMembers(groupId);
+    const isMember = members.some(m => m.id === (req.user as any).id);
+    if (!isMember) return res.status(403).json({ message: "Not a member of this group" });
+
+    const messages = await storage.getClashMessages(groupId);
+    res.json(messages);
+  });
+
+  app.post("/api/clash/messages", async (req, res) => {
+    if (!req.user) return res.sendStatus(401);
+
+    const { content, groupId } = req.body;
+    if (!content) return res.status(400).json({ message: "Content is required" });
+    if (!groupId) return res.status(400).json({ message: "Group ID is required" });
+
+    // Check for profanity
+    if (containsProfanity(content)) {
+      return res.status(400).json({ message: "Message contains inappropriate language. Please keep the chat respectful." });
+    }
+
+    // Check if user is member of this group
+    const members = await storage.getGroupMembers(groupId);
+    const isMember = members.some(m => m.id === (req.user as any).id);
+    if (!isMember) return res.status(403).json({ message: "Not a member of this group" });
+
+    const message = await storage.createClashMessage((req.user as any).id, content, groupId);
+    res.json(message);
+  });
+
+  app.post("/api/user/settings/clash-notifications", async (req, res) => {
+    if (!req.user) return res.sendStatus(401);
+    const { enabled } = req.body;
+    if (typeof enabled !== "boolean") return res.status(400).json({ message: "Enabled must be a boolean" });
+
+    await storage.toggleClashNotifications((req.user as any).id, enabled);
+    res.json({ success: true });
+  });
+
+  app.delete("/api/groups/:groupId/members/:userId", async (req, res) => {
+    if (!req.user) return res.sendStatus(401);
+    const { groupId, userId } = req.params;
+
+    const group = await storage.getGroup(groupId);
+    if (!group) return res.status(404).json({ message: "Group not found" });
+
+    // Only creator can remove members
+    if (group.createdBy !== (req.user as any).id) {
+      return res.status(403).json({ message: "Only the group admin can remove members" });
+    }
+
+    // Cannot remove self (use leave group instead)
+    if (userId === (req.user as any).id) {
+      return res.status(400).json({ message: "Cannot remove yourself" });
+    }
+
+    await storage.removeGroupMember(groupId, userId);
+    res.sendStatus(200);
+  });
+
+  const httpServer = createServer(app);
+
+  return httpServer;
+}
