@@ -1,0 +1,22 @@
+name: Debug Logs
+on: [push]
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get Logs
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          script: |
+             export PATH=$PATH:/usr/bin:/usr/local/bin
+             echo "=== NODE VERSION ==="
+             node -v
+             echo "=== PM2 LIST ==="
+             pm2 list
+             echo "=== PM2 LOGS ==="
+             pm2 logs ssignflow --lines 50 --nostream
+             echo "=== END LOGS ==="
