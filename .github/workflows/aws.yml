@@ -21,25 +21,29 @@ jobs:
           port: 22
           command_timeout: 20m
           script: |
-              # Use system node (presumed v18+)
-              echo "Node version: $(node -v)"
-              echo "Starting Deployment..."
-              pwd
-              ls -la
-              
-              # Target directory
-              if [ -d "ssignflow" ]; then
-                cd ssignflow
-              elif [ -d "Assignflow" ]; then
-                cd Assignflow
-              elif [ -d "assignflow" ]; then
-                cd assignflow
-              else
-                 echo "❌ Project directory not found in $(pwd)"
-                 echo "Attempting to find it..."
-                 find . -maxdepth 2 -type d -name "*signflow*"
-                 exit 1
+              # Install Node.js 18 and Git if missing
+              if ! command -v node &> /dev/null; then
+                echo "Installing Node.js & Git..."
+                curl -sL https://rpm.nodesource.com/setup_18.x | sudo bash -
+                sudo yum install -y nodejs git
               fi
+
+              # Install PM2 if missing
+              if ! command -v pm2 &> /dev/null; then
+                echo "Installing PM2..."
+                sudo npm install -g pm2
+              fi
+
+              # Check/Clone Repository
+              if [ ! -d "ssignflow" ]; then
+                echo "Cloning repository..."
+                git clone https://github.com/sumitkumards07/ssignflow.git
+              fi
+
+              cd ssignflow
+              echo "Pulling latest changes..."
+              git fetch origin
+              git reset --hard origin/main
               
               echo "Deploying in $(pwd)"
               
