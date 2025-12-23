@@ -15,8 +15,9 @@ import Upcoming from "@/pages/Upcoming";
 import Pomodoro from "@/pages/Pomodoro";
 import Analytics from "@/pages/Analytics";
 import StudyAssistantPage from "@/pages/StudyAssistantPage";
-import { useEffect } from "react";
-import { App as CapacitorApp } from "@capacitor/app"; // Changed alias from AppPlugin to CapacitorApp
+import { useEffect, useState } from "react";
+import { App as CapacitorApp } from "@capacitor/app";
+import { SplashScreen } from "@/components/SplashScreen";
 
 function Router() {
   const [location, setLocation] = useLocation();
@@ -46,6 +47,17 @@ function Router() {
 }
 
 function App() {
+  const [showSplash, setShowSplash] = useState(() => {
+    // Only show splash on first load
+    const hasShownSplash = sessionStorage.getItem('splashShown');
+    return !hasShownSplash;
+  });
+
+  const handleSplashComplete = () => {
+    sessionStorage.setItem('splashShown', 'true');
+    setShowSplash(false);
+  };
+
   useEffect(() => {
     // Handle deep links (OAuth callback)
     // Handle deep links (OAuth callback and Widgets)
@@ -89,6 +101,13 @@ function App() {
 
     // Auto-restore data if fresh install AND not explicitly logged out
     const checkRestore = async () => {
+      // Only run auto-restore on native devices (iOS/Android)
+      // Web browsers don't need this and the reload can interrupt login
+      const { Capacitor } = await import("@capacitor/core");
+      if (!Capacitor.isNativePlatform()) {
+        return;
+      }
+
       const user = localStorage.getItem("user");
       const wasLoggedOut = localStorage.getItem("logged_out");
 
@@ -102,16 +121,19 @@ function App() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="dark" storageKey="ui-theme">
-        <ThemeColorProvider>
-          <TooltipProvider>
-            <Router />
-            <Toaster />
-          </TooltipProvider>
-        </ThemeColorProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <>
+      {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider defaultTheme="dark" storageKey="ui-theme">
+          <ThemeColorProvider>
+            <TooltipProvider>
+              <Router />
+              <Toaster />
+            </TooltipProvider>
+          </ThemeColorProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </>
   );
 }
 

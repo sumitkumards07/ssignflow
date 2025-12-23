@@ -1,0 +1,26 @@
+
+import { handler } from './dist/index.js';
+
+console.log("Starting local Lambda test...");
+
+// Mock Lambda Context
+const context = {
+    getRemainingTimeInMillis: () => 3000,
+};
+
+// Mock API Gateway Event
+const event = {
+    httpMethod: 'GET',
+    path: '/',
+    headers: {},
+    requestContext: {}
+};
+
+(async () => {
+    try {
+        const response = await handler(event, context);
+        console.log("Response:", JSON.stringify(response, null, 2));
+    } catch (error) {
+        console.error("CRITICAL TEST FAILURE:", error);
+    }
+})();

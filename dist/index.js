@@ -172,7 +172,10 @@ var insertAppVersionSchema = createInsertSchema(appVersions).pick({
 // server/db.ts
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-var pool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env.DATABASE_URL }) : null;
+var pool = process.env.DATABASE_URL ? new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : void 0
+}) : null;
 var db = pool ? drizzle(pool, { schema: schema_exports }) : null;
 
 // server/storage.ts
@@ -195,7 +198,7 @@ var MemStorage = class {
     this.users.set(adminId, {
       id: adminId,
       username: "sumitkumar",
-      password: "sk2007@",
+      password: process.env.ADMIN_PASSWORD || "change_me",
       googleId: "admin_google_id",
       email: "admin@assignflow.com",
       displayName: "Sumit Kumar (Admin)",
@@ -640,7 +643,7 @@ var DatabaseStorage = class {
     if (!existing) {
       await db.insert(users).values({
         username: "sumitkumar",
-        password: "sk2007@",
+        password: process.env.ADMIN_PASSWORD || "change_me",
         googleId: "admin_google_id",
         email: adminEmail,
         displayName: "Sumit Kumar (Admin)",
@@ -660,7 +663,7 @@ var DatabaseStorage = class {
       console.log("Seeding sumitkumar user...");
       await db.insert(users).values({
         username: "sumitkumar",
-        password: "sk2007@",
+        password: process.env.ADMIN_PASSWORD || "change_me",
         role: "admin",
         displayName: "Sumit Kumar",
         avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=sumitkumar",
@@ -802,10 +805,15 @@ import multer from "multer";
 import express from "express";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
-import { dirname } from "path";
-var __filename = fileURLToPath(import.meta.url);
-var __dirname = dirname(__filename);
+import OpenAI from "openai";
+var openai = new OpenAI({
+  baseURL: "https://openrouter.ai/api/v1",
+  apiKey: process.env.GEMINI_API_KEY,
+  defaultHeaders: {
+    "HTTP-Referer": "https://assignflow.app",
+    "X-Title": "AssignFlow"
+  }
+});
 async function callAI(prompt, systemPrompt, imageBuffer, mimeType) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -837,25 +845,11 @@ async function callAI(prompt, systemPrompt, imageBuffer, mimeType) {
     const textModel = process.env.OPENROUTER_MODEL || "amazon/nova-lite-v1";
     const visionModel = process.env.OPENROUTER_VISION_MODEL || "google/gemini-2.0-flash-exp:free";
     const modelToUse = isImageRequest ? visionModel : textModel;
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://assignflow.app",
-        "X-Title": "AssignFlow"
-      },
-      body: JSON.stringify({
-        model: modelToUse,
-        messages
-      })
+    const completion = await openai.chat.completions.create({
+      model: modelToUse,
+      messages
     });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenRouter API Error: ${response.status} - ${errorText}`);
-    }
-    const data = await response.json();
-    return data.choices[0].message.content || "";
+    return completion.choices[0].message.content || "";
   } catch (error) {
     console.error("AI Call Failed:", error);
     throw error;
@@ -871,9 +865,9 @@ function log(message, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 function serveStatic(app2) {
-  const distPath = path.resolve(__dirname, "public");
+  const distPath = path.resolve(process.cwd(), "public");
   console.log("Serving static files from:", distPath);
-  console.log("Current directory:", __dirname);
+  console.log("Current directory:", process.cwd());
   if (!fs.existsSync(distPath)) {
     throw new Error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`
@@ -886,21 +880,24 @@ function serveStatic(app2) {
 }
 
 // server/firebase.ts
-import admin from "firebase-admin";
 var firebaseApp = null;
-try {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    firebaseApp = admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
-    });
-    console.log("Firebase Admin initialized successfully");
-  } else {
-    console.warn("FIREBASE_SERVICE_ACCOUNT not found. Push notifications will be mocked.");
+(async () => {
+  try {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      const adminModule = await import("firebase-admin");
+      const admin = adminModule.default || adminModule;
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      firebaseApp = admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+      console.log("Firebase Admin initialized successfully");
+    } else {
+      console.warn("FIREBASE_SERVICE_ACCOUNT not found. Push notifications will be mocked.");
+    }
+  } catch (error) {
+    console.warn("Firebase Admin failed to initialize (Module maybe missing):", error);
   }
-} catch (error) {
-  console.error("Failed to initialize Firebase Admin:", error);
-}
+})();
 async function sendMulticastNotification(tokens, title, body) {
   if (!firebaseApp) {
     console.log(`[MOCK] Sending multicast push to ${tokens.length} tokens: ${title} - ${body}`);
@@ -1521,70 +1518,54 @@ async function registerRoutes(app2) {
       }
     }
   });
-  app2.post("/api/ai/analyze-image", (req, res, next) => {
-    upload.single("file")(req, res, (err) => {
-      if (err) {
-        console.error("Multer error:", err);
-        return res.status(400).json({ message: "File upload failed: " + err.message });
-      }
-      next();
-    });
-  }, async (req, res) => {
+  app2.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", version: "1.0.1", timestamp: (/* @__PURE__ */ new Date()).toISOString() });
+  });
+  app2.post("/api/ai/analyze-image", upload.single("image"), async (req, res) => {
     try {
       if (!req.file) {
-        res.status(400).json({ message: "No file uploaded" });
-        return;
+        return res.status(400).json({ message: "No image provided" });
       }
-      const prompt = "Analyze this content and provide a solution or explanation. If it's a math problem, solve it step-by-step. If it's a schedule, extract the timetable.";
-      let text2 = "";
-      if (req.file.mimetype === "application/pdf") {
-        const { createRequire: createRequire2 } = await import("module");
-        const require3 = createRequire2(import.meta.url);
-        const pdfParse = require3("pdf-parse");
-        const data = await pdfParse(req.file.buffer);
-        text2 = await callAI(prompt + "\n\nContent:\n" + data.text);
-      } else {
-        text2 = await callAI(prompt, void 0, req.file.buffer, req.file.mimetype);
-      }
+      const prompt = req.body.prompt || "Analyze this image and solve the problem shown. Provide step-by-step solution.";
+      const imageBuffer = req.file.buffer;
+      const mimeType = req.file.mimetype;
+      const text2 = await callAI(prompt, void 0, imageBuffer, mimeType);
       res.json({ text: text2 });
     } catch (error) {
-      console.error("Analysis error:", error);
-      res.status(500).json({ message: "Failed to analyze file" });
+      console.error("Image analysis error:", error);
+      res.status(500).json({ message: error.message || "Failed to analyze image" });
     }
   });
-  app2.post("/api/ai/pdf-to-notes", (req, res, next) => {
-    upload.single("file")(req, res, (err) => {
-      if (err) {
-        console.error("Multer error:", err);
-        return res.status(400).json({ message: "File upload failed: " + err.message });
-      }
-      next();
-    });
-  }, async (req, res) => {
+  app2.post("/api/ai/pdf-to-notes", upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
-        res.status(400).json({ message: "No file uploaded" });
-        return;
+        return res.status(400).json({ message: "No file provided" });
       }
-      const promptText = `
-        Summarize the following content into concise, handwritten-style study notes. 
-        Focus on key concepts, definitions, and important points. 
-        Use bullet points and short paragraphs.
-      `;
       let text2 = "";
       if (req.file.mimetype === "application/pdf") {
+        const dataBuffer = req.file.buffer;
         const { createRequire: createRequire2 } = await import("module");
         const require3 = createRequire2(import.meta.url);
         const pdfParse = require3("pdf-parse");
-        const data = await pdfParse(req.file.buffer);
-        text2 = await callAI(promptText + "\n\nContent:\n" + data.text);
+        const pdfData = await pdfParse(dataBuffer);
+        text2 = pdfData.text;
       } else {
-        text2 = await callAI(promptText, void 0, req.file.buffer, req.file.mimetype);
+        const prompt2 = "Transcribe these handwritten notes into clear, organized text notes. Use markdown formatting.";
+        text2 = await callAI(prompt2, void 0, req.file.buffer, req.file.mimetype);
       }
-      res.json({ notes: text2 });
+      if (!text2 || text2.trim().length === 0) {
+        return res.status(400).json({ message: "Could not extract text from file" });
+      }
+      const prompt = `Create comprehensive study notes from the following text. 
+      Format with clear headings, bullet points, and key concepts.
+      
+      Text:
+      ${text2.slice(0, 15e3)}`;
+      const notes = await callAI(prompt);
+      res.json({ notes });
     } catch (error) {
       console.error("Notes generation error:", error);
-      res.status(500).json({ message: "Failed to generate notes" });
+      res.status(500).json({ message: error.message || "Failed to generate notes" });
     }
   });
   app2.post("/api/ai/pdf-to-timetable", (req, res, next) => {
@@ -1756,7 +1737,7 @@ async function registerRoutes(app2) {
   app2.post("/api/admin/promote-temp", async (req, res) => {
     try {
       const { username, secret } = req.body;
-      if (secret !== "temp-secret-123") {
+      if (secret !== process.env.ADMIN_SECRET) {
         return res.status(403).json({ message: "Forbidden" });
       }
       const user = await storage.getUserByUsername(username);
@@ -1819,18 +1800,23 @@ async function registerRoutes(app2) {
 }
 
 // server/index.prod.ts
+import serverless from "serverless-http";
 import { createRequire } from "module";
-var app = express2();
-app.set("trust proxy", 1);
 var require2 = createRequire(import.meta.url);
 var PostgresqlStore = require2("connect-pg-simple")(session);
+var app = express2();
+app.set("trust proxy", 1);
 app.use(session({
   secret: process.env.SESSION_SECRET || "fallback-secret",
   resave: false,
   saveUninitialized: false,
   store: new PostgresqlStore({
     conString: process.env.DATABASE_URL,
-    createTableIfMissing: true
+    createTableIfMissing: true,
+    conObject: {
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : void 0
+    }
   }),
   cookie: {
     secure: process.env.NODE_ENV === "production",
@@ -1885,9 +1871,10 @@ app.use((req, res, next) => {
   });
   next();
 });
-(async () => {
-  console.log("Starting PRODUCTION server with Admin Promotion Route...");
-  const server = await registerRoutes(app);
+var serverlessHandler;
+async function setupApp() {
+  console.log("Initializing App Routes...");
+  await registerRoutes(app);
   app.use((err, _req, res, _next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
@@ -1895,11 +1882,26 @@ app.use((req, res, next) => {
     throw err;
   });
   serveStatic(app);
-  const port = parseInt(process.env.PORT || "5001", 10);
-  server.listen({
-    port,
-    host: "0.0.0.0"
-  }, () => {
-    log(`serving on port ${port}`);
-  });
-})();
+  return app;
+}
+var handler = async (event, context) => {
+  if (!serverlessHandler) {
+    await setupApp();
+    serverlessHandler = serverless(app, {
+      binary: ["image/*", "font/*", "application/pdf", "application/octet-stream"]
+    });
+  }
+  return serverlessHandler(event, context);
+};
+if (!process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  (async () => {
+    await setupApp();
+    const port = parseInt(process.env.PORT || "5001", 10);
+    app.listen(port, "0.0.0.0", () => {
+      log(`serving on port ${port}`);
+    });
+  })();
+}
+export {
+  handler
+};

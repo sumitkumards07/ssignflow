@@ -1,14 +1,21 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
-import { dirname } from "path";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// __dirname and __filename removed (not needed for CJS build if using process.cwd)
 
 // OpenRouter Implementation
-// OpenRouter Implementation
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  baseURL: "https://openrouter.ai/api/v1",
+  apiKey: process.env.GEMINI_API_KEY,
+  defaultHeaders: {
+    "HTTP-Referer": "https://assignflow.app",
+    "X-Title": "AssignFlow",
+  },
+});
+
 export async function callAI(
   prompt: string,
   systemPrompt?: string,
@@ -54,27 +61,12 @@ export async function callAI(
     const visionModel = process.env.OPENROUTER_VISION_MODEL || "google/gemini-2.0-flash-exp:free";
     const modelToUse = isImageRequest ? visionModel : textModel;
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://assignflow.app",
-        "X-Title": "AssignFlow"
-      },
-      body: JSON.stringify({
-        model: modelToUse,
-        messages: messages
-      })
+    const completion = await openai.chat.completions.create({
+      model: modelToUse,
+      messages: messages as any,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenRouter API Error: ${response.status} - ${errorText}`);
-    }
-
-    const data = await response.json();
-    return data.choices[0].message.content || "";
+    return completion.choices[0].message.content || "";
   } catch (error) {
     console.error("AI Call Failed:", error);
     throw error;
@@ -93,10 +85,11 @@ export function log(message: string, source = "express") {
 }
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(__dirname, "public");
+  // In Lambda (or Prod), static files are at the root (process.cwd()/public)
+  const distPath = path.resolve(process.cwd(), "public");
 
   console.log("Serving static files from:", distPath);
-  console.log("Current directory:", __dirname);
+  console.log("Current directory:", process.cwd());
 
   if (!fs.existsSync(distPath)) {
     throw new Error(

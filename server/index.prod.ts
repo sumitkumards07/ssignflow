@@ -4,6 +4,11 @@ import session from "express-session";
 import passport from "./auth";
 import { registerRoutes } from "./routes";
 import { serveStatic, log } from "./utils";
+import serverless from "serverless-http";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const PostgresqlStore = require("connect-pg-simple")(session);
 
 const app = express();
 app.set("trust proxy", 1); // Trust first proxy (Render load balancer)
@@ -14,10 +19,6 @@ declare module 'http' {
     }
 }
 
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const PostgresqlStore = require("connect-pg-simple")(session);
-
 // Session middleware
 app.use(session({
     secret: process.env.SESSION_SECRET || "fallback-secret",
@@ -26,6 +27,10 @@ app.use(session({
     store: new PostgresqlStore({
         conString: process.env.DATABASE_URL,
         createTableIfMissing: true,
+        conObject: {
+            connectionString: process.env.DATABASE_URL,
+            ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined
+        }
     }),
     cookie: {
         secure: process.env.NODE_ENV === "production",
@@ -91,26 +96,43 @@ app.use((req, res, next) => {
     next();
 });
 
-(async () => {
-    console.log("Starting PRODUCTION server with Admin Promotion Route...");
-    const server = await registerRoutes(app);
+// Setup function to initialize routes
+let serverlessHandler: any;
+
+async function setupApp() {
+    console.log("Initializing App Routes...");
+    await registerRoutes(app);
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
         const status = err.status || err.statusCode || 500;
         const message = err.message || "Internal Server Error";
-
         res.status(status).json({ message });
         throw err;
     });
 
-    // Production mode - serve static files
+    // Production mode - serve static files (if needed, though mostly API)
     serveStatic(app);
+    return app;
+}
 
-    const port = parseInt(process.env.PORT || '5001', 10);
-    server.listen({
-        port,
-        host: "0.0.0.0",
-    }, () => {
-        log(`serving on port ${port}`);
-    });
-})();
+// Export handler for Lambda
+export const handler = async (event: any, context: any) => {
+    if (!serverlessHandler) {
+        await setupApp();
+        serverlessHandler = serverless(app, {
+            binary: ['image/*', 'font/*', 'application/pdf', 'application/octet-stream']
+        });
+    }
+    return serverlessHandler(event, context);
+};
+
+// Local Development Start
+if (!process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    (async () => {
+        await setupApp();
+        const port = parseInt(process.env.PORT || '5001', 10);
+        app.listen(port, "0.0.0.0", () => {
+            log(`serving on port ${port}`);
+        });
+    })();
+}

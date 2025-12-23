@@ -1,24 +1,28 @@
-import admin from "firebase-admin";
+// import admin from "firebase-admin"; // Removed to avoid hard dependency
 
-// Initialize Firebase Admin
-// In a real scenario, you would use a service account key file or environment variables
-// For this demo/implementation without keys, we'll wrap it in a try-catch or check for env vars
+let firebaseApp: any = null;
 
-let firebaseApp: admin.app.App | null = null;
+// Initialize Firebase Admin dynamically
+(async () => {
+    try {
+        if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+            // Dynamic import to allow running without firebase-admin installed (for size limits)
+            const adminModule = await import("firebase-admin");
+            const admin = adminModule.default || adminModule;
 
-try {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-        firebaseApp = admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount),
-        });
-        console.log("Firebase Admin initialized successfully");
-    } else {
-        console.warn("FIREBASE_SERVICE_ACCOUNT not found. Push notifications will be mocked.");
+            const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+            firebaseApp = admin.initializeApp({
+                credential: admin.credential.cert(serviceAccount),
+            });
+            console.log("Firebase Admin initialized successfully");
+        } else {
+            console.warn("FIREBASE_SERVICE_ACCOUNT not found. Push notifications will be mocked.");
+        }
+    } catch (error) {
+        console.warn("Firebase Admin failed to initialize (Module maybe missing):", error);
     }
-} catch (error) {
-    console.error("Failed to initialize Firebase Admin:", error);
-}
+})();
+
 
 export async function sendPushNotification(token: string, title: string, body: string) {
     if (!firebaseApp) {

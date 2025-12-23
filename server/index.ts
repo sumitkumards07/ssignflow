@@ -4,18 +4,16 @@ import session from "express-session";
 import passport from "./auth";
 import { registerRoutes } from "./routes";
 import { storage } from "./storage";
-import { setupVite } from "./vite";
+
 import { log } from "./utils";
 import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
+// Imports cleaned up
+import { serveStatic } from "./utils"; // Import the one from utils which uses process.cwd()
+import pgSession from "connect-pg-simple";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const app = express();
+// Export app for Lambda
+export const app = express();
 app.set("trust proxy", 1); // Trust first proxy (Render/Cloudflare)
 
 declare module 'http' {
@@ -27,7 +25,7 @@ declare module 'http' {
 // Session middleware
 const isDatabaseAvailable = process.env.DATABASE_URL && process.env.DATABASE_URL !== "your_database_url";
 const store = isDatabaseAvailable
-  ? new (require("connect-pg-simple")(session))({
+  ? new (pgSession(session))({
     conString: process.env.DATABASE_URL,
     createTableIfMissing: true,
   })
@@ -132,8 +130,13 @@ app.use((req, res, next) => {
   next();
 });
 
-(async () => {
-  await storage.seed();
+export async function initApp(startListening = true) {
+  try {
+    await storage.seed();
+  } catch (err) {
+    console.warn("Seeding failed (non-critical):", err);
+  }
+
   const server = await registerRoutes(app);
 
   // Schedule daily cleanup of old messages (7 days retention)
@@ -158,39 +161,38 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
+  /*
   if (app.get("env") === "development") {
     const { setupVite } = await import("./vite");
     await setupVite(app, server);
   } else {
     serveStatic(app);
   }
+  */
+  serveStatic(app);
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5001', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-  }, () => {
-    log(`serving on port ${port}`);
-  });
-})();
-
-function serveStatic(app: express.Express) {
-  const distPath = path.resolve(__dirname, "public");
-
-  if (!fs.existsSync(distPath)) {
-    throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`
-    );
+  // Only start listening if requested (not in Lambda)
+  if (startListening) {
+    const port = parseInt(process.env.PORT || '5001', 10);
+    server.listen({
+      port,
+      host: "0.0.0.0",
+    }, () => {
+      log(`serving on port ${port}`);
+    });
   }
 
-  app.use(express.static(distPath));
-
-  // Fallback to index.html for SPA
-  app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
-  });
+  return { app, server };
 }
+
+// Start immediately if not imported module or simple dev check
+if (process.env.NODE_ENV !== "lambda") {
+  // Check if we should autostart? 
+  // For now, always start unless NODE_ENV=lambda
+  (async () => {
+    await initApp(true);
+  })();
+}
+
+// server.listen done above in initApp if needed
+

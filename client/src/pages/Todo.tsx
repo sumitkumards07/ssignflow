@@ -352,9 +352,9 @@ export default function TodoPage() {
 
             <Button
                 onClick={() => setIsDrawerOpen(true)}
-                className="fixed bottom-24 right-6 w-14 h-14 rounded-full shadow-2xl bg-primary hover:bg-primary/90 z-50 flex items-center justify-center"
+                className="fixed bottom-24 right-6 w-14 h-14 rounded-full shadow-2xl bg-black hover:bg-zinc-900 z-50 flex items-center justify-center border-2 border-white/10"
             >
-                <Plus className="w-8 h-8 text-primary-foreground" />
+                <Plus className="w-8 h-8 text-white" />
             </Button>
 
             <BottomNav />

@@ -4,6 +4,36 @@ node_modules
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Environment variables
 .env
 .env.local
 .env.production
+.env.*.local
+
+# AWS Credentials
+aws_config
+aws_credentials
+*.pem
+*.key
+
+# Firebase/Google Services
+**/google-services.json
+**/GoogleService-Info.plist
+
+# Build artifacts
+dist/
+build/
+*.log
+*.tgz
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sensitive data
+secrets/
+credentials/

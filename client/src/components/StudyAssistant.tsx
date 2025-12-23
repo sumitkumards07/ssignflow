@@ -410,11 +410,12 @@ export function StudyAssistant() {
                             exit={{ opacity: 0, scale: 0.95 }}
                             className="h-full flex flex-col items-center justify-center p-2 sm:p-6 text-center pb-20"
                         >
-                            <div className="mb-6 sm:mb-8">
-                                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
+                            <div className="mb-4 sm:mb-5">
+                                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
                                     <BrainCircuit className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
                                 </div>
                                 <h2 className="text-2xl sm:text-3xl font-bold mb-2">What can I help with?</h2>
+                                <p className="text-sm sm:text-base text-muted-foreground">AI ask anything</p>
                             </div>
 
                             <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full max-w-md">
