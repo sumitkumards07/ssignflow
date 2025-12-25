@@ -11,6 +11,8 @@ import { useToast } from "@/hooks/use-toast";
 import { QuizInterface } from "@/components/QuizInterface";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import jsPDF from "jspdf";
+import { useUser } from "@/hooks/use-user";
+import { ProUpgradeModal } from "./ProUpgradeModal";
 
 declare global {
     interface Window {
@@ -195,14 +197,27 @@ export function StudyAssistant() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState("");
     const scrollRef = useRef<HTMLDivElement>(null);
+    const { user } = useUser();
+    const [showProModal, setShowProModal] = useState(false);
+
+    // Lock all features except Timetable (example) or lock all
+    const isFeatureLocked = (id: string) => {
+        // Free users can only use 'timetable' and 'courses'
+        // Pro users can use everything (solver, quiz, attendance)
+        // Modify this logic as per requirements.
+        if (!user?.isPro && (id === 'solver' || id === 'quiz' || id === 'attendance')) {
+            return true;
+        }
+        return false;
+    };
+
 
     const features = [
         { id: "solver", label: "Solve Problem", icon: ImageIcon, color: "text-purple-500", bg: "bg-purple-500/10" },
-        { id: "notes", label: "Handwritten Notes", icon: FileText, color: "text-blue-500", bg: "bg-blue-500/10" },
+        { id: "attendance", label: "Attendance Calc", icon: Check, color: "text-teal-500", bg: "bg-teal-500/10" },
         { id: "quiz", label: "Take Quiz", icon: BrainCircuit, color: "text-green-500", bg: "bg-green-500/10" },
         { id: "timetable", label: "Plan Schedule", icon: Clock, color: "text-orange-500", bg: "bg-orange-500/10" },
         { id: "courses", label: "Find Courses", icon: Youtube, color: "text-red-500", bg: "bg-red-500/10" },
-        { id: "attendance", label: "Attendance Calc", icon: Check, color: "text-teal-500", bg: "bg-teal-500/10" },
     ];
 
     useEffect(() => {
@@ -312,8 +327,17 @@ export function StudyAssistant() {
         }
     };
 
+    const onFeatureClick = (id: string) => {
+        if (isFeatureLocked(id)) {
+            setShowProModal(true);
+            return;
+        }
+        setActiveFeature(id);
+    };
+
     return (
         <div className="h-dvh flex flex-col bg-background text-foreground relative md:max-w-4xl md:mx-auto md:border-x md:border-border shadow-sm overflow-hidden">
+            <ProUpgradeModal open={showProModal} onOpenChange={setShowProModal} />
             {/* Header - Responsive */}
             <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-border bg-background/95 backdrop-blur z-10 pt-safe shrink-0">
                 <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
@@ -355,7 +379,7 @@ export function StudyAssistant() {
                             className="min-h-full pb-20"
                         >
                             {activeFeature === "solver" && <SolverTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
-                            {activeFeature === "notes" && <NotesTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
+
                             {activeFeature === "quiz" && <QuizInterface />}
                             {activeFeature === "timetable" && <TimetableTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
                             {activeFeature === "courses" && <CoursesTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
@@ -422,13 +446,21 @@ export function StudyAssistant() {
                                 {features.map((feature) => (
                                     <button
                                         key={feature.id}
-                                        onClick={() => setActiveFeature(feature.id)}
-                                        className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-border hover:bg-secondary/50 transition-all ${feature.id === 'quiz' ? 'col-span-2' : ''}`}
+                                        onClick={() => onFeatureClick(feature.id)}
+                                        className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-border hover:bg-secondary/50 transition-all ${feature.id === 'quiz' ? 'col-span-2' : ''} relative overflow-hidden`}
                                     >
                                         <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full ${feature.bg} flex items-center justify-center mb-1.5 sm:mb-2`}>
                                             <feature.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${feature.color}`} />
                                         </div>
                                         <span className="font-medium text-xs sm:text-sm">{feature.label}</span>
+
+                                        {isFeatureLocked(feature.id) && (
+                                            <div className="absolute top-2 right-2">
+                                                <div className="bg-primary/10 p-0.5 rounded-full">
+                                                    <Sparkles className="w-3 h-3 text-primary" />
+                                                </div>
+                                            </div>
+                                        )}
                                     </button>
                                 ))}
                             </div>
@@ -454,7 +486,13 @@ export function StudyAssistant() {
                             </Button>
                             <Button
                                 size="icon"
-                                onClick={handleSendMessage}
+                                onClick={() => {
+                                    if (!user?.isPro) {
+                                        setShowProModal(true);
+                                        return;
+                                    }
+                                    handleSendMessage();
+                                }}
                                 disabled={!inputValue.trim() || isLoading}
                                 className="h-8 w-8 rounded-full bg-primary text-primary-foreground"
                             >
@@ -567,178 +605,6 @@ function SolverTab({ isLoading, setIsLoading, toast }: any) {
 
             {/* AI Chat for follow-up questions */}
             {solution && <FeatureChat featureId="solver" context={solution} />}
-        </ScrollArea>
-    );
-}
-
-function NotesTab({ isLoading, setIsLoading, toast }: any) {
-    const [file, setFile] = useState<File | null>(null);
-    const [notes, setNotes] = useState<string>("");
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            setFile(e.target.files[0]);
-            setNotes("");
-            toast({
-                title: "File Uploaded",
-                description: "Thank you for uploading! Click 'Generate Notes' to proceed.",
-            });
-        }
-    };
-
-    const downloadPDF = async () => {
-        if (!notes) return;
-        try {
-            const { jsPDF } = await import("jspdf");
-            const doc = new jsPDF();
-
-            // Add title
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(20);
-            doc.text("Study Notes", 20, 20);
-
-            // Add content
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(12);
-            const splitText = doc.splitTextToSize(notes, 170);
-            doc.text(splitText, 20, 40);
-
-            // Use the shared downloadPDF function logic or implement similar for Notes
-            // Since downloadPDF is inside the main component, we need to duplicate logic or move it out.
-            // For now, let's just implement the mobile check here too.
-
-            const isMobile = window.Capacitor?.isNativePlatform();
-
-            if (isMobile) {
-                try {
-                    const { Filesystem, Directory } = await import("@capacitor/filesystem");
-                    const { Share } = await import("@capacitor/share");
-
-                    const base64Data = doc.output('datauristring').split(',')[1];
-                    const filename = "study-notes.pdf";
-
-                    const savedFile = await Filesystem.writeFile({
-                        path: filename,
-                        data: base64Data,
-                        directory: Directory.Documents,
-                        recursive: true
-                    });
-
-                    await Share.share({
-                        title: 'Study Notes',
-                        text: 'Here are your study notes',
-                        url: savedFile.uri,
-                        dialogTitle: 'Share Notes',
-                    });
-                    toast({
-                        title: "Ready to Share",
-                        description: "Notes PDF created.",
-                    });
-                } catch (e) {
-                    console.error("Mobile Notes PDF Error", e);
-                    toast({
-                        title: "Error",
-                        description: "Failed to save PDF.",
-                        variant: "destructive"
-                    });
-                }
-            } else {
-                doc.save("study-notes.pdf");
-                toast({
-                    title: "Downloaded",
-                    description: "Notes saved as PDF.",
-                });
-            }
-        } catch (error) {
-            console.error("PDF download failed:", error);
-            toast({
-                title: "Error",
-                description: "Failed to download PDF.",
-                variant: "destructive",
-            });
-        }
-    };
-
-    const handleGenerate = async () => {
-        if (!file) return;
-        setIsLoading(true);
-        try {
-            const formData = new FormData();
-            formData.append("file", file);
-
-            const res = await fetch(`${getApiBaseUrl()}/api/ai/pdf-to-notes`, {
-                method: "POST",
-                body: formData,
-            });
-
-            const data = await safeParseJson(res);
-            if (!res.ok) {
-                throw new Error(data.message || "Failed to generate notes");
-            }
-            setNotes(data.notes);
-        } catch (error: any) {
-            toast({
-                title: "Error",
-                description: error.message || "Failed to generate notes.",
-                variant: "destructive",
-            });
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    return (
-        <ScrollArea className="h-full p-4">
-            <div className="space-y-6 max-w-md mx-auto">
-                <Card className="border-border bg-card">
-                    <CardHeader>
-                        <CardTitle>PDF to Handwritten Notes</CardTitle>
-                        <CardDescription>Convert lecture slides or PDFs into study notes</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div
-                            className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-secondary/50 transition-colors"
-                            onClick={() => fileInputRef.current?.click()}
-                        >
-                            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf,image/*" className="hidden" />
-                            <FileText className="w-12 h-12 text-muted-foreground mb-4" />
-                            <p className="text-muted-foreground">{file ? file.name : "Click to upload PDF or Image"}</p>
-                        </div>
-
-                        {file && (
-                            <Button
-                                onClick={handleGenerate}
-                                disabled={isLoading}
-                                className="w-full mt-4"
-                            >
-                                {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <BookOpen className="w-4 h-4 mr-2" />}
-                                Generate Notes
-                            </Button>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {notes && (
-                    <Card className="bg-[#fff9e6] text-zinc-900 border-zinc-200 shadow-lg rotate-1 transform transition-transform hover:rotate-0">
-                        <CardHeader className="border-b border-zinc-200/50 pb-4 flex flex-row items-center justify-between">
-                            <CardTitle className="font-handwriting text-2xl text-zinc-800">Study Notes</CardTitle>
-                            <Button variant="ghost" size="sm" onClick={downloadPDF} className="text-zinc-600 hover:text-zinc-900">
-                                <Download className="w-4 h-4 mr-2" />
-                                PDF
-                            </Button>
-                        </CardHeader>
-                        <CardContent className="pt-6">
-                            <div className="font-handwriting text-lg leading-relaxed whitespace-pre-wrap" style={{ fontFamily: '"Comic Sans MS", "Chalkboard SE", sans-serif' }}>
-                                {notes}
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
-            </div>
-
-            {/* AI Chat for follow-up questions */}
-            {notes && <FeatureChat featureId="notes" context={notes} />}
         </ScrollArea>
     );
 }

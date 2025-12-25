@@ -1,0 +1,23 @@
+
+// Add to IStorage interface
+  updateProStatus(userId: string, isPro: boolean, expiresAt?: string, subscriptionId?: string): Promise<void>;
+
+// Add to MemStorage
+  async updateProStatus(userId: string, isPro: boolean, expiresAt?: string, subscriptionId?: string): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      this.users.set(userId, { ...user, isPro, proExpiresAt: expiresAt || null, stripeSubscriptionId: subscriptionId || null });
+    }
+  }
+
+// Add to DatabaseStorage
+  async updateProStatus(userId: string, isPro: boolean, expiresAt?: string, subscriptionId?: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ 
+        isPro, 
+        proExpiresAt: expiresAt, 
+        stripeSubscriptionId: subscriptionId 
+      })
+      .where(eq(users.id, userId));
+  }

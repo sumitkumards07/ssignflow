@@ -842,8 +842,8 @@ async function callAI(prompt, systemPrompt, imageBuffer, mimeType) {
     messages.push({ role: "user", content: prompt });
   }
   try {
-    const textModel = process.env.OPENROUTER_MODEL || "amazon/nova-lite-v1";
-    const visionModel = process.env.OPENROUTER_VISION_MODEL || "google/gemini-2.0-flash-exp:free";
+    const textModel = "openai/gpt-4o-mini";
+    const visionModel = "openai/gpt-4o-mini";
     const modelToUse = isImageRequest ? visionModel : textModel;
     const completion = await openai.chat.completions.create({
       model: modelToUse,
@@ -1021,6 +1021,52 @@ async function registerRoutes(app2) {
   });
   app2.get("/api/health", (_req, res) => {
     res.status(200).json({ status: "ok", timestamp: (/* @__PURE__ */ new Date()).toISOString() });
+  });
+  app2.get("/api/updates/check", async (req, res) => {
+    try {
+      const currentVersion = req.query.version;
+      const fs2 = await import("fs");
+      const path2 = await import("path");
+      const packagePath = path2.resolve(process.cwd(), "package.json");
+      const packageJson = JSON.parse(fs2.readFileSync(packagePath, "utf-8"));
+      const latestVersion = packageJson.version;
+      const isUpdateAvailable = currentVersion !== latestVersion;
+      if (!isUpdateAvailable) {
+        return res.json({ updateAvailable: false, currentVersion: latestVersion });
+      }
+      res.json({
+        updateAvailable: true,
+        latestVersion,
+        currentVersion,
+        updateUrl: `${process.env.VITE_API_BASE_URL || ""}/api/updates/download/${latestVersion}`,
+        releaseNotes: "Bug fixes and improvements",
+        critical: false,
+        minRequiredVersion: "1.0.0",
+        size: 0
+        // Will be calculated dynamically
+      });
+    } catch (error) {
+      console.error("Update check error:", error);
+      res.status(500).json({ message: "Failed to check for updates", error: error.message });
+    }
+  });
+  app2.get("/api/updates/download/:version", async (req, res) => {
+    try {
+      const { version } = req.params;
+      const fs2 = await import("fs");
+      const path2 = await import("path");
+      const bundlePath = path2.resolve(process.cwd(), `updates/bundle-${version}.zip`);
+      if (!fs2.existsSync(bundlePath)) {
+        return res.status(404).json({ message: "Update bundle not found" });
+      }
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename=bundle-${version}.zip`);
+      const fileStream = fs2.createReadStream(bundlePath);
+      fileStream.pipe(res);
+    } catch (error) {
+      console.error("Update download error:", error);
+      res.status(500).json({ message: "Failed to download update", error: error.message });
+    }
   });
   app2.get("/api/auth/me", (req, res) => {
     if (req.user) {

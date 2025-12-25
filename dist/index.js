@@ -1,17 +1,12 @@
 var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
 };
-
-// server/index.prod.ts
-import "dotenv/config";
-import express2 from "express";
-import session from "express-session";
-
-// server/auth.ts
-import passport from "passport";
-import { Strategy as LocalStrategy } from "passport-local";
 
 // shared/schema.ts
 var schema_exports = {};
@@ -36,738 +31,868 @@ __export(schema_exports, {
 import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, boolean, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-var users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-  googleId: text("google_id").unique(),
-  email: text("email"),
-  displayName: text("display_name"),
-  role: text("role").default("user"),
-  // 'admin' | 'user'
-  lastActive: text("last_active"),
-  // ISO string timestamp
-  apiToken: text("api_token").unique(),
-  totalFocusTime: integer("total_focus_time").default(0),
-  // in minutes
-  todayFocusTime: integer("today_focus_time").default(0),
-  // in minutes
-  lastFocusDate: text("last_focus_date"),
-  // YYYY-MM-DD
-  avatar: text("avatar"),
-  pushToken: text("push_token"),
-  clashChatNotifications: boolean("clash_chat_notifications").default(true)
-});
-var insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-  googleId: true,
-  email: true,
-  displayName: true,
-  role: true,
-  totalFocusTime: true,
-  todayFocusTime: true,
-  lastFocusDate: true,
-  avatar: true,
-  clashChatNotifications: true
-});
-var clashMessages = pgTable("clash_messages", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
-  groupId: varchar("group_id").references(() => groups.id),
-  // Added groupId
-  content: text("content").notNull(),
-  timestamp: text("timestamp").default((/* @__PURE__ */ new Date()).toISOString())
-});
-var insertClashMessageSchema = createInsertSchema(clashMessages).pick({
-  userId: true,
-  content: true
-});
-var tasks = pgTable("tasks", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
-  type: text("type").notNull(),
-  // 'assignment' | 'quiz'
-  title: text("title").notNull(),
-  courseCode: text("course_code").notNull(),
-  sectionId: text("section_id").notNull(),
-  deadline: text("deadline").notNull(),
-  // Storing as ISO string for simplicity
-  completed: boolean("completed").notNull().default(false),
-  notificationTime: integer("notification_time").default(24 * 60)
-  // Minutes before deadline, default 24h
-});
-var insertTaskSchema = createInsertSchema(tasks).pick({
-  type: true,
-  title: true,
-  courseCode: true,
-  sectionId: true,
-  deadline: true,
-  completed: true,
-  notificationTime: true
-});
-var feedback = pgTable("feedback", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
-  content: text("content").notNull(),
-  createdAt: text("created_at").default((/* @__PURE__ */ new Date()).toISOString())
-});
-var insertFeedbackSchema = createInsertSchema(feedback).pick({
-  userId: true,
-  content: true
-});
-var groups = pgTable("groups", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(),
-  code: text("code").notNull().unique(),
-  createdBy: varchar("created_by").references(() => users.id),
-  createdAt: text("created_at").default((/* @__PURE__ */ new Date()).toISOString())
-});
-var insertGroupSchema = createInsertSchema(groups).pick({
-  name: true,
-  code: true,
-  createdBy: true
-});
-var groupMembers = pgTable("group_members", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  groupId: varchar("group_id").references(() => groups.id),
-  userId: varchar("user_id").references(() => users.id),
-  joinedAt: text("joined_at").default((/* @__PURE__ */ new Date()).toISOString())
-});
-var insertGroupMemberSchema = createInsertSchema(groupMembers).pick({
-  groupId: true,
-  userId: true
-});
-var notifications = pgTable("notifications", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
-  // Nullable for broadcast
-  title: text("title").notNull(),
-  body: text("body").notNull(),
-  status: text("status").default("pending"),
-  // pending, sent, failed
-  createdAt: text("created_at").default((/* @__PURE__ */ new Date()).toISOString())
-});
-var insertNotificationSchema = createInsertSchema(notifications).pick({
-  userId: true,
-  title: true,
-  body: true,
-  status: true
-});
-var appVersions = pgTable("app_versions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  versionCode: integer("version_code").notNull(),
-  versionName: text("version_name").notNull(),
-  apkUrl: text("apk_url").notNull(),
-  releaseNotes: text("release_notes"),
-  createdAt: text("created_at").default((/* @__PURE__ */ new Date()).toISOString())
-});
-var insertAppVersionSchema = createInsertSchema(appVersions).pick({
-  versionCode: true,
-  versionName: true,
-  apkUrl: true,
-  releaseNotes: true
+var users, insertUserSchema, clashMessages, insertClashMessageSchema, tasks, insertTaskSchema, feedback, insertFeedbackSchema, groups, insertGroupSchema, groupMembers, insertGroupMemberSchema, notifications, insertNotificationSchema, appVersions, insertAppVersionSchema;
+var init_schema = __esm({
+  "shared/schema.ts"() {
+    "use strict";
+    users = pgTable("users", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      username: text("username").notNull().unique(),
+      password: text("password").notNull(),
+      googleId: text("google_id").unique(),
+      email: text("email"),
+      displayName: text("display_name"),
+      role: text("role").default("user"),
+      // 'admin' | 'user'
+      lastActive: text("last_active"),
+      // ISO string timestamp
+      apiToken: text("api_token").unique(),
+      totalFocusTime: integer("total_focus_time").default(0),
+      // in minutes
+      todayFocusTime: integer("today_focus_time").default(0),
+      // in minutes
+      lastFocusDate: text("last_focus_date"),
+      // YYYY-MM-DD
+      avatar: text("avatar"),
+      pushToken: text("push_token"),
+      clashChatNotifications: boolean("clash_chat_notifications").default(true),
+      isPro: boolean("is_pro").default(false),
+      proExpiresAt: text("pro_expires_at"),
+      // ISO timestamp
+      stripeSubscriptionId: text("stripe_subscription_id")
+    });
+    insertUserSchema = createInsertSchema(users).pick({
+      username: true,
+      password: true,
+      googleId: true,
+      email: true,
+      displayName: true,
+      role: true,
+      totalFocusTime: true,
+      todayFocusTime: true,
+      lastFocusDate: true,
+      avatar: true,
+      clashChatNotifications: true,
+      isPro: true
+    });
+    clashMessages = pgTable("clash_messages", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      userId: varchar("user_id").references(() => users.id),
+      groupId: varchar("group_id").references(() => groups.id),
+      // Added groupId
+      content: text("content").notNull(),
+      timestamp: text("timestamp").default((/* @__PURE__ */ new Date()).toISOString())
+    });
+    insertClashMessageSchema = createInsertSchema(clashMessages).pick({
+      userId: true,
+      content: true
+    });
+    tasks = pgTable("tasks", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      userId: varchar("user_id").references(() => users.id),
+      type: text("type").notNull(),
+      // 'assignment' | 'quiz'
+      title: text("title").notNull(),
+      courseCode: text("course_code").notNull(),
+      sectionId: text("section_id").notNull(),
+      deadline: text("deadline").notNull(),
+      // Storing as ISO string for simplicity
+      completed: boolean("completed").notNull().default(false),
+      notificationTime: integer("notification_time").default(24 * 60)
+      // Minutes before deadline, default 24h
+    });
+    insertTaskSchema = createInsertSchema(tasks).pick({
+      type: true,
+      title: true,
+      courseCode: true,
+      sectionId: true,
+      deadline: true,
+      completed: true,
+      notificationTime: true
+    });
+    feedback = pgTable("feedback", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      userId: varchar("user_id").references(() => users.id),
+      content: text("content").notNull(),
+      createdAt: text("created_at").default((/* @__PURE__ */ new Date()).toISOString())
+    });
+    insertFeedbackSchema = createInsertSchema(feedback).pick({
+      userId: true,
+      content: true
+    });
+    groups = pgTable("groups", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      name: text("name").notNull(),
+      code: text("code").notNull().unique(),
+      createdBy: varchar("created_by").references(() => users.id),
+      createdAt: text("created_at").default((/* @__PURE__ */ new Date()).toISOString())
+    });
+    insertGroupSchema = createInsertSchema(groups).pick({
+      name: true,
+      code: true,
+      createdBy: true
+    });
+    groupMembers = pgTable("group_members", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      groupId: varchar("group_id").references(() => groups.id),
+      userId: varchar("user_id").references(() => users.id),
+      joinedAt: text("joined_at").default((/* @__PURE__ */ new Date()).toISOString())
+    });
+    insertGroupMemberSchema = createInsertSchema(groupMembers).pick({
+      groupId: true,
+      userId: true
+    });
+    notifications = pgTable("notifications", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      userId: varchar("user_id").references(() => users.id),
+      // Nullable for broadcast
+      title: text("title").notNull(),
+      body: text("body").notNull(),
+      status: text("status").default("pending"),
+      // pending, sent, failed
+      createdAt: text("created_at").default((/* @__PURE__ */ new Date()).toISOString())
+    });
+    insertNotificationSchema = createInsertSchema(notifications).pick({
+      userId: true,
+      title: true,
+      body: true,
+      status: true
+    });
+    appVersions = pgTable("app_versions", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      versionCode: integer("version_code").notNull(),
+      versionName: text("version_name").notNull(),
+      apkUrl: text("apk_url").notNull(),
+      releaseNotes: text("release_notes"),
+      createdAt: text("created_at").default((/* @__PURE__ */ new Date()).toISOString())
+    });
+    insertAppVersionSchema = createInsertSchema(appVersions).pick({
+      versionCode: true,
+      versionName: true,
+      apkUrl: true,
+      releaseNotes: true
+    });
+  }
 });
 
 // server/db.ts
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-var pool = process.env.DATABASE_URL ? new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : void 0
-}) : null;
-var db = pool ? drizzle(pool, { schema: schema_exports }) : null;
+var pool, db;
+var init_db = __esm({
+  "server/db.ts"() {
+    "use strict";
+    init_schema();
+    pool = process.env.DATABASE_URL ? new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : void 0
+    }) : null;
+    db = pool ? drizzle(pool, { schema: schema_exports }) : null;
+  }
+});
 
 // server/storage.ts
 import { eq, lt, desc, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import * as crypto from "crypto";
-var MemStorage = class {
-  users;
-  tasks;
-  feedback;
-  groups;
-  groupMembers;
-  constructor() {
-    this.users = /* @__PURE__ */ new Map();
-    this.tasks = /* @__PURE__ */ new Map();
-    this.feedback = /* @__PURE__ */ new Map();
-    this.groups = /* @__PURE__ */ new Map();
-    this.groupMembers = /* @__PURE__ */ new Map();
-    const adminId = randomUUID();
-    this.users.set(adminId, {
-      id: adminId,
-      username: "sumitkumar",
-      password: process.env.ADMIN_PASSWORD || "change_me",
-      googleId: "admin_google_id",
-      email: "admin@assignflow.com",
-      displayName: "Sumit Kumar (Admin)",
-      role: "admin",
-      lastActive: (/* @__PURE__ */ new Date()).toISOString(),
-      apiToken: "admin_token",
-      totalFocusTime: 0,
-      todayFocusTime: 0,
-      lastFocusDate: null,
-      avatar: null,
-      pushToken: null,
-      clashChatNotifications: true
-    });
-  }
-  async getUser(id) {
-    return this.users.get(id);
-  }
-  async getUserByUsername(username) {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username
-    );
-  }
-  async getUserByGoogleId(googleId) {
-    return Array.from(this.users.values()).find(
-      (user) => user.googleId === googleId
-    );
-  }
-  async getUserByToken(token) {
-    return Array.from(this.users.values()).find(
-      (user) => user.apiToken === token
-    );
-  }
-  async createUser(insertUser) {
-    const id = randomUUID();
-    const user = {
-      ...insertUser,
-      id,
-      googleId: insertUser.googleId ?? null,
-      email: insertUser.email ?? null,
-      displayName: insertUser.displayName ?? null,
-      role: insertUser.role ?? "user",
-      lastActive: (/* @__PURE__ */ new Date()).toISOString(),
-      apiToken: randomUUID(),
-      totalFocusTime: 0,
-      todayFocusTime: 0,
-      lastFocusDate: null,
-      avatar: insertUser.avatar ?? null,
-      pushToken: null,
-      clashChatNotifications: insertUser.clashChatNotifications ?? true
-    };
-    this.users.set(id, user);
-    return user;
-  }
-  async getAllUsers() {
-    return Array.from(this.users.values());
-  }
-  async getTasks(userId) {
-    const allTasks = Array.from(this.tasks.values());
-    if (userId) {
-      return allTasks.filter((task) => task.userId === userId);
-    }
-    return allTasks;
-  }
-  async getAllTasks() {
-    return Array.from(this.tasks.values());
-  }
-  async createNotification(title, body) {
-    if (!this.notifications) this.notifications = [];
-    this.notifications.push({ title, body, timestamp: Date.now() });
-  }
-  async getNotifications() {
-    return this.notifications || [];
-  }
-  async setUpdate(version, notes, url) {
-    this.latestUpdate = { version, notes, url };
-  }
-  async getUpdate() {
-    return this.latestUpdate || null;
-  }
-  notifications = [];
-  latestUpdate = null;
-  async createTask(insertTask) {
-    const id = randomUUID();
-    const task = {
-      ...insertTask,
-      id,
-      userId: insertTask.userId ?? null,
-      completed: insertTask.completed ?? false,
-      notificationTime: insertTask.notificationTime ?? 1440
-      // Default 24h
-    };
-    this.tasks.set(id, task);
-    return task;
-  }
-  async updateTask(id, updateData) {
-    const task = this.tasks.get(id);
-    if (!task) return void 0;
-    const updatedTask = { ...task, ...updateData };
-    this.tasks.set(id, updatedTask);
-    this.tasks.set(id, updatedTask);
-    return updatedTask;
-  }
-  async deleteTask(id) {
-    this.tasks.delete(id);
-  }
-  async createFeedback(insertFeedback) {
-    const id = randomUUID();
-    const newFeedback = {
-      id,
-      userId: insertFeedback.userId ?? null,
-      content: insertFeedback.content,
-      createdAt: (/* @__PURE__ */ new Date()).toISOString()
-    };
-    this.feedback.set(id, newFeedback);
-    return newFeedback;
-  }
-  async getAllFeedback() {
-    return Array.from(this.feedback.values());
-  }
-  async updateUserActivity(userId) {
-    const user = this.users.get(userId);
-    if (user) {
-      const updatedUser = { ...user, lastActive: (/* @__PURE__ */ new Date()).toISOString() };
-      this.users.set(userId, updatedUser);
-    }
-  }
-  async updateUserRole(userId, role) {
-    const user = this.users.get(userId);
-    if (user) {
-      const updatedUser = { ...user, role };
-      this.users.set(userId, updatedUser);
-    }
-  }
-  async updateUserStats(userId, totalTime, todayTime, lastDate) {
-    const user = this.users.get(userId);
-    if (user) {
-      const updatedUser = {
-        ...user,
-        totalFocusTime: totalTime,
-        todayFocusTime: todayTime,
-        lastFocusDate: lastDate
-      };
-      this.users.set(userId, updatedUser);
-    }
-  }
-  async getLeaderboard() {
-    return Array.from(this.users.values()).sort((a, b) => (b.totalFocusTime || 0) - (a.totalFocusTime || 0)).slice(0, 50);
-  }
-  async updatePushToken(userId, token) {
-    const user = this.users.get(userId);
-    if (user) {
-      this.users.set(userId, { ...user, pushToken: token });
-    }
-  }
-  // Group methods implementation for MemStorage
-  async createGroup(name, userId) {
-    const id = randomUUID();
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const group = {
-      id,
-      name,
-      code,
-      createdBy: userId,
-      createdAt: (/* @__PURE__ */ new Date()).toISOString()
-    };
-    this.groups.set(id, group);
-    await this.joinGroup(id, userId);
-    return group;
-  }
-  async getGroup(id) {
-    return this.groups.get(id);
-  }
-  async getGroupByCode(code) {
-    return Array.from(this.groups.values()).find((g) => g.code === code);
-  }
-  async getUserGroups(userId) {
-    const memberEntries = Array.from(this.groupMembers.values()).filter((m) => m.userId === userId);
-    const userGroups = [];
-    for (const member of memberEntries) {
-      const group = this.groups.get(member.groupId);
-      if (group) {
-        const count = Array.from(this.groupMembers.values()).filter((m) => m.groupId === group.id).length;
-        userGroups.push({ ...group, memberCount: count });
+var MemStorage, DatabaseStorage, storage;
+var init_storage = __esm({
+  "server/storage.ts"() {
+    "use strict";
+    init_schema();
+    init_db();
+    MemStorage = class {
+      users;
+      tasks;
+      feedback;
+      groups;
+      groupMembers;
+      constructor() {
+        this.users = /* @__PURE__ */ new Map();
+        this.tasks = /* @__PURE__ */ new Map();
+        this.feedback = /* @__PURE__ */ new Map();
+        this.groups = /* @__PURE__ */ new Map();
+        this.groupMembers = /* @__PURE__ */ new Map();
+        const adminId = randomUUID();
+        this.users.set(adminId, {
+          id: adminId,
+          username: "sumitkumar",
+          password: process.env.ADMIN_PASSWORD || "change_me",
+          googleId: "admin_google_id",
+          email: "admin@assignflow.com",
+          displayName: "Sumit Kumar (Admin)",
+          role: "admin",
+          lastActive: (/* @__PURE__ */ new Date()).toISOString(),
+          apiToken: "admin_token",
+          totalFocusTime: 0,
+          todayFocusTime: 0,
+          lastFocusDate: null,
+          avatar: null,
+          pushToken: null,
+          clashChatNotifications: true,
+          isPro: true,
+          proExpiresAt: null,
+          stripeSubscriptionId: null
+        });
       }
-    }
-    return userGroups;
-  }
-  async joinGroup(groupId, userId) {
-    const existing = Array.from(this.groupMembers.values()).find(
-      (m) => m.groupId === groupId && m.userId === userId
-    );
-    if (!existing) {
-      const id = randomUUID();
-      this.groupMembers.set(id, { id, groupId, userId, joinedAt: (/* @__PURE__ */ new Date()).toISOString() });
-    }
-  }
-  async removeGroupMember(groupId, userId) {
-    const member = Array.from(this.groupMembers.values()).find(
-      (m) => m.groupId === groupId && m.userId === userId
-    );
-    if (member) {
-      this.groupMembers.delete(member.id);
-    }
-  }
-  async getGroupMembers(groupId) {
-    const members = Array.from(this.groupMembers.values()).filter((m) => m.groupId === groupId).map((m) => m.userId ? this.users.get(m.userId) : void 0).filter((u) => u !== void 0);
-    return members;
-  }
-  async deleteGroup(groupId) {
-    const entries = Array.from(this.groupMembers.entries());
-    for (const [key, member] of entries) {
-      if (member.groupId === groupId) {
-        this.groupMembers.delete(key);
+      async getUser(id) {
+        return this.users.get(id);
       }
-    }
-    this.groups.delete(groupId);
-  }
-  async seed() {
-    return;
-  }
-  appVersions = [];
-  async createAppVersion(insertVersion) {
-    const id = randomUUID();
-    const version = {
-      ...insertVersion,
-      id,
-      releaseNotes: insertVersion.releaseNotes ?? null,
-      createdAt: (/* @__PURE__ */ new Date()).toISOString()
-    };
-    this.appVersions.push(version);
-    return version;
-  }
-  async getLatestAppVersion() {
-    return this.appVersions.sort((a, b) => b.versionCode - a.versionCode)[0];
-  }
-  clashMessages = [];
-  async createClashMessage(userId, content, groupId) {
-    const id = randomUUID();
-    const message = {
-      id,
-      userId,
-      groupId,
-      content,
-      timestamp: (/* @__PURE__ */ new Date()).toISOString()
-    };
-    this.clashMessages.push(message);
-    return message;
-  }
-  async getClashMessages(groupId) {
-    return this.clashMessages.filter((msg) => msg.groupId === groupId).sort((a, b) => new Date(a.timestamp || "").getTime() - new Date(b.timestamp || "").getTime()).map((msg) => {
-      const user = this.users.get(msg.userId || "");
-      return {
-        ...msg,
-        user: {
-          username: user?.username || "Unknown",
-          displayName: user?.displayName || null
+      async getUserByUsername(username) {
+        return Array.from(this.users.values()).find(
+          (user) => user.username === username
+        );
+      }
+      async getUserByGoogleId(googleId) {
+        return Array.from(this.users.values()).find(
+          (user) => user.googleId === googleId
+        );
+      }
+      async getUserByToken(token) {
+        return Array.from(this.users.values()).find(
+          (user) => user.apiToken === token
+        );
+      }
+      async createUser(insertUser) {
+        const id = randomUUID();
+        const user = {
+          ...insertUser,
+          id,
+          googleId: insertUser.googleId ?? null,
+          email: insertUser.email ?? null,
+          displayName: insertUser.displayName ?? null,
+          role: insertUser.role ?? "user",
+          lastActive: (/* @__PURE__ */ new Date()).toISOString(),
+          apiToken: randomUUID(),
+          totalFocusTime: 0,
+          todayFocusTime: 0,
+          lastFocusDate: null,
+          avatar: insertUser.avatar ?? null,
+          pushToken: null,
+          clashChatNotifications: insertUser.clashChatNotifications ?? true,
+          isPro: insertUser.isPro ?? false,
+          proExpiresAt: null,
+          stripeSubscriptionId: null
+        };
+        this.users.set(id, user);
+        return user;
+      }
+      async getAllUsers() {
+        return Array.from(this.users.values());
+      }
+      async getTasks(userId) {
+        const allTasks = Array.from(this.tasks.values());
+        if (userId) {
+          return allTasks.filter((task) => task.userId === userId);
         }
-      };
-    });
-  }
-  async toggleClashNotifications(userId, enabled) {
-    const user = this.users.get(userId);
-    if (user) {
-      user.clashChatNotifications = enabled;
-      this.users.set(userId, user);
-    }
-  }
-  async cleanupOldMessages() {
-    const sevenDaysAgo = /* @__PURE__ */ new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    this.clashMessages = this.clashMessages.filter((msg) => msg.timestamp && new Date(msg.timestamp) > sevenDaysAgo);
-  }
-};
-var DatabaseStorage = class {
-  async getUser(id) {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
-  }
-  async getUserByUsername(username) {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user;
-  }
-  async getUserByGoogleId(googleId) {
-    const [user] = await db.select().from(users).where(eq(users.googleId, googleId));
-    return user;
-  }
-  async getUserByToken(token) {
-    const [user] = await db.select().from(users).where(eq(users.apiToken, token));
-    return user;
-  }
-  async createUser(insertUser) {
-    const [user] = await db.insert(users).values({
-      ...insertUser,
-      lastActive: (/* @__PURE__ */ new Date()).toISOString(),
-      apiToken: randomUUID()
-    }).returning();
-    return user;
-  }
-  async getAllUsers() {
-    return await db.select().from(users);
-  }
-  async getTasks(userId) {
-    if (userId) {
-      return await db.select().from(tasks).where(eq(tasks.userId, userId));
-    }
-    return await db.select().from(tasks);
-  }
-  async getAllTasks() {
-    return await db.select().from(tasks);
-  }
-  async createNotification(title, body) {
-    await db.insert(notifications).values({
-      title,
-      body,
-      status: "pending",
-      createdAt: (/* @__PURE__ */ new Date()).toISOString()
-    });
-  }
-  async getNotifications() {
-    const notifs = await db.select().from(notifications).orderBy(desc(notifications.createdAt));
-    return notifs.map((n) => ({
-      title: n.title,
-      body: n.body,
-      timestamp: new Date(n.createdAt || "").getTime()
-    }));
-  }
-  async setUpdate(version, notes, url) {
-    return;
-  }
-  async getUpdate() {
-    return null;
-  }
-  async createTask(insertTask) {
-    const [task] = await db.insert(tasks).values({
-      ...insertTask,
-      completed: insertTask.completed ?? false,
-      notificationTime: insertTask.notificationTime ?? 1440
-    }).returning();
-    return task;
-  }
-  async updateTask(id, updateData) {
-    const [task] = await db.update(tasks).set(updateData).where(eq(tasks.id, id)).returning();
-    return task;
-  }
-  async deleteTask(id) {
-    await db.delete(tasks).where(eq(tasks.id, id));
-  }
-  async createFeedback(insertFeedback) {
-    const [newFeedback] = await db.insert(feedback).values({
-      ...insertFeedback,
-      createdAt: (/* @__PURE__ */ new Date()).toISOString()
-    }).returning();
-    return newFeedback;
-  }
-  async getAllFeedback() {
-    return await db.select().from(feedback).orderBy(desc(feedback.createdAt));
-  }
-  async updateUserActivity(userId) {
-    await db.update(users).set({ lastActive: (/* @__PURE__ */ new Date()).toISOString() }).where(eq(users.id, userId));
-  }
-  async updateUserRole(userId, role) {
-    await db.update(users).set({ role }).where(eq(users.id, userId));
-  }
-  async updateUserStats(userId, totalTime, todayTime, lastDate) {
-    await db.update(users).set({
-      totalFocusTime: totalTime,
-      todayFocusTime: todayTime,
-      lastFocusDate: lastDate
-    }).where(eq(users.id, userId));
-  }
-  async getLeaderboard() {
-    return await db.select().from(users).orderBy(desc(users.totalFocusTime)).limit(50);
-  }
-  // Group methods implementation for DatabaseStorage
-  async createGroup(name, userId) {
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const [group] = await db.insert(groups).values({
-      name,
-      code,
-      createdBy: userId,
-      createdAt: (/* @__PURE__ */ new Date()).toISOString()
-    }).returning();
-    await this.joinGroup(group.id, userId);
-    return group;
-  }
-  async getGroup(id) {
-    const [group] = await db.select().from(groups).where(eq(groups.id, id));
-    return group;
-  }
-  async getGroupByCode(code) {
-    const [group] = await db.select().from(groups).where(eq(groups.code, code));
-    return group;
-  }
-  async getUserGroups(userId) {
-    const members = await db.select().from(groupMembers).where(eq(groupMembers.userId, userId));
-    const userGroups = [];
-    for (const member of members) {
-      if (member.groupId) {
-        const group = await this.getGroup(member.groupId);
-        if (group) {
-          const memberCount = await db.select({ count: groupMembers.id }).from(groupMembers).where(eq(groupMembers.groupId, group.id));
-          userGroups.push({ ...group, memberCount: memberCount.length });
+        return allTasks;
+      }
+      async getAllTasks() {
+        return Array.from(this.tasks.values());
+      }
+      async createNotification(title, body) {
+        if (!this.notifications) this.notifications = [];
+        this.notifications.push({ title, body, timestamp: Date.now() });
+      }
+      async getNotifications() {
+        return this.notifications || [];
+      }
+      async setUpdate(version, notes, url) {
+        this.latestUpdate = { version, notes, url };
+      }
+      async getUpdate() {
+        return this.latestUpdate || null;
+      }
+      notifications = [];
+      latestUpdate = null;
+      async createTask(insertTask) {
+        const id = randomUUID();
+        const task = {
+          ...insertTask,
+          id,
+          userId: insertTask.userId ?? null,
+          completed: insertTask.completed ?? false,
+          notificationTime: insertTask.notificationTime ?? 1440
+          // Default 24h
+        };
+        this.tasks.set(id, task);
+        return task;
+      }
+      async updateTask(id, updateData) {
+        const task = this.tasks.get(id);
+        if (!task) return void 0;
+        const updatedTask = { ...task, ...updateData };
+        this.tasks.set(id, updatedTask);
+        this.tasks.set(id, updatedTask);
+        return updatedTask;
+      }
+      async deleteTask(id) {
+        this.tasks.delete(id);
+      }
+      async createFeedback(insertFeedback) {
+        const id = randomUUID();
+        const newFeedback = {
+          id,
+          userId: insertFeedback.userId ?? null,
+          content: insertFeedback.content,
+          createdAt: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        this.feedback.set(id, newFeedback);
+        return newFeedback;
+      }
+      async getAllFeedback() {
+        return Array.from(this.feedback.values());
+      }
+      async updateUserActivity(userId) {
+        const user = this.users.get(userId);
+        if (user) {
+          const updatedUser = { ...user, lastActive: (/* @__PURE__ */ new Date()).toISOString() };
+          this.users.set(userId, updatedUser);
         }
       }
-    }
-    return userGroups;
-  }
-  async joinGroup(groupId, userId) {
-    const [existing] = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId)));
-    if (!existing) {
-      await db.insert(groupMembers).values({
-        groupId,
-        userId,
-        joinedAt: (/* @__PURE__ */ new Date()).toISOString()
-      });
-    }
-  }
-  async removeGroupMember(groupId, userId) {
-    await db.delete(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId)));
-  }
-  async getGroupMembers(groupId) {
-    const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, groupId));
-    const groupUsers = [];
-    for (const member of members) {
-      if (member.userId) {
-        const user = await this.getUser(member.userId);
-        if (user) groupUsers.push(user);
+      async updateUserRole(userId, role) {
+        const user = this.users.get(userId);
+        if (user) {
+          const updatedUser = { ...user, role };
+          this.users.set(userId, updatedUser);
+        }
       }
-    }
-    return groupUsers.sort((a, b) => (b.totalFocusTime || 0) - (a.totalFocusTime || 0));
-  }
-  async deleteGroup(groupId) {
-    await db.delete(groupMembers).where(eq(groupMembers.groupId, groupId));
-    await db.delete(groups).where(eq(groups.id, groupId));
-  }
-  async updatePushToken(userId, token) {
-    await db.update(users).set({ pushToken: token }).where(eq(users.id, userId));
-  }
-  async seed() {
-    const adminEmail = "admin@assignflow.com";
-    const [existing] = await db.select().from(users).where(eq(users.email, adminEmail));
-    if (!existing) {
-      await db.insert(users).values({
-        username: "sumitkumar",
-        password: process.env.ADMIN_PASSWORD || "change_me",
-        googleId: "admin_google_id",
-        email: adminEmail,
-        displayName: "Sumit Kumar (Admin)",
-        role: "admin",
-        lastActive: (/* @__PURE__ */ new Date()).toISOString(),
-        apiToken: "admin_token",
-        totalFocusTime: 0,
-        todayFocusTime: 0,
-        lastFocusDate: null,
-        avatar: null,
-        pushToken: null
-      });
-      console.log("Admin user seeded successfully");
-    }
-    const [sumitUser] = await db.select().from(users).where(eq(users.username, "sumitkumar"));
-    if (!sumitUser) {
-      console.log("Seeding sumitkumar user...");
-      await db.insert(users).values({
-        username: "sumitkumar",
-        password: process.env.ADMIN_PASSWORD || "change_me",
-        role: "admin",
-        displayName: "Sumit Kumar",
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=sumitkumar",
-        lastActive: (/* @__PURE__ */ new Date()).toISOString(),
-        apiToken: randomUUID()
-      });
-      console.log("Sumitkumar user created.");
-    } else if (sumitUser.role !== "admin") {
-      console.log("Promoting sumitkumar to admin...");
-      await this.updateUserRole(sumitUser.id, "admin");
-    }
-    const latestVersion = await this.getLatestAppVersion();
-    if (!latestVersion || latestVersion.versionCode < 6) {
-      console.log("Seeding app version 1.0.5...");
-      await db.insert(appVersions).values({
-        versionCode: 6,
-        versionName: "1.0.5",
-        apkUrl: "https://assignflow-exuc.onrender.com/app-release.apk",
-        releaseNotes: "New Features: Group Deletion in Clash Zone, Attendance Calculator.",
-        createdAt: (/* @__PURE__ */ new Date()).toISOString()
-      });
-    }
-  }
-  async createAppVersion(insertVersion) {
-    const [version] = await db.insert(appVersions).values({
-      ...insertVersion,
-      createdAt: (/* @__PURE__ */ new Date()).toISOString()
-    }).returning();
-    return version;
-  }
-  async getLatestAppVersion() {
-    const [version] = await db.select().from(appVersions).orderBy(desc(appVersions.versionCode)).limit(1);
-    return version;
-  }
-  // Encryption helpers
-  encryptMessage(text2) {
-    const algorithm = "aes-256-cbc";
-    const key = crypto.scryptSync(process.env.SESSION_SECRET || "default_secret", "salt", 32);
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(algorithm, key, iv);
-    let encrypted = cipher.update(text2, "utf8", "hex");
-    encrypted += cipher.final("hex");
-    return iv.toString("hex") + ":" + encrypted;
-  }
-  decryptMessage(text2) {
-    try {
-      const algorithm = "aes-256-cbc";
-      const key = crypto.scryptSync(process.env.SESSION_SECRET || "default_secret", "salt", 32);
-      const textParts = text2.split(":");
-      const iv = Buffer.from(textParts.shift(), "hex");
-      const encryptedText = textParts.join(":");
-      const decipher = crypto.createDecipheriv(algorithm, key, iv);
-      let decrypted = decipher.update(encryptedText, "hex", "utf8");
-      decrypted += decipher.final("utf8");
-      return decrypted;
-    } catch (e) {
-      console.error("Decryption failed:", e);
-      return "[Encrypted Message]";
-    }
-  }
-  async createClashMessage(userId, content, groupId) {
-    const encryptedContent = this.encryptMessage(content);
-    const [message] = await db.insert(clashMessages).values({
-      userId,
-      groupId,
-      content: encryptedContent,
-      timestamp: (/* @__PURE__ */ new Date()).toISOString()
-    }).returning();
-    return {
-      ...message,
-      content
-      // Return original content to sender
+      async updateUserStats(userId, totalTime, todayTime, lastDate) {
+        const user = this.users.get(userId);
+        if (user) {
+          const updatedUser = {
+            ...user,
+            totalFocusTime: totalTime,
+            todayFocusTime: todayTime,
+            lastFocusDate: lastDate
+          };
+          this.users.set(userId, updatedUser);
+        }
+      }
+      async getLeaderboard() {
+        return Array.from(this.users.values()).sort((a, b) => (b.totalFocusTime || 0) - (a.totalFocusTime || 0)).slice(0, 50);
+      }
+      async updatePushToken(userId, token) {
+        const user = this.users.get(userId);
+        if (user) {
+          this.users.set(userId, { ...user, pushToken: token });
+        }
+      }
+      // Group methods implementation for MemStorage
+      async createGroup(name, userId) {
+        const id = randomUUID();
+        const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const group = {
+          id,
+          name,
+          code,
+          createdBy: userId,
+          createdAt: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        this.groups.set(id, group);
+        await this.joinGroup(id, userId);
+        return group;
+      }
+      async getGroup(id) {
+        return this.groups.get(id);
+      }
+      async getGroupByCode(code) {
+        return Array.from(this.groups.values()).find((g) => g.code === code);
+      }
+      async getUserGroups(userId) {
+        const memberEntries = Array.from(this.groupMembers.values()).filter((m) => m.userId === userId);
+        const userGroups = [];
+        for (const member of memberEntries) {
+          const group = this.groups.get(member.groupId);
+          if (group) {
+            const count = Array.from(this.groupMembers.values()).filter((m) => m.groupId === group.id).length;
+            userGroups.push({ ...group, memberCount: count });
+          }
+        }
+        return userGroups;
+      }
+      async joinGroup(groupId, userId) {
+        const existing = Array.from(this.groupMembers.values()).find(
+          (m) => m.groupId === groupId && m.userId === userId
+        );
+        if (!existing) {
+          const id = randomUUID();
+          this.groupMembers.set(id, { id, groupId, userId, joinedAt: (/* @__PURE__ */ new Date()).toISOString() });
+        }
+      }
+      async removeGroupMember(groupId, userId) {
+        const member = Array.from(this.groupMembers.values()).find(
+          (m) => m.groupId === groupId && m.userId === userId
+        );
+        if (member) {
+          this.groupMembers.delete(member.id);
+        }
+      }
+      async getGroupMembers(groupId) {
+        const members = Array.from(this.groupMembers.values()).filter((m) => m.groupId === groupId).map((m) => m.userId ? this.users.get(m.userId) : void 0).filter((u) => u !== void 0);
+        return members;
+      }
+      async deleteGroup(groupId) {
+        const entries = Array.from(this.groupMembers.entries());
+        for (const [key, member] of entries) {
+          if (member.groupId === groupId) {
+            this.groupMembers.delete(key);
+          }
+        }
+        this.groups.delete(groupId);
+      }
+      async seed() {
+        return;
+      }
+      appVersions = [];
+      async createAppVersion(insertVersion) {
+        const id = randomUUID();
+        const version = {
+          ...insertVersion,
+          id,
+          releaseNotes: insertVersion.releaseNotes ?? null,
+          createdAt: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        this.appVersions.push(version);
+        return version;
+      }
+      async getLatestAppVersion() {
+        return this.appVersions.sort((a, b) => b.versionCode - a.versionCode)[0];
+      }
+      clashMessages = [];
+      async createClashMessage(userId, content, groupId) {
+        const id = randomUUID();
+        const message = {
+          id,
+          userId,
+          groupId,
+          content,
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        this.clashMessages.push(message);
+        return message;
+      }
+      async getClashMessages(groupId) {
+        return this.clashMessages.filter((msg) => msg.groupId === groupId).sort((a, b) => new Date(a.timestamp || "").getTime() - new Date(b.timestamp || "").getTime()).map((msg) => {
+          const user = this.users.get(msg.userId || "");
+          return {
+            ...msg,
+            user: {
+              username: user?.username || "Unknown",
+              displayName: user?.displayName || null
+            }
+          };
+        });
+      }
+      async toggleClashNotifications(userId, enabled) {
+        const user = this.users.get(userId);
+        if (user) {
+          user.clashChatNotifications = enabled;
+          this.users.set(userId, user);
+        }
+      }
+      async cleanupOldMessages() {
+        const sevenDaysAgo = /* @__PURE__ */ new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        this.clashMessages = this.clashMessages.filter((msg) => msg.timestamp && new Date(msg.timestamp) > sevenDaysAgo);
+      }
+      async updateProStatus(userId, isPro, expiresAt, subscriptionId) {
+        const user = this.users.get(userId);
+        if (user) {
+          this.users.set(userId, { ...user, isPro, proExpiresAt: expiresAt || null, stripeSubscriptionId: subscriptionId || null });
+        }
+      }
     };
-  }
-  async getClashMessages(groupId) {
-    const messages = await db.select({
-      id: clashMessages.id,
-      userId: clashMessages.userId,
-      groupId: clashMessages.groupId,
-      content: clashMessages.content,
-      timestamp: clashMessages.timestamp,
-      user: {
-        username: users.username,
-        displayName: users.displayName
+    DatabaseStorage = class {
+      async getUser(id) {
+        const [user] = await db.select().from(users).where(eq(users.id, id));
+        return user;
       }
-    }).from(clashMessages).leftJoin(users, eq(clashMessages.userId, users.id)).where(eq(clashMessages.groupId, groupId)).orderBy(clashMessages.timestamp);
-    return messages.map((msg) => ({
-      ...msg,
-      content: this.decryptMessage(msg.content),
-      user: msg.user || { username: "Unknown", displayName: "Unknown" }
-    }));
+      async getUserByUsername(username) {
+        const [user] = await db.select().from(users).where(eq(users.username, username));
+        return user;
+      }
+      async getUserByGoogleId(googleId) {
+        const [user] = await db.select().from(users).where(eq(users.googleId, googleId));
+        return user;
+      }
+      async getUserByToken(token) {
+        const [user] = await db.select().from(users).where(eq(users.apiToken, token));
+        return user;
+      }
+      async createUser(insertUser) {
+        const [user] = await db.insert(users).values({
+          ...insertUser,
+          lastActive: (/* @__PURE__ */ new Date()).toISOString(),
+          apiToken: randomUUID()
+        }).returning();
+        return user;
+      }
+      async getAllUsers() {
+        return await db.select().from(users);
+      }
+      async getTasks(userId) {
+        if (userId) {
+          return await db.select().from(tasks).where(eq(tasks.userId, userId));
+        }
+        return await db.select().from(tasks);
+      }
+      async getAllTasks() {
+        return await db.select().from(tasks);
+      }
+      async createNotification(title, body) {
+        await db.insert(notifications).values({
+          title,
+          body,
+          status: "pending",
+          createdAt: (/* @__PURE__ */ new Date()).toISOString()
+        });
+      }
+      async getNotifications() {
+        const notifs = await db.select().from(notifications).orderBy(desc(notifications.createdAt));
+        return notifs.map((n) => ({
+          title: n.title,
+          body: n.body,
+          timestamp: new Date(n.createdAt || "").getTime()
+        }));
+      }
+      async setUpdate(version, notes, url) {
+        return;
+      }
+      async getUpdate() {
+        return null;
+      }
+      async createTask(insertTask) {
+        const [task] = await db.insert(tasks).values({
+          ...insertTask,
+          completed: insertTask.completed ?? false,
+          notificationTime: insertTask.notificationTime ?? 1440
+        }).returning();
+        return task;
+      }
+      async updateTask(id, updateData) {
+        const [task] = await db.update(tasks).set(updateData).where(eq(tasks.id, id)).returning();
+        return task;
+      }
+      async deleteTask(id) {
+        await db.delete(tasks).where(eq(tasks.id, id));
+      }
+      async createFeedback(insertFeedback) {
+        const [newFeedback] = await db.insert(feedback).values({
+          ...insertFeedback,
+          createdAt: (/* @__PURE__ */ new Date()).toISOString()
+        }).returning();
+        return newFeedback;
+      }
+      async getAllFeedback() {
+        return await db.select().from(feedback).orderBy(desc(feedback.createdAt));
+      }
+      async updateUserActivity(userId) {
+        await db.update(users).set({ lastActive: (/* @__PURE__ */ new Date()).toISOString() }).where(eq(users.id, userId));
+      }
+      async updateUserRole(userId, role) {
+        await db.update(users).set({ role }).where(eq(users.id, userId));
+      }
+      async updateUserStats(userId, totalTime, todayTime, lastDate) {
+        await db.update(users).set({
+          totalFocusTime: totalTime,
+          todayFocusTime: todayTime,
+          lastFocusDate: lastDate
+        }).where(eq(users.id, userId));
+      }
+      async getLeaderboard() {
+        return await db.select().from(users).orderBy(desc(users.totalFocusTime)).limit(50);
+      }
+      // Group methods implementation for DatabaseStorage
+      async createGroup(name, userId) {
+        const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const [group] = await db.insert(groups).values({
+          name,
+          code,
+          createdBy: userId,
+          createdAt: (/* @__PURE__ */ new Date()).toISOString()
+        }).returning();
+        await this.joinGroup(group.id, userId);
+        return group;
+      }
+      async getGroup(id) {
+        const [group] = await db.select().from(groups).where(eq(groups.id, id));
+        return group;
+      }
+      async getGroupByCode(code) {
+        const [group] = await db.select().from(groups).where(eq(groups.code, code));
+        return group;
+      }
+      async getUserGroups(userId) {
+        const members = await db.select().from(groupMembers).where(eq(groupMembers.userId, userId));
+        const userGroups = [];
+        for (const member of members) {
+          if (member.groupId) {
+            const group = await this.getGroup(member.groupId);
+            if (group) {
+              const memberCount = await db.select({ count: groupMembers.id }).from(groupMembers).where(eq(groupMembers.groupId, group.id));
+              userGroups.push({ ...group, memberCount: memberCount.length });
+            }
+          }
+        }
+        return userGroups;
+      }
+      async joinGroup(groupId, userId) {
+        const [existing] = await db.select().from(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId)));
+        if (!existing) {
+          await db.insert(groupMembers).values({
+            groupId,
+            userId,
+            joinedAt: (/* @__PURE__ */ new Date()).toISOString()
+          });
+        }
+      }
+      async removeGroupMember(groupId, userId) {
+        await db.delete(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId)));
+      }
+      async getGroupMembers(groupId) {
+        const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, groupId));
+        const groupUsers = [];
+        for (const member of members) {
+          if (member.userId) {
+            const user = await this.getUser(member.userId);
+            if (user) groupUsers.push(user);
+          }
+        }
+        return groupUsers.sort((a, b) => (b.totalFocusTime || 0) - (a.totalFocusTime || 0));
+      }
+      async deleteGroup(groupId) {
+        await db.delete(groupMembers).where(eq(groupMembers.groupId, groupId));
+        await db.delete(groups).where(eq(groups.id, groupId));
+      }
+      async updatePushToken(userId, token) {
+        await db.update(users).set({ pushToken: token }).where(eq(users.id, userId));
+      }
+      async seed() {
+        const adminEmail = "admin@assignflow.com";
+        const [existing] = await db.select().from(users).where(eq(users.email, adminEmail));
+        if (!existing) {
+          await db.insert(users).values({
+            username: "sumitkumar",
+            password: process.env.ADMIN_PASSWORD || "change_me",
+            googleId: "admin_google_id",
+            email: adminEmail,
+            displayName: "Sumit Kumar (Admin)",
+            role: "admin",
+            lastActive: (/* @__PURE__ */ new Date()).toISOString(),
+            apiToken: "admin_token",
+            totalFocusTime: 0,
+            todayFocusTime: 0,
+            lastFocusDate: null,
+            avatar: null,
+            pushToken: null
+          });
+          console.log("Admin user seeded successfully");
+        }
+        const [sumitUser] = await db.select().from(users).where(eq(users.username, "sumitkumar"));
+        if (!sumitUser) {
+          console.log("Seeding sumitkumar user...");
+          await db.insert(users).values({
+            username: "sumitkumar",
+            password: process.env.ADMIN_PASSWORD || "change_me",
+            role: "admin",
+            displayName: "Sumit Kumar",
+            avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=sumitkumar",
+            lastActive: (/* @__PURE__ */ new Date()).toISOString(),
+            apiToken: randomUUID()
+          });
+          console.log("Sumitkumar user created.");
+        } else if (sumitUser.role !== "admin") {
+          console.log("Promoting sumitkumar to admin...");
+          await this.updateUserRole(sumitUser.id, "admin");
+        }
+        const latestVersion = await this.getLatestAppVersion();
+        if (!latestVersion || latestVersion.versionCode < 6) {
+          console.log("Seeding app version 1.0.5...");
+          await db.insert(appVersions).values({
+            versionCode: 6,
+            versionName: "1.0.5",
+            apkUrl: "https://assignflow-exuc.onrender.com/app-release.apk",
+            releaseNotes: "New Features: Group Deletion in Clash Zone, Attendance Calculator.",
+            createdAt: (/* @__PURE__ */ new Date()).toISOString()
+          });
+        }
+      }
+      async createAppVersion(insertVersion) {
+        const [version] = await db.insert(appVersions).values({
+          ...insertVersion,
+          createdAt: (/* @__PURE__ */ new Date()).toISOString()
+        }).returning();
+        return version;
+      }
+      async getLatestAppVersion() {
+        const [version] = await db.select().from(appVersions).orderBy(desc(appVersions.versionCode)).limit(1);
+        return version;
+      }
+      // Encryption helpers
+      encryptMessage(text2) {
+        const algorithm = "aes-256-cbc";
+        const key = crypto.scryptSync(process.env.SESSION_SECRET || "default_secret", "salt", 32);
+        const iv = crypto.randomBytes(16);
+        const cipher = crypto.createCipheriv(algorithm, key, iv);
+        let encrypted = cipher.update(text2, "utf8", "hex");
+        encrypted += cipher.final("hex");
+        return iv.toString("hex") + ":" + encrypted;
+      }
+      decryptMessage(text2) {
+        try {
+          const algorithm = "aes-256-cbc";
+          const key = crypto.scryptSync(process.env.SESSION_SECRET || "default_secret", "salt", 32);
+          const textParts = text2.split(":");
+          const iv = Buffer.from(textParts.shift(), "hex");
+          const encryptedText = textParts.join(":");
+          const decipher = crypto.createDecipheriv(algorithm, key, iv);
+          let decrypted = decipher.update(encryptedText, "hex", "utf8");
+          decrypted += decipher.final("utf8");
+          return decrypted;
+        } catch (e) {
+          console.error("Decryption failed:", e);
+          return "[Encrypted Message]";
+        }
+      }
+      async createClashMessage(userId, content, groupId) {
+        const encryptedContent = this.encryptMessage(content);
+        const [message] = await db.insert(clashMessages).values({
+          userId,
+          groupId,
+          content: encryptedContent,
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        }).returning();
+        return {
+          ...message,
+          content
+          // Return original content to sender
+        };
+      }
+      async getClashMessages(groupId) {
+        const messages = await db.select({
+          id: clashMessages.id,
+          userId: clashMessages.userId,
+          groupId: clashMessages.groupId,
+          content: clashMessages.content,
+          timestamp: clashMessages.timestamp,
+          user: {
+            username: users.username,
+            displayName: users.displayName
+          }
+        }).from(clashMessages).leftJoin(users, eq(clashMessages.userId, users.id)).where(eq(clashMessages.groupId, groupId)).orderBy(clashMessages.timestamp);
+        return messages.map((msg) => ({
+          ...msg,
+          content: this.decryptMessage(msg.content),
+          user: msg.user || { username: "Unknown", displayName: "Unknown" }
+        }));
+      }
+      async updateProStatus(userId, isPro, expiresAt, subscriptionId) {
+        await db.update(users).set({
+          isPro,
+          proExpiresAt: expiresAt,
+          stripeSubscriptionId: subscriptionId
+        }).where(eq(users.id, userId));
+      }
+      async cleanupOldMessages() {
+        const sevenDaysAgo = /* @__PURE__ */ new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        await db.delete(clashMessages).where(lt(clashMessages.timestamp, sevenDaysAgo.toISOString()));
+      }
+      async toggleClashNotifications(userId, enabled) {
+        await db.update(users).set({ clashChatNotifications: enabled }).where(eq(users.id, userId));
+      }
+    };
+    storage = process.env.DATABASE_URL && process.env.DATABASE_URL !== "your_database_url" ? new DatabaseStorage() : new MemStorage();
   }
-  async cleanupOldMessages() {
-    const sevenDaysAgo = /* @__PURE__ */ new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    await db.delete(clashMessages).where(lt(clashMessages.timestamp, sevenDaysAgo.toISOString()));
+});
+
+// server/stripe.ts
+var stripe_exports = {};
+__export(stripe_exports, {
+  default: () => stripe_default
+});
+import { Router } from "express";
+import Stripe from "stripe";
+var router, stripeKey, stripe, stripe_default;
+var init_stripe = __esm({
+  "server/stripe.ts"() {
+    "use strict";
+    init_storage();
+    router = Router();
+    stripeKey = process.env.STRIPE_SECRET_KEY;
+    if (!stripeKey) {
+      console.warn("WARNING: STRIPE_SECRET_KEY is not set. Payment features will fail or need mocking.");
+    }
+    stripe = new Stripe(stripeKey || "sk_test_placeholder", {
+      apiVersion: "2024-12-18.acacia"
+      // Use latest API version or safe default
+    });
+    router.post("/create-checkout-session", async (req, res) => {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      const user = req.user;
+      const { priceId } = req.body;
+      try {
+        const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+        const host = req.headers["x-forwarded-host"] || req.get("host");
+        const baseUrl = `${protocol}://${host}`;
+        if (!process.env.STRIPE_SECRET_KEY) {
+          console.log("Mocking Stripe Checkout for user:", user.username);
+          return res.json({
+            url: `${baseUrl}/api/payments/mock-success?userId=${user.id}`
+          });
+        }
+        const session2 = await stripe.checkout.sessions.create({
+          billing_address_collection: "auto",
+          line_items: [
+            {
+              price: priceId || "price_default",
+              // Use actual Stripe Price ID
+              quantity: 1
+            }
+          ],
+          mode: "subscription",
+          success_url: `${baseUrl}/api/payments/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${baseUrl}/api/payments/cancel`,
+          client_reference_id: user.id,
+          metadata: {
+            userId: user.id,
+            username: user.username
+          }
+        });
+        res.json({ url: session2.url });
+      } catch (error) {
+        console.error("Stripe Checkout Error:", error);
+        res.status(500).json({ message: error.message });
+      }
+    });
+    router.get("/mock-success", async (req, res) => {
+      const userId = req.query.userId;
+      if (userId) {
+        await storage.updateUserRole(userId, "pro");
+        return res.redirect(`${process.env.CLIENT_URL || "http://localhost:5173"}/settings?payment=success`);
+      }
+      res.redirect("/");
+    });
+    router.post("/webhook", async (req, res) => {
+      const sig = req.headers["stripe-signature"];
+      res.json({ received: true });
+    });
+    stripe_default = router;
   }
-  async toggleClashNotifications(userId, enabled) {
-    await db.update(users).set({ clashChatNotifications: enabled }).where(eq(users.id, userId));
-  }
-};
-var storage = process.env.DATABASE_URL && process.env.DATABASE_URL !== "your_database_url" ? new DatabaseStorage() : new MemStorage();
+});
+
+// server/index.prod.ts
+import "dotenv/config";
+import express2 from "express";
+import session from "express-session";
 
 // server/auth.ts
+init_storage();
+import passport from "passport";
+import { Strategy as LocalStrategy } from "passport-local";
 passport.use(
   new LocalStrategy(async (username, password, done) => {
     try {
@@ -799,6 +924,8 @@ var auth_default = passport;
 
 // server/routes.ts
 import { createServer } from "http";
+init_storage();
+init_schema();
 import multer from "multer";
 
 // server/utils.ts
@@ -842,8 +969,8 @@ async function callAI(prompt, systemPrompt, imageBuffer, mimeType) {
     messages.push({ role: "user", content: prompt });
   }
   try {
-    const textModel = process.env.OPENROUTER_MODEL || "amazon/nova-lite-v1";
-    const visionModel = process.env.OPENROUTER_VISION_MODEL || "google/gemini-2.0-flash-exp:free";
+    const textModel = "openai/gpt-4o-mini";
+    const visionModel = "openai/gpt-4o-mini";
     const modelToUse = isImageRequest ? visionModel : textModel;
     const completion = await openai.chat.completions.create({
       model: modelToUse,
@@ -1022,6 +1149,60 @@ async function registerRoutes(app2) {
   app2.get("/api/health", (_req, res) => {
     res.status(200).json({ status: "ok", timestamp: (/* @__PURE__ */ new Date()).toISOString() });
   });
+  app2.get("/api/updates/check", async (req, res) => {
+    try {
+      const currentVersion = req.query.version;
+      const fs2 = await import("fs");
+      const path2 = await import("path");
+      const packagePath = path2.resolve(process.cwd(), "package.json");
+      const packageJson = JSON.parse(fs2.readFileSync(packagePath, "utf-8"));
+      const latestVersion = packageJson.version;
+      const parseVersion = (v) => v.split(".").map(Number);
+      const [cMajor, cMinor, cPatch] = parseVersion(currentVersion || "0.0.0");
+      const [lMajor, lMinor, lPatch] = parseVersion(latestVersion || "0.0.0");
+      let isUpdateAvailable = false;
+      if (lMajor > cMajor) isUpdateAvailable = true;
+      else if (lMajor === cMajor && lMinor > cMinor) isUpdateAvailable = true;
+      else if (lMajor === cMajor && lMinor === cMinor && lPatch > cPatch) isUpdateAvailable = true;
+      if (!isUpdateAvailable) {
+        return res.json({ updateAvailable: false, currentVersion: latestVersion });
+      }
+      res.json({
+        updateAvailable: true,
+        latestVersion,
+        currentVersion,
+        updateUrl: `${process.env.VITE_API_BASE_URL || ""}/api/updates/download/${latestVersion}`,
+        releaseNotes: "Bug fixes and improvements",
+        critical: false,
+        minRequiredVersion: "1.0.0",
+        size: 0
+        // Will be calculated dynamically
+      });
+    } catch (error) {
+      console.error("Update check error:", error);
+      res.status(500).json({ message: "Failed to check for updates", error: error.message });
+    }
+  });
+  app2.get("/api/updates/download/:version", async (req, res) => {
+    try {
+      const { version } = req.params;
+      const fs2 = await import("fs");
+      const path2 = await import("path");
+      const bundlePath = path2.resolve(process.cwd(), `updates/bundle-${version}.zip`);
+      if (!fs2.existsSync(bundlePath)) {
+        return res.status(404).json({ message: "Update bundle not found" });
+      }
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename=bundle-${version}.zip`);
+      const fileStream = fs2.createReadStream(bundlePath);
+      fileStream.pipe(res);
+    } catch (error) {
+      console.error("Update download error:", error);
+      res.status(500).json({ message: "Failed to download update", error: error.message });
+    }
+  });
+  const { default: stripeRouter } = await Promise.resolve().then(() => (init_stripe(), stripe_exports));
+  app2.use("/api/payments", stripeRouter);
   app2.get("/api/auth/me", (req, res) => {
     if (req.user) {
       res.json(req.user);

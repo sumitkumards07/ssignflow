@@ -98,6 +98,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
+  // OTA Update System Endpoints
+  app.get("/api/updates/check", async (req, res) => {
+    try {
+      const currentVersion = req.query.version as string;
+
+      // Read package.json to get latest version
+      const fs = await import("fs");
+      const path = await import("path");
+      const packagePath = path.resolve(process.cwd(), "package.json");
+      const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf-8"));
+      const latestVersion = packageJson.version;
+
+      // Simple version comparison (assumes semver format)
+      // We need to ensure we don't 'upgrade' to an older version (downgrade)
+      // Basic string comparison works for simple versions (1.0.20 > 1.0.19)
+      // But for robustness, we should ideally use semver.
+      // For now, let's implement a simple splitter.
+
+      const parseVersion = (v: string) => v.split('.').map(Number);
+      const [cMajor, cMinor, cPatch] = parseVersion(currentVersion || "0.0.0");
+      const [lMajor, lMinor, lPatch] = parseVersion(latestVersion || "0.0.0");
+
+      let isUpdateAvailable = false;
+      if (lMajor > cMajor) isUpdateAvailable = true;
+      else if (lMajor === cMajor && lMinor > cMinor) isUpdateAvailable = true;
+      else if (lMajor === cMajor && lMinor === cMinor && lPatch > cPatch) isUpdateAvailable = true;
+
+      // Also ensure we treat inequality as no-update if strictly older
+
+      if (!isUpdateAvailable) {
+        return res.json({ updateAvailable: false, currentVersion: latestVersion });
+      }
+
+      // Return update manifest
+      res.json({
+        updateAvailable: true,
+        latestVersion,
+        currentVersion,
+        updateUrl: `${process.env.VITE_API_BASE_URL || ""}/api/updates/download/${latestVersion}`,
+        releaseNotes: "Bug fixes and improvements",
+        critical: false,
+        minRequiredVersion: "1.0.0",
+        size: 0 // Will be calculated dynamically
+      });
+    } catch (error: any) {
+      console.error("Update check error:", error);
+      res.status(500).json({ message: "Failed to check for updates", error: error.message });
+    }
+  });
+
+  app.get("/api/updates/download/:version", async (req, res) => {
+    try {
+      const { version } = req.params;
+      const fs = await import("fs");
+      const path = await import("path");
+
+      // Path to update bundle (will be created by build script)
+      const bundlePath = path.resolve(process.cwd(), `updates/bundle-${version}.zip`);
+
+      if (!fs.existsSync(bundlePath)) {
+        return res.status(404).json({ message: "Update bundle not found" });
+      }
+
+      // Stream the bundle file
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename=bundle-${version}.zip`);
+
+      const fileStream = fs.createReadStream(bundlePath);
+      fileStream.pipe(res);
+    } catch (error: any) {
+      console.error("Update download error:", error);
+      res.status(500).json({ message: "Failed to download update", error: error.message });
+    }
+  });
+
+  // Stripe Payment Routes
+  const { default: stripeRouter } = await import("./stripe");
+  app.use("/api/payments", stripeRouter);
+
   // Google OAuth routes removed
   // Local Auth Routes only
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -21,17 +21,16 @@ export default function Login() {
     const [isRegistering, setIsRegistering] = useState(false);
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const { toast } = useToast();
-    useEffect(() => {
-        // Check if already logged in
-        const checkAuth = async () => {
-            const user = localStorage.getItem("user");
-            if (user) {
-                setLocation("/todo");
-            }
-        };
-        checkAuth();
-    }, []);
 
+    // Restore auto-login check
+    React.useEffect(() => {
+        const user = localStorage.getItem("user");
+        if (user) {
+            setLocation("/todo");
+        }
+    }, [setLocation]);
+
+    // Simplified handlers to prevent issues
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
@@ -87,13 +86,13 @@ export default function Login() {
                     <CardDescription className="text-zinc-400 text-base">
                         Welcome back! Please sign in to continue.
                     </CardDescription>
-                    <p className="text-xs text-zinc-600 mt-2">v1.0.2 (Build 20)</p>
+                    <p className="text-xs text-zinc-600 mt-2">v1.0.6</p>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <form onSubmit={handleLogin} className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="username" className="text-zinc-300">Username</Label>
-                            <Input
+                            <input
                                 id="username"
                                 type="text"
                                 placeholder="Enter username"
@@ -101,7 +100,7 @@ export default function Login() {
                                 onChange={(e) => setUsername(e.target.value)}
                                 disabled={isLoading}
                                 required
-                                className="bg-black/20 border-white/10 text-white placeholder:text-zinc-600 focus:border-orange-500/50 focus:ring-orange-500/20"
+                                className="flex h-12 w-full rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50"
                             />
                             {suggestions.length > 0 && (
                                 <div className="flex flex-wrap gap-2 mt-2">
@@ -125,7 +124,7 @@ export default function Login() {
                         {isRegistering && (
                             <div className="space-y-2">
                                 <Label htmlFor="userEmail" className="text-zinc-300">Email</Label>
-                                <Input
+                                <input
                                     id="userEmail"
                                     type="email"
                                     placeholder="your@email.com"
@@ -133,14 +132,14 @@ export default function Login() {
                                     onChange={(e) => setUserEmail(e.target.value)}
                                     disabled={isLoading}
                                     required={isRegistering}
-                                    className="bg-black/20 border-white/10 text-white placeholder:text-zinc-600 focus:border-orange-500/50 focus:ring-orange-500/20"
+                                    className="flex h-12 w-full rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50"
                                 />
                             </div>
                         )}
                         <div className="space-y-2">
                             <Label htmlFor="password" className="text-zinc-300">Password</Label>
                             <div className="relative">
-                                <Input
+                                <input
                                     id="password"
                                     type={showPassword ? "text" : "password"}
                                     placeholder="Enter password"
@@ -148,7 +147,7 @@ export default function Login() {
                                     onChange={(e) => setPassword(e.target.value)}
                                     disabled={isLoading}
                                     required
-                                    className="bg-black/20 border-white/10 text-white placeholder:text-zinc-600 focus:border-orange-500/50 focus:ring-orange-500/20 pr-10"
+                                    className="flex h-12 w-full rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 pr-10"
                                 />
                                 <button
                                     type="button"
@@ -172,6 +171,7 @@ export default function Login() {
                     </form>
 
                     <Button
+                        type="button"
                         variant="ghost"
                         className="w-full text-zinc-400 hover:text-white hover:bg-white/5"
                         onClick={() => {
@@ -180,8 +180,10 @@ export default function Login() {
                         }}
                         disabled={isLoading}
                     >
-                        {isRegistering ? "Already have an account? Sign In" : "Don't have an account? Register"}
                     </Button>
+                    <div className="absolute top-4 right-4 text-xs text-muted-foreground opacity-50">
+                        v1.0.10
+                    </div>
                 </CardContent>
             </Card>
         </div>

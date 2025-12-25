@@ -52,23 +52,19 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// CORS Middleware
+// CORS Middleware - Allow all origins for mobile app support
 app.use((req, res, next) => {
-  const allowedOrigins = [
-    'http://localhost',
-    'https://localhost',
-    'capacitor://localhost',
-    'http://localhost:5001',
-    'http://13.235.90.150',
-    'http://13.235.90.150:8080'
-  ];
+  // Allow all origins for mobile app support
   const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
+  if (origin) {
     res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    // For requests without origin (like direct API calls), allow all
+    res.header('Access-Control-Allow-Origin', '*');
   }
 
   res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
 
   if (req.method === 'OPTIONS') {

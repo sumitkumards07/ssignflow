@@ -17,6 +17,6 @@ public class MainActivity extends BridgeActivity {
         webView.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
 
         registerPlugin(WidgetDataPlugin.class);
-        registerPlugin(UpdatePlugin.class);
+        // registerPlugin(UpdatePlugin.class);
     }
 }

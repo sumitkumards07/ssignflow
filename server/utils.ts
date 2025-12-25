@@ -57,8 +57,9 @@ export async function callAI(
   try {
     // Use a vision-capable model for image requests
     // amazon/nova-lite-v1 does NOT support images, so we use gemini for vision tasks
-    const textModel = process.env.OPENROUTER_MODEL || "amazon/nova-lite-v1";
-    const visionModel = process.env.OPENROUTER_VISION_MODEL || "google/gemini-2.0-flash-exp:free";
+    // Use gpt-4o-mini for both text and vision as it is cheap, fast, and reliable
+    const textModel = "openai/gpt-4o-mini";
+    const visionModel = "openai/gpt-4o-mini";
     const modelToUse = isImageRequest ? visionModel : textModel;
 
     const completion = await openai.chat.completions.create({

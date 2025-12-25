@@ -1,4 +1,3 @@
-import React from "react";
 import { Link, useLocation } from "wouter";
 import { ListTodo, Timer, BrainCircuit, Calendar, Settings, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";

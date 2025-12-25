@@ -83,7 +83,6 @@ export async function apiRequest(
       method,
       headers,
       body,
-      credentials: "include",
     });
 
     await throwIfResNotOk(res);
@@ -132,7 +131,6 @@ export const getQueryFn: <T>(options: {
 
       try {
         const res = await fetch(fullUrl, {
-          credentials: "include",
           headers,
         });
 

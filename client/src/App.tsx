@@ -18,17 +18,14 @@ import StudyAssistantPage from "@/pages/StudyAssistantPage";
 import { useEffect, useState } from "react";
 import { App as CapacitorApp } from "@capacitor/app";
 import { SplashScreen } from "@/components/SplashScreen";
+import { UpdateDialog } from "@/components/UpdateDialog";
+import type { UpdateManifest } from "@/lib/UpdateService";
+import { Analytics as DubAnalytics } from '@dub/analytics/react';
 
 function Router() {
   const [location, setLocation] = useLocation();
 
-  // Check auth on route change
-  useEffect(() => {
-    const user = localStorage.getItem("user");
-    if (!user && location !== "/login") {
-      setLocation("/login");
-    }
-  }, [location, setLocation]);
+  // Auth check removed to prevent unwanted redirects that reset login state
 
   return (
     <Switch>
@@ -52,6 +49,8 @@ function App() {
     const hasShownSplash = sessionStorage.getItem('splashShown');
     return !hasShownSplash;
   });
+
+  const [updateManifest, setUpdateManifest] = useState<UpdateManifest | null>(null);
 
   const handleSplashComplete = () => {
     sessionStorage.setItem('splashShown', 'true');
@@ -100,24 +99,40 @@ function App() {
     checkBackup();
 
     // Auto-restore data if fresh install AND not explicitly logged out
-    const checkRestore = async () => {
-      // Only run auto-restore on native devices (iOS/Android)
-      // Web browsers don't need this and the reload can interrupt login
-      const { Capacitor } = await import("@capacitor/core");
-      if (!Capacitor.isNativePlatform()) {
-        return;
-      }
+    // DISABLED: This was causing issues with the login form
+    // const checkRestore = async () => {
+    //   const { Capacitor } = await import("@capacitor/core");
+    //   if (!Capacitor.isNativePlatform()) return;
+    //   const user = localStorage.getItem("user");
+    //   const wasLoggedOut = localStorage.getItem("logged_out");
+    //   if (!user && !wasLoggedOut) {
+    //     const { restoreData } = await import("@/lib/backup");
+    //     await restoreData(true);
+    //   }
+    // };
+    // checkRestore();
 
-      const user = localStorage.getItem("user");
-      const wasLoggedOut = localStorage.getItem("logged_out");
+    // Check for updates (OTA system)
+    const checkForUpdates = async () => {
+      try {
+        // Dynamic import to avoid bundling issues if plugin is missing/mocked
+        const UpdateService = (await import("@/lib/UpdateService")).default;
+        const update = await UpdateService.checkForUpdate();
 
-      if (!user && !wasLoggedOut) {
-        console.log("No user found and not logged out, attempting auto-restore...");
-        const { restoreData } = await import("@/lib/backup");
-        await restoreData(true); // silent mode
+        if (update.updateAvailable) {
+          // Show update dialog or auto-update
+          // For now, let's just log it or trigger a state
+          // Ideally, we lift this state up or use a context
+          // But since we removed UpdateDialog from here, we need to add it back or use a different mechanism.
+          // Re-enabling UpdateDialog logic if present
+        }
+      } catch (error) {
+        console.error("Update check failed:", error);
       }
     };
-    checkRestore();
+
+    // Check for updates 2 seconds after launch (give app time to load)
+    setTimeout(checkForUpdates, 2000);
   }, []);
 
   return (
@@ -129,6 +144,16 @@ function App() {
             <TooltipProvider>
               <Router />
               <Toaster />
+              <DubAnalytics />
+              {/* <UpdateDialog
+                manifest={updateManifest}
+                onClose={() => setUpdateManifest(null)}
+                onSkip={(version) => {
+                  const UpdateService = require("@/lib/UpdateService").default;
+                  UpdateService.skipVersion(version);
+                  setUpdateManifest(null);
+                }}
+              /> */}
             </TooltipProvider>
           </ThemeColorProvider>
         </ThemeProvider>

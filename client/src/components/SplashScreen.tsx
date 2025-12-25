@@ -1,49 +1,58 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 
 export function SplashScreen({ onComplete }: { onComplete: () => void }) {
-    const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+    const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+        // Immediately detect theme from localStorage or system preference
+        if (typeof window !== 'undefined') {
+            const stored = localStorage.getItem('theme');
+            if (stored === 'dark' || stored === 'light') {
+                return stored;
+            }
+            // Check system preference
+            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                return 'dark';
+            }
+        }
+        return 'light';
+    });
 
     useEffect(() => {
-        // Detect current theme
-        const isDark = document.documentElement.classList.contains('dark');
+        // Double-check theme after mount
+        const isDark = document.documentElement.classList.contains('dark') ||
+            window.matchMedia('(prefers-color-scheme: dark)').matches;
         setTheme(isDark ? 'dark' : 'light');
 
-        // Auto-close splash after animation
+        // Auto-close splash after very short time
         const timer = setTimeout(() => {
             onComplete();
-        }, 2500);
+        }, 500); // Reduced to 500ms
 
         return () => clearTimeout(timer);
     }, [onComplete]);
 
     return (
         <div
-            className={`fixed inset-0 z-50 flex items-center justify-center ${theme === 'dark' ? 'bg-zinc-950' : 'bg-white'
+            className={`fixed inset-0 z-[9999] flex items-center justify-center ${theme === 'dark' ? 'bg-zinc-950' : 'bg-white'
                 }`}
+            style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                zIndex: 9999,
+            }}
         >
-            <motion.div
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{
-                    duration: 0.6,
-                    ease: [0.25, 0.1, 0.25, 1],
-                }}
-            >
-                <motion.img
+            <div className="animate-pulse">
+                <img
                     src="/logo.png"
                     alt="AssignFlow Logo"
                     className="w-32 h-32 object-contain"
-                    animate={{
-                        scale: [1, 1.1, 1],
-                    }}
-                    transition={{
-                        duration: 1.5,
-                        repeat: Infinity,
-                        ease: "easeInOut",
+                    style={{
+                        animation: 'fadeIn 0.6s ease-in-out'
                     }}
                 />
-            </motion.div>
+            </div>
         </div>
     );
 }

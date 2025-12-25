@@ -1,6 +1,7 @@
 {
-  "name": "rest-express",
-  "version": "1.0.0",
+  "name": "assignflow-client",
+  "private": true,
+  "version": "1.0.32",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -9,14 +10,15 @@
   "scripts": {
     "dev:client": "vite dev --port 5001",
     "build:mobile": "vite build",
-    "dev": "NODE_ENV=development tsx server/index.ts",
+    "dev": "export NODE_TLS_REJECT_UNAUTHORIZED=0 && NODE_ENV=development tsx server/index.ts",
     "clean": "rm -rf dist",
     "build:static": "npm run clean && vite build && esbuild server/index.prod.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index.js",
     "build": "npm run clean && npm run db:push && vite build && esbuild server/index.prod.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index.js",
     "build:prod": "npm run clean && vite build && esbuild server/index.prod.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index.js",
     "start": "npm run db:push && NODE_ENV=production node dist/index.js",
     "check": "tsc",
-    "db:push": "drizzle-kit migrate"
+    "db:push": "drizzle-kit migrate",
+    "create:update": "bash scripts/create-update-bundle.sh"
   },
   "notes": "removed framer motion dependency",
   "dependencies": {
@@ -31,6 +33,8 @@
     "@capacitor/push-notifications": "^7.0.0",
     "@capacitor/share": "^7.0.2",
     "@capacitor/toast": "^7.0.2",
+    "@capgo/capacitor-updater": "^8.40.2",
+    "@dub/analytics": "^0.0.32",
     "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.25",
@@ -92,6 +96,7 @@
     "multer": "^2.0.2",
     "nanoid": "^5.0.9",
     "next-themes": "^0.4.6",
+    "openai": "^4.0.0",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "passport-local": "^1.0.0",
@@ -107,6 +112,7 @@
     "recharts": "^2.15.4",
     "serverless-http": "^4.0.0",
     "sonner": "^2.0.7",
+    "stripe": "^20.1.0",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.14",
     "tailwindcss-animate": "^1.0.7",
@@ -118,8 +124,7 @@
     "ws": "^8.18.0",
     "xlsx": "^0.18.5",
     "zod": "^3.25.76",
-    "zod-validation-error": "^3.4.0",
-    "openai": "^4.0.0"
+    "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
     "@types/connect-pg-simple": "^7.0.3",

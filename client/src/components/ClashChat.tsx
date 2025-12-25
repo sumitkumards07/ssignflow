@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Send, X, Bell, BellOff } from "lucide-react";
+import { Send, X, Bell, BellOff, Lock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { ProUpgradeModal } from "./ProUpgradeModal";
 
 interface ClashMessage {
     id: string;
@@ -31,6 +32,8 @@ export function ClashChat({ currentUser, onClose, hasGroups, messages, isLoading
     const scrollRef = useRef<HTMLDivElement>(null);
     const queryClient = useQueryClient();
     const [notificationsEnabled, setNotificationsEnabled] = useState(currentUser?.clashChatNotifications ?? true);
+    const [showProModal, setShowProModal] = useState(false);
+    const isPro = currentUser?.isPro;
 
     // Scroll to bottom on new messages
     useEffect(() => {
@@ -225,6 +228,7 @@ export function ClashChat({ currentUser, onClose, hasGroups, messages, isLoading
                     </button>
                 </div>
             </div>
+            <ProUpgradeModal open={showProModal} onOpenChange={setShowProModal} />
         </motion.div>
     );
 }

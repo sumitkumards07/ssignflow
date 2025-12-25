@@ -1,0 +1,15 @@
+{
+	"appId": "com.assignflow.app",
+	"appName": "AssignFlow",
+	"webDir": "dist/public",
+	"server": {
+		"androidScheme": "https"
+	},
+	"android": {},
+	"plugins": {
+		"Keyboard": {
+			"resize": "none",
+			"resizeOnFullScreen": false
+		}
+	}
+}

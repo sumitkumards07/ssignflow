@@ -5,18 +5,30 @@ const config: CapacitorConfig = {
   appName: 'AssignFlow',
   webDir: 'dist/public',
   server: {
-    androidScheme: 'http'
+    androidScheme: 'https',
+    allowNavigation: ['*.lambda-url.us-east-1.on.aws']
   },
   android: {
     buildOptions: {
       keystorePath: undefined,
       keystoreAlias: undefined,
-    }
+    },
+    allowMixedContent: true
   },
   plugins: {
     Keyboard: {
-      resize: 'body',
-      resizeOnFullScreen: true,
+      resize: 'none',
+      resizeOnFullScreen: false
+    },
+    CapacitorHttp: {
+      enabled: true
+    },
+    SplashScreen: {
+      launchShowDuration: 0,
+      launchAutoHide: true,
+      backgroundColor: "#ffffffff",
+      showSpinner: false,
+      androidSplashResourceName: "splash"
     }
   }
 };

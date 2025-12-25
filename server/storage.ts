@@ -58,6 +58,7 @@ export interface IStorage {
   getClashMessages(groupId: string): Promise<(ClashMessage & { user: { username: string, displayName: string | null } })[]>;
   toggleClashNotifications(userId: string, enabled: boolean): Promise<void>;
   cleanupOldMessages(): Promise<void>;
+  updateProStatus(userId: string, isPro: boolean, expiresAt?: string, subscriptionId?: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -91,7 +92,10 @@ export class MemStorage implements IStorage {
       lastFocusDate: null,
       avatar: null,
       pushToken: null,
-      clashChatNotifications: true
+      clashChatNotifications: true,
+      isPro: true,
+      proExpiresAt: null,
+      stripeSubscriptionId: null
     });
   }
 
@@ -133,7 +137,10 @@ export class MemStorage implements IStorage {
       lastFocusDate: null,
       avatar: insertUser.avatar ?? null,
       pushToken: null,
-      clashChatNotifications: insertUser.clashChatNotifications ?? true
+      clashChatNotifications: insertUser.clashChatNotifications ?? true,
+      isPro: insertUser.isPro ?? false,
+      proExpiresAt: null,
+      stripeSubscriptionId: null
     };
     this.users.set(id, user);
     return user;
@@ -407,6 +414,13 @@ export class MemStorage implements IStorage {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     this.clashMessages = this.clashMessages.filter(msg => msg.timestamp && new Date(msg.timestamp) > sevenDaysAgo);
+  }
+
+  async updateProStatus(userId: string, isPro: boolean, expiresAt?: string, subscriptionId?: string): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      this.users.set(userId, { ...user, isPro, proExpiresAt: expiresAt || null, stripeSubscriptionId: subscriptionId || null });
+    }
   }
 }
 
@@ -803,6 +817,17 @@ export class DatabaseStorage implements IStorage {
       content: this.decryptMessage(msg.content),
       user: msg.user || { username: 'Unknown', displayName: 'Unknown' }
     }));
+  }
+
+  async updateProStatus(userId: string, isPro: boolean, expiresAt?: string, subscriptionId?: string): Promise<void> {
+    await db
+      .update(users)
+      .set({
+        isPro,
+        proExpiresAt: expiresAt,
+        stripeSubscriptionId: subscriptionId
+      })
+      .where(eq(users.id, userId));
   }
 
   async cleanupOldMessages(): Promise<void> {

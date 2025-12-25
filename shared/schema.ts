@@ -19,6 +19,9 @@ export const users = pgTable("users", {
   avatar: text("avatar"),
   pushToken: text("push_token"),
   clashChatNotifications: boolean("clash_chat_notifications").default(true),
+  isPro: boolean("is_pro").default(false),
+  proExpiresAt: text("pro_expires_at"), // ISO timestamp
+  stripeSubscriptionId: text("stripe_subscription_id"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -33,6 +36,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   lastFocusDate: true,
   avatar: true,
   clashChatNotifications: true,
+  isPro: true,
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
