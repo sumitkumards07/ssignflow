@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getApiBaseUrl } from "@/lib/queryClient";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function AdminDashboard() {
@@ -77,15 +77,44 @@ export default function AdminDashboard() {
         }
     };
 
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
     const handlePushUpdate = async () => {
         try {
-            const res = await apiRequest("POST", "/api/admin/updates", update);
+            const formData = new FormData();
+            formData.append('versionCode', update.versionCode);
+            formData.append('versionName', update.versionName);
+            formData.append('releaseNotes', update.releaseNotes);
+
+            if (selectedFile) {
+                formData.append('bundle', selectedFile);
+            } else if (update.apkUrl) {
+                formData.append('apkUrl', update.apkUrl);
+            } else {
+                throw new Error("Please provide either a file or a URL");
+            }
+
+            const token = localStorage.getItem("token"); // Wait, we use session/cookie for web, but verify if we need token
+            // The apiRequest helper handles JSON but not FormData easily, let's use raw fetch or modify it.
+            // Since apiRequest assumes JSON content type by default usually, let's use fetch directly for FormData.
+
+            const res = await fetch(getApiBaseUrl() + "/api/admin/updates", {
+                method: "POST",
+                body: formData,
+                headers: {
+                    // 'Content-Type': 'multipart/form-data' // Browser sets this automatically with boundary
+                    // Include auth if needed, but we rely on cookie session for admin typically
+                },
+            });
+
             if (!res.ok) {
                 const error = await res.json();
                 throw new Error(error.message || "Failed to push update");
             }
+
             toast({ title: "Success", description: "Update pushed successfully" });
             setUpdate({ versionCode: "", versionName: "", apkUrl: "", releaseNotes: "" });
+            setSelectedFile(null);
         } catch (error: any) {
             console.error("Update error:", error);
             toast({
@@ -239,7 +268,20 @@ export default function AdminDashboard() {
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium">APK Download URL</label>
+                                    <label className="text-sm font-medium">Update Bundle (Zip/APK)</label>
+                                    <Input
+                                        type="file"
+                                        accept=".zip,.apk"
+                                        onChange={(e) => {
+                                            if (e.target.files && e.target.files[0]) {
+                                                setSelectedFile(e.target.files[0]);
+                                            }
+                                        }}
+                                    />
+                                    {selectedFile && <p className="text-xs text-muted-foreground">Selected: {selectedFile.name}</p>}
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Or External URL</label>
                                     <Input
                                         value={update.apkUrl}
                                         onChange={(e) => setUpdate({ ...update, apkUrl: e.target.value })}

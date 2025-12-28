@@ -29,6 +29,20 @@
       "when": 1766504092916,
       "tag": "0003_fast_stellaris",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1766651699404,
+      "tag": "0004_add_pro_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1766675992436,
+      "tag": "0005_quiet_devos",
+      "breakpoints": true
     }
   ]
 }

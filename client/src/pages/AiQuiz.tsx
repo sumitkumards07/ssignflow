@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+
 import { Upload, FileText, Loader2, Sparkles, Check, X, ArrowRight, Menu, User, Plus as PlusIcon, Mic, Send, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -295,35 +295,29 @@ Otherwise, for general questions or conversation, use this JSON format:
                         {/* Chat Messages */}
                         <div className="flex-1 overflow-y-auto px-6 py-6" ref={scrollRef}>
                             <div className="max-w-2xl mx-auto space-y-4">
-                                <AnimatePresence>
-                                    {messages.map((message, index) => (
-                                        <motion.div
-                                            key={index}
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                                {messages.map((message, index) => (
+                                    <div
+                                        key={index}
+                                        className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                                    >
+                                        <div
+                                            className={`max-w-[85%] rounded-3xl p-5 ${message.role === "user" ? "rounded-br-md text-white" : "bg-secondary rounded-bl-md"}`}
+                                            style={message.role === "user" ? { backgroundColor: 'var(--theme-primary)' } : {}}
                                         >
-                                            <div
-                                                className={`max-w-[85%] rounded-3xl p-5 ${message.role === "user" ? "rounded-br-md text-white" : "bg-secondary rounded-bl-md"}`}
-                                                style={message.role === "user" ? { backgroundColor: 'var(--theme-primary)' } : {}}
-                                            >
-                                                {message.role === "assistant" && (
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <Sparkles className="w-4 h-4" style={{ color: 'var(--theme-primary)' }} />
-                                                        <span className="text-xs font-medium" style={{ color: 'var(--theme-primary)' }}>AI Tutor</span>
-                                                    </div>
-                                                )}
-                                                <p className="text-base leading-relaxed whitespace-pre-wrap">{message.content}</p>
-                                            </div>
-                                        </motion.div>
-                                    ))}
-                                </AnimatePresence>
+                                            {message.role === "assistant" && (
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <Sparkles className="w-4 h-4" style={{ color: 'var(--theme-primary)' }} />
+                                                    <span className="text-xs font-medium" style={{ color: 'var(--theme-primary)' }}>AI Tutor</span>
+                                                </div>
+                                            )}
+                                            <p className="text-base leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                                        </div>
+                                    </div>
+                                ))}
 
                                 {/* Active Quiz Question */}
                                 {currentQuestion && quizState && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
+                                    <div
                                         className="space-y-4 pt-4"
                                     >
                                         {/* Question */}
@@ -353,32 +347,28 @@ Otherwise, for general questions or conversation, use this JSON format:
                                                 }
 
                                                 return (
-                                                    <motion.button
+                                                    <button
                                                         key={index}
                                                         onClick={() => handleAnswerSelect(index)}
                                                         disabled={quizState.isAnswered}
-                                                        whileHover={{ scale: quizState.isAnswered ? 1 : 1.02 }}
-                                                        whileTap={{ scale: quizState.isAnswered ? 1 : 0.98 }}
                                                         className={`w-full px-6 py-4 rounded-full text-left transition-all flex items-center justify-between ${buttonClass}`}
                                                         style={buttonStyle}
                                                     >
                                                         <span className="font-medium">{option}</span>
                                                         {showResult && isCorrect && <Check className="w-5 h-5" />}
                                                         {showResult && isSelected && !isCorrect && <X className="w-5 h-5" />}
-                                                    </motion.button>
+                                                    </button>
                                                 );
                                             })}
                                         </div>
 
                                         {/* Explanation */}
                                         {quizState.isAnswered && currentQuestion.explanation && (
-                                            <motion.div
-                                                initial={{ opacity: 0 }}
-                                                animate={{ opacity: 1 }}
+                                            <div
                                                 className="bg-secondary/50 p-4 rounded-xl border border-border"
                                             >
                                                 <p className="text-sm text-muted-foreground">{currentQuestion.explanation}</p>
-                                            </motion.div>
+                                            </div>
                                         )}
 
                                         {/* Submit/Next Button */}
@@ -397,7 +387,7 @@ Otherwise, for general questions or conversation, use this JSON format:
                                                 'Check Answer'
                                             )}
                                         </Button>
-                                    </motion.div>
+                                    </div>
                                 )}
 
                                 {isLoading && (

@@ -1,0 +1,37 @@
+{
+	"appId": "com.assignflow.app",
+	"appName": "AssignFlow",
+	"webDir": "dist/public",
+	"server": {
+		"androidScheme": "https",
+		"allowNavigation": [
+			"*.lambda-url.us-east-1.on.aws",
+			"ywal432feojibun3d7jziamzbq0zwiew.lambda-url.us-east-1.on.aws"
+		]
+	},
+	"android": {
+		"allowMixedContent": true
+	},
+	"plugins": {
+		"Keyboard": {
+			"resize": "none",
+			"resizeOnFullScreen": false
+		},
+		"CapacitorHttp": {
+			"enabled": true
+		},
+		"SplashScreen": {
+			"launchShowDuration": 0,
+			"launchAutoHide": true,
+			"backgroundColor": "#ffffffff",
+			"showSpinner": false,
+			"androidSplashResourceName": "splash"
+		},
+		"CapacitorUpdater": {
+			"autoUpdate": false,
+			"resetWhenUpdate": true,
+			"directUpdate": false,
+			"statsUrl": ""
+		}
+	}
+}

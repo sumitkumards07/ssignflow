@@ -5,10 +5,10 @@ import passport from "./auth";
 import { registerRoutes } from "./routes";
 import { serveStatic, log } from "./utils";
 import serverless from "serverless-http";
-import { createRequire } from "module";
+// @ts-ignore - CommonJS default export
+import connectPgSimple from "connect-pg-simple";
 
-const require = createRequire(import.meta.url);
-const PostgresqlStore = require("connect-pg-simple")(session);
+const PostgresqlStore = connectPgSimple(session);
 
 const app = express();
 app.set("trust proxy", 1); // Trust first proxy (Render load balancer)
@@ -116,12 +116,42 @@ async function setupApp() {
 }
 
 // Export handler for Lambda
+// Export handler for Lambda
+let initError: any;
+
 export const handler = async (event: any, context: any) => {
+    if (initError) {
+        console.error("Previous Init Error:", initError);
+        return {
+            statusCode: 500,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                message: "Previous Init Error",
+                error: initError.message,
+                stack: initError.stack
+            })
+        };
+    }
+
     if (!serverlessHandler) {
-        await setupApp();
-        serverlessHandler = serverless(app, {
-            binary: ['image/*', 'font/*', 'application/pdf', 'application/octet-stream']
-        });
+        try {
+            await setupApp();
+            serverlessHandler = serverless(app, {
+                binary: ['image/*', 'font/*', 'application/pdf', 'application/octet-stream', 'application/zip']
+            });
+        } catch (err: any) {
+            console.error("Init failed:", err);
+            initError = err;
+            return {
+                statusCode: 500,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    message: "Init Failed",
+                    error: err.message,
+                    stack: err.stack
+                })
+            };
+        }
     }
     return serverlessHandler(event, context);
 };

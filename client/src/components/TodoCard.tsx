@@ -1,5 +1,5 @@
 import React from "react";
-import { motion } from "framer-motion";
+
 import { Trash2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Todo } from "@/lib/types";
@@ -11,18 +11,12 @@ interface TodoCardProps extends Todo {
 
 export function TodoCard({ id, text, completed, onToggle, onDelete }: TodoCardProps) {
     return (
-        <motion.div
-            layout
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+        <div
             className={cn(
-                "group flex items-center gap-3 rounded-xl border border-white/20 backdrop-blur-md p-4 transition-all shadow-sm",
+                "group flex items-center gap-3 rounded-xl border border-border p-4 transition-colors shadow-sm",
                 completed
                     ? "bg-green-500/10 border-green-500/20"
-                    : "bg-card/60 hover:bg-card/80 hover:border-primary/20"
+                    : "bg-card hover:bg-secondary"
             )}
         >
             <button
@@ -52,6 +46,6 @@ export function TodoCard({ id, text, completed, onToggle, onDelete }: TodoCardPr
             >
                 <Trash2 className="h-4 w-4" />
             </button>
-        </motion.div>
+        </div>
     );
 }

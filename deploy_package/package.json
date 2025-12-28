@@ -1,25 +1,24 @@
 {
-  "name": "assignflow-server",
-  "version": "1.0.10",
+  "name": "assignflow-lambda",
+  "version": "1.0.33",
   "type": "module",
-  "engines": { "node": ">=18.0.0" },
-  "scripts": { "start": "node index.js" },
   "dependencies": {
+    "connect-pg-simple": "^10.0.0",
+    "dotenv": "^17.2.3",
+    "drizzle-orm": "^0.39.1",
     "express": "^4.21.2",
     "express-session": "^1.18.2",
-    "connect-pg-simple": "^10.0.0",
-    "pg": "^8.16.3",
-    "drizzle-orm": "^0.39.1",
     "multer": "^2.0.2",
-    "serverless-http": "^4.0.0",
-    "dotenv": "^17.2.3",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
-    "zod": "^3.25.76",
-    "drizzle-zod": "^0.7.0",
-    "openai": "^4.0.0",
-    "pdf-parse": "^2.4.5",
+    "pg": "^8.16.3",
+    "serverless-http": "^4.0.0",
     "ws": "^8.18.0",
-    "zod-validation-error": "^3.4.0"
+    "@neondatabase/serverless": "^0.10.4",
+    "@google/generative-ai": "^0.24.1",
+    "@openrouter/sdk": "^0.2.9",
+    "zod": "^3.25.76",
+    "pdf-parse": "^2.4.5",
+    "date-fns": "^3.6.0"
   }
 }

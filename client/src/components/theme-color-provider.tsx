@@ -1,15 +1,24 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 export const themeColors = {
-    orange: { primary: "#ff6b35", primaryRgb: "255, 107, 53" },
-    purple: { primary: "#a855f7", primaryRgb: "168, 85, 247" },
-    blue: { primary: "#3b82f6", primaryRgb: "59, 130, 246" },
-    green: { primary: "#10b981", primaryRgb: "16, 185, 129" },
-    rose: { primary: "#f43f5e", primaryRgb: "244, 63, 94" },
-    teal: { primary: "#14b8a6", primaryRgb: "20, 184, 166" }
+    // Functional
+    orange: { primary: "#FF9500", primaryRgb: "255, 149, 0", name: "Safety Orange" },
+    green: { primary: "#34C759", primaryRgb: "52, 199, 89", name: "Success Green" },
+    red: { primary: "#FF3B30", primaryRgb: "255, 59, 48", name: "Destructive Red" },
+    blue: { primary: "#007AFF", primaryRgb: "0, 122, 255", name: "System Blue" },
+    indigo: { primary: "#5856D6", primaryRgb: "88, 86, 214", name: "Intel Indigo" },
+    yellow: { primary: "#FFCC00", primaryRgb: "255, 204, 0", name: "Warning Gold" },
+
+    // Prestige
+    purple: { primary: "#AF52DE", primaryRgb: "175, 82, 222", name: "Epic Purple" },
+    magenta: { primary: "#FF2D55", primaryRgb: "255, 45, 85", name: "Mythic Magenta" },
+    mint: { primary: "#00D1FF", primaryRgb: "0, 209, 255", name: "Cyber Mint" },
+    gray: { primary: "#1C1C1E", primaryRgb: "28, 28, 30", name: "Obsidian Gray" },
+    teal: { primary: "#30B0C7", primaryRgb: "48, 176, 199", name: "Prismatic Teal" },
+    rose: { primary: "#FF5E3A", primaryRgb: "255, 94, 58", name: "Lava Rose" },
 };
 
-type ThemeColor = keyof typeof themeColors;
+export type ThemeColor = keyof typeof themeColors;
 
 interface ThemeColorContextType {
     themeColor: ThemeColor;
@@ -26,7 +35,7 @@ export const useThemeColor = () => useContext(ThemeColorContext);
 export function ThemeColorProvider({ children }: { children: React.ReactNode }) {
     const [themeColor, setThemeColorState] = useState<ThemeColor>(() => {
         const saved = localStorage.getItem("accent_color");
-        return (saved as ThemeColor) || "orange";
+        return (themeColors.hasOwnProperty(saved as string) ? (saved as ThemeColor) : "orange");
     });
 
     const setThemeColor = (color: ThemeColor) => {
@@ -37,8 +46,11 @@ export function ThemeColorProvider({ children }: { children: React.ReactNode }) 
 
     const applyThemeColor = (color: ThemeColor) => {
         const colorData = themeColors[color];
+        if (!colorData) return;
         document.documentElement.style.setProperty("--theme-primary", colorData.primary);
         document.documentElement.style.setProperty("--theme-primary-rgb", colorData.primaryRgb);
+        // Also update the global safety-orange variable if the user selected it as accent? 
+        // No, let's keep semantic names.
     };
 
     useEffect(() => {

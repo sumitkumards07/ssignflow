@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'dist/public',
   server: {
     androidScheme: 'https',
-    allowNavigation: ['*.lambda-url.us-east-1.on.aws']
+    allowNavigation: ['*.lambda-url.us-east-1.on.aws', 'ywal432feojibun3d7jziamzbq0zwiew.lambda-url.us-east-1.on.aws']
   },
   android: {
     buildOptions: {
@@ -25,10 +25,16 @@ const config: CapacitorConfig = {
     },
     SplashScreen: {
       launchShowDuration: 0,
-      launchAutoHide: true,
+      launchAutoHide: false,
       backgroundColor: "#ffffffff",
       showSpinner: false,
       androidSplashResourceName: "splash"
+    },
+    CapacitorUpdater: {
+      autoUpdate: false,
+      resetWhenUpdate: true,
+      directUpdate: false,
+      statsUrl: ""
     }
   }
 };

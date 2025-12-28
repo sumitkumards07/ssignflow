@@ -1,6 +1,7 @@
-import { users, tasks, groups, groupMembers, clashMessages, feedback, appVersions, notifications, type User, type InsertUser, type Task, type InsertTask, type Group, type InsertGroup, type GroupMember, type InsertGroupMember, type ClashMessage, type Feedback, type InsertFeedback, type AppVersion, type InsertAppVersion } from "@shared/schema";
+import { users, tasks, groups, groupMembers, clashMessages, feedback, appVersions, notifications, pomodoroSessions, rankHistory, type User, type InsertUser, type Task, type InsertTask, type Group, type InsertGroup, type GroupMember, type InsertGroupMember, type ClashMessage, type Feedback, type InsertFeedback, type AppVersion, type InsertAppVersion, type PomodoroSession, type InsertPomodoroSession, type RankHistory, type InsertRankHistory } from "@shared/schema";
 import { db } from "./db";
-import { eq, lt, desc, and } from "drizzle-orm";
+import { updateLeaderboardScore, getRedisLeaderboard } from "./redis";
+import { eq, lt, desc, and, inArray } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -59,6 +60,12 @@ export interface IStorage {
   toggleClashNotifications(userId: string, enabled: boolean): Promise<void>;
   cleanupOldMessages(): Promise<void>;
   updateProStatus(userId: string, isPro: boolean, expiresAt?: string, subscriptionId?: string): Promise<void>;
+
+  // Pomodoro & Rank
+  createPomodoroSession(session: InsertPomodoroSession): Promise<PomodoroSession>;
+  getPomodoroSessions(userId: string): Promise<PomodoroSession[]>;
+  updateUserRank(userId: string, tier: string, points: number): Promise<void>;
+  createRankHistory(history: InsertRankHistory): Promise<RankHistory>;
 }
 
 export class MemStorage implements IStorage {
@@ -67,6 +74,8 @@ export class MemStorage implements IStorage {
   private feedback: Map<string, Feedback>;
   private groups: Map<string, Group>;
   private groupMembers: Map<string, GroupMember>;
+  private pomodoroSessions: Map<string, PomodoroSession>;
+  private rankHistory: Map<string, RankHistory>;
 
   constructor() {
     this.users = new Map();
@@ -74,6 +83,8 @@ export class MemStorage implements IStorage {
     this.feedback = new Map();
     this.groups = new Map();
     this.groupMembers = new Map();
+    this.pomodoroSessions = new Map();
+    this.rankHistory = new Map();
 
     // Pre-seed admin user
     const adminId = randomUUID();
@@ -95,7 +106,10 @@ export class MemStorage implements IStorage {
       clashChatNotifications: true,
       isPro: true,
       proExpiresAt: null,
-      stripeSubscriptionId: null
+      stripeSubscriptionId: null,
+      createdAt: new Date().toISOString(),
+      rankTier: "Conqueror",
+      rankPoints: 9999
     });
   }
 
@@ -140,7 +154,10 @@ export class MemStorage implements IStorage {
       clashChatNotifications: insertUser.clashChatNotifications ?? true,
       isPro: insertUser.isPro ?? false,
       proExpiresAt: null,
-      stripeSubscriptionId: null
+      stripeSubscriptionId: null,
+      createdAt: new Date().toISOString(),
+      rankTier: "Bronze",
+      rankPoints: 0
     };
     this.users.set(id, user);
     return user;
@@ -422,6 +439,45 @@ export class MemStorage implements IStorage {
       this.users.set(userId, { ...user, isPro, proExpiresAt: expiresAt || null, stripeSubscriptionId: subscriptionId || null });
     }
   }
+
+  async createPomodoroSession(insertSession: InsertPomodoroSession): Promise<PomodoroSession> {
+    const id = randomUUID();
+    const session: PomodoroSession = {
+      ...insertSession,
+      id,
+      userId: insertSession.userId ?? null,
+      verified: insertSession.clientHash ? true : false,
+      createdAt: new Date().toISOString(),
+      clientHash: insertSession.clientHash || null
+    };
+    this.pomodoroSessions.set(id, session);
+    return session;
+  }
+
+  async getPomodoroSessions(userId: string): Promise<PomodoroSession[]> {
+    return Array.from(this.pomodoroSessions.values()).filter(s => s.userId === userId);
+  }
+
+  async updateUserRank(userId: string, tier: string, points: number): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      this.users.set(userId, { ...user, rankTier: tier, rankPoints: points });
+    }
+  }
+
+  async createRankHistory(insertHistory: InsertRankHistory): Promise<RankHistory> {
+    const id = randomUUID();
+    const history: RankHistory = {
+      ...insertHistory,
+      id,
+      userId: insertHistory.userId ?? null,
+      finalRank: insertHistory.finalRank || null,
+      finalPoints: insertHistory.finalPoints || null,
+      recordedAt: new Date().toISOString()
+    };
+    this.rankHistory.set(id, history);
+    return history;
+  }
 }
 
 export class DatabaseStorage implements IStorage {
@@ -483,7 +539,7 @@ export class DatabaseStorage implements IStorage {
 
   async getNotifications(): Promise<{ title: string; body: string; timestamp: number }[]> {
     const notifs = await db.select().from(notifications).orderBy(desc(notifications.createdAt));
-    return notifs.map(n => ({
+    return notifs.map((n: any) => ({
       title: n.title,
       body: n.body,
       timestamp: new Date(n.createdAt || "").getTime()
@@ -565,6 +621,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLeaderboard(): Promise<User[]> {
+    // Try Redis first
+    const redisData = await getRedisLeaderboard();
+
+    if (redisData && redisData.length > 0) {
+      const userIds = redisData.map(r => r.userId);
+      const dbUsers = await db.select().from(users).where(inArray(users.id, userIds));
+
+      const userMap = new Map<string, User>(dbUsers.map((u: User) => [u.id, u]));
+
+      return redisData
+        .map((r): User | undefined => {
+          const u = userMap.get(r.userId);
+          if (u) return { ...u, totalFocusTime: r.score };
+          return undefined;
+        })
+        .filter((u): u is User => u !== undefined);
+    }
+
     return await db
       .select()
       .from(users)
@@ -810,11 +884,11 @@ export class DatabaseStorage implements IStorage {
       .from(clashMessages)
       .leftJoin(users, eq(clashMessages.userId, users.id))
       .where(eq(clashMessages.groupId, groupId))
-      .orderBy(clashMessages.timestamp);
+      .orderBy(desc(clashMessages.timestamp))
+      .limit(50);
 
-    return messages.map(msg => ({
+    return messages.reverse().map((msg: any) => ({
       ...msg,
-      content: this.decryptMessage(msg.content),
       user: msg.user || { username: 'Unknown', displayName: 'Unknown' }
     }));
   }
@@ -843,6 +917,40 @@ export class DatabaseStorage implements IStorage {
       .update(users)
       .set({ clashChatNotifications: enabled })
       .where(eq(users.id, userId));
+  }
+
+  async createPomodoroSession(insertSession: InsertPomodoroSession): Promise<PomodoroSession> {
+    const [session] = await db
+      .insert(pomodoroSessions)
+      .values({
+        ...insertSession,
+        verified: insertSession.clientHash ? true : false,
+        createdAt: new Date().toISOString()
+      })
+      .returning();
+    return session;
+  }
+
+  async getPomodoroSessions(userId: string): Promise<PomodoroSession[]> {
+    return await db.select().from(pomodoroSessions).where(eq(pomodoroSessions.userId, userId));
+  }
+
+  async updateUserRank(userId: string, tier: string, points: number): Promise<void> {
+    await db
+      .update(users)
+      .set({ rankTier: tier, rankPoints: points })
+      .where(eq(users.id, userId));
+  }
+
+  async createRankHistory(insertHistory: InsertRankHistory): Promise<RankHistory> {
+    const [history] = await db
+      .insert(rankHistory)
+      .values({
+        ...insertHistory,
+        recordedAt: new Date().toISOString()
+      })
+      .returning();
+    return history;
   }
 }
 

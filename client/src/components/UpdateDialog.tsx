@@ -9,11 +9,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import type { UpdateManifest } from '@/lib/UpdateService';
-import UpdateService from '@/lib/UpdateService';
+import { UpdateInfo, updateService } from '@/services/UpdateService';
 
 interface UpdateDialogProps {
-    manifest: UpdateManifest | null;
+    manifest: UpdateInfo | null;
     onClose: () => void;
     onSkip?: (version: string) => void;
 }
@@ -28,7 +27,7 @@ export function UpdateDialog({ manifest, onClose, onSkip }: UpdateDialogProps) {
     }
 
     const handleUpdate = async () => {
-        if (!manifest.updateUrl) {
+        if (!manifest.url) {
             setError('Update URL not available');
             return;
         }
@@ -37,22 +36,22 @@ export function UpdateDialog({ manifest, onClose, onSkip }: UpdateDialogProps) {
             setDownloading(true);
             setError(null);
 
-            await UpdateService.downloadAndApplyUpdate(
-                manifest.updateUrl,
-                (p) => setProgress(p)
+            await updateService.downloadAndApplyUpdate(
+                manifest.url,
+                (p: number) => setProgress(p)
             );
 
             // Update will trigger app reload
         } catch (err) {
-            console.error('Update failed:', err);
+            console.error('UpdateDialog error caught:', err);
             setError(err instanceof Error ? err.message : 'Update failed');
             setDownloading(false);
         }
     };
 
     const handleSkip = () => {
-        if (manifest.latestVersion && onSkip) {
-            onSkip(manifest.latestVersion);
+        if (manifest.version && onSkip) {
+            onSkip(manifest.version);
         }
         onClose();
     };
@@ -68,7 +67,7 @@ export function UpdateDialog({ manifest, onClose, onSkip }: UpdateDialogProps) {
                     </AlertDialogTitle>
                     <AlertDialogDescription className="space-y-2">
                         <p>
-                            A new version ({manifest.latestVersion}) is available!
+                            A new version ({manifest.version}) is available!
                         </p>
                         {manifest.releaseNotes && (
                             <div className="mt-2 p-3 bg-muted rounded-md">

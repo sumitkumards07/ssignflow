@@ -1,73 +1,129 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;500;700&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: hsl(0 0% 100%);
-  --foreground: hsl(0 0% 3.9%);
-  --card: hsl(0 0% 100%);
-  --card-foreground: hsl(0 0% 3.9%);
-  --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(0 0% 3.9%);
-  --primary: hsl(0 0% 9%);
-  --primary-foreground: hsl(0 0% 98%);
-  --secondary: hsl(0 0% 96.1%);
-  --secondary-foreground: hsl(0 0% 9%);
-  --muted: hsl(0 0% 96.1%);
-  --muted-foreground: hsl(0 0% 45.1%);
-  --accent: hsl(0 0% 96.1%);
-  --accent-foreground: hsl(0 0% 9%);
-  --destructive: hsl(0 84.2% 60.2%);
-  --destructive-foreground: hsl(0 0% 98%);
-  --border: hsl(0 0% 89.8%);
-  --input: hsl(0 0% 89.8%);
-  --ring: hsl(0 0% 3.9%);
+  /* --- Silicon Valley Standard 12-Color Palette --- */
+
+  /* Functional Core */
+  --safety-orange: #FF9500;
+  /* Focus flagship */
+  --system-blue: #007AFF;
+  /* Analytics professional */
+  --success-green: #34C759;
+  /* Mission accomplished */
+  --destructive-red: #FF3B30;
+  /* Stop / Warnings */
+  --intel-indigo: #5856D6;
+  /* Neutral / Settings */
+  --warning-gold: #FFCC00;
+  /* Level Alerts */
+
+  /* Prestige & Rarity Core */
+  --epic-purple: #AF52DE;
+  /* Elite items */
+  --mythic-magenta: #FF2D55;
+  /* Legendary/Mythic */
+  --cyber-mint: #00D1FF;
+  /* Rare tactical */
+  --obsidian-gray: #1C1C1E;
+  /* Common neutrality */
+  --prismatic-teal: #30B0C7;
+  /* Seasonal milestones */
+  --lava-rose: #FF5E3A;
+  /* Hardcore mode */
+  --action-green: #39FF14;
+  /* Neon Green for high-stakes action */
+  --deep-action-blue: #0056D2;
+
+  /* --- Light Mode (Apple Precision) --- */
+  --background: #F2F2F7;
+  --foreground: #1C1C1E;
+  --card: #FFFFFF;
+  --card-foreground: #1C1C1E;
+  --secondary: #E5E5EA;
+  --muted: #E5E5EA;
+  --muted-foreground: #8E8E93;
+  --border: #C6C6C8;
+  /* 0.5px style border */
+
+  --apple-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
+  --glass-surface: rgba(255, 255, 255, 0.75);
+  --glass-blur: blur(24px);
+
+  /* Tactical Defaults mapped to Orange */
+  --theme-primary: var(--safety-orange);
+  --theme-primary-rgb: 255, 149, 0;
+
   --radius: 1rem;
+  /* 16px corner radius */
 
-  --sidebar: hsl(0 0% 98%);
-  --sidebar-foreground: hsl(240 5.3% 26.1%);
-  --sidebar-primary: hsl(240 5.9% 10%);
-  --sidebar-primary-foreground: hsl(0 0% 98%);
-  --sidebar-accent: hsl(240 4.8% 95.9%);
-  --sidebar-accent-foreground: hsl(240 5.9% 10%);
-  --sidebar-border: hsl(220 13% 91%);
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+  /* --- Safe Area Variables --- */
+  --sat: env(safe-area-inset-top);
+  --sab: env(safe-area-inset-bottom);
+  --sal: env(safe-area-inset-left);
+  --sar: env(safe-area-inset-right);
+}
 
-  /* Theme colors - Default orange */
-  --theme-primary: #ff6b35;
-  --theme-primary-rgb: 255, 107, 53;
+/* Safe Area Utility Classes */
+.pt-safe {
+  padding-top: var(--sat);
+}
+
+.pb-safe {
+  padding-bottom: var(--sab);
+}
+
+.pl-safe {
+  padding-left: var(--sal);
+}
+
+.pr-safe {
+  padding-right: var(--sar);
+}
+
+.pt-safe-offset {
+  padding-top: calc(var(--sat) + 12px);
+}
+
+.pb-safe-offset {
+  padding-bottom: calc(var(--sab) + 12px);
+}
+
+/* Resolution Independent Scaling Helper */
+.viewport-h-screen {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.viewport-w-full {
+  width: 100vw;
+  max-width: 100%;
 }
 
 .dark {
-  --background: hsl(0 0% 5%);
-  --foreground: hsl(0 0% 98%);
-  --card: hsl(0 0% 9%);
-  --card-foreground: hsl(0 0% 98%);
-  --popover: hsl(0 0% 9%);
-  --popover-foreground: hsl(0 0% 98%);
-  --primary: hsl(0 0% 98%);
-  --primary-foreground: hsl(0 0% 9%);
-  --secondary: hsl(0 0% 14.9%);
-  --secondary-foreground: hsl(0 0% 98%);
-  --muted: hsl(0 0% 14.9%);
-  --muted-foreground: hsl(0 0% 63.9%);
-  --accent: hsl(0 0% 14.9%);
-  --accent-foreground: hsl(0 0% 98%);
-  --destructive: hsl(0 62.8% 30.6%);
-  --destructive-foreground: hsl(0 0% 98%);
-  --border: hsl(0 0% 14.9%);
-  --input: hsl(0 0% 14.9%);
-  --ring: hsl(0 0% 83.1%);
+  /* --- Dark Mode (Google/BGMI Tactical) --- */
+  --background: #000000;
+  /* Deep Obsidian */
+  --foreground: #FFFFFF;
+  --card: rgba(28, 28, 30, 0.12);
+  /* Semi-Transparent Gray 12% */
+  --card-foreground: #FFFFFF;
+  --secondary: #1C1C1E;
+  --muted: #1C1C1E;
+  --muted-foreground: #A1A1AA;
+  --border: rgba(255, 255, 255, 0.08);
 
-  --sidebar: hsl(0 0% 5%);
-  --sidebar-foreground: hsl(0 0% 98%);
-  --sidebar-primary: hsl(0 0% 98%);
-  --sidebar-primary-foreground: hsl(0 0% 9%);
-  --sidebar-accent: hsl(0 0% 14.9%);
-  --sidebar-accent-foreground: hsl(0 0% 98%);
-  --sidebar-border: hsl(0 0% 14.9%);
-  --sidebar-ring: hsl(0 0% 83.1%);
+  --apple-shadow: none;
+  /* Apple Precision mandates no heavy shadows in Dark Tactical */
+  --glass-surface: rgba(28, 28, 30, 0.4);
+  --glass-blur: blur(25px);
+
+  /* Tactical Primary Glow */
+  --theme-primary: #FF9500;
+  --theme-primary-rgb: 255, 149, 0;
 }
 
 @theme inline {
@@ -80,141 +136,185 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
 
-  --font-sans: 'DM Sans', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  /* Palette utilities */
+  --color-safety-orange: var(--safety-orange);
+  --color-system-blue: var(--system-blue);
+  --color-success-green: var(--success-green);
+  --color-destructive-red: var(--destructive-red);
+  --color-intel-indigo: var(--intel-indigo);
+  --color-warning-gold: var(--warning-gold);
+  --color-epic-purple: var(--epic-purple);
+  --color-mythic-magenta: var(--mythic-magenta);
+  --color-cyber-mint: var(--cyber-mint);
+  --color-obsidian-gray: var(--obsidian-gray);
+  --color-prismatic-teal: var(--prismatic-teal);
+  --color-lava-rose: var(--lava-rose);
+
+  --font-sans: 'SF Pro Text', 'SF Pro Rounded', 'Inter', system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', monospace;
+  --font-condensed: 'Oswald', 'DIN Condensed', sans-serif;
+
+  --color-action-green: var(--action-green);
 }
 
 body {
-  background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
   min-height: 100dvh;
   max-width: 100vw;
   overflow-x: hidden;
-
-  /* Disable Copy/Select */
   user-select: none;
   -webkit-user-select: none;
-}
-
-html {
-  max-width: 100vw;
-  overflow-x: hidden;
-  scroll-behavior: smooth;
-}
-
-/* App shell with safe area insets for notches/gesture bars */
-.app-shell {
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
-  min-height: 100dvh;
-}
-
-.dark body {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-}
-
-/* Custom Scrollbar for a cleaner look */
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.3);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
-}
-
-/* Safe Area Utilities */
-.pb-safe {
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-.pt-safe {
-  padding-top: env(safe-area-inset-top);
-}
-
-.min-h-safe {
-  min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-}
-
-/* Keyboard-aware utilities */
-.keyboard-aware {
-  transition: transform 0.25s ease-out;
-}
-
-/* Dynamic viewport height for mobile */
-.h-dvh {
-  height: 100dvh;
-}
-
-.min-h-dvh {
-  min-height: 100dvh;
-}
-
-/* Input touch behavior */
-input,
-textarea,
-select,
-button {
-  touch-action: manipulation;
+  overscroll-behavior-y: none;
+  touch-action: pan-y;
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Ensure inputs are focusable */
-input:focus,
-textarea:focus {
-  outline: none;
-  -webkit-user-select: text;
-  user-select: text;
+/* Performance Utilities */
+.hardware-accelerated {
+  transform: translateZ(0);
+  will-change: scroll-position;
+  backface-visibility: hidden;
+  perspective: 1000px;
 }
 
-/* Fix iOS zoom on input focus */
-@media screen and (max-width: 768px) {
+/* Tactical Hex-Grid for Dark Mode */
+.dark body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.02;
+  /* 2% Opacity */
+  z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M20 0l20 10v20L20 40 0 30V10z' fill='none' stroke='%23ffffff' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: 40px 40px;
+}
 
-  input,
-  textarea,
-  select {
-    font-size: 16px !important;
+/* Light Mode specific body background */
+body {
+  background: var(--background);
+}
+
+/* Premium Component Foundations */
+
+.apple-card {
+  @apply bg-card backdrop-blur-md transition-none p-5;
+  border: 0.5px solid var(--border);
+  box-shadow: var(--apple-shadow);
+  border-radius: var(--radius);
+}
+
+.apple-header {
+  @apply text-[32px] font-[900] tracking-[-0.03em] text-foreground leading-tight;
+  font-family: var(--font-sans);
+}
+
+.apple-glass {
+  background: var(--glass-surface);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 0.5px solid var(--border);
+  box-shadow: var(--apple-shadow);
+}
+
+.sf-mono {
+  font-family: var(--font-mono);
+  letter-spacing: -0.02em;
+}
+
+/* Active Mission Inner Glow */
+.mission-glow {
+  box-shadow: inset 0 0 0 2px var(--safety-orange), 0 0 15px rgba(255, 149, 0, 0.2);
+}
+
+/* Standardized scroll handling for settings */
+.settings-scroll-area {
+  max-height: 60vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.settings-scroll-area::-webkit-scrollbar {
+  width: 4px;
+}
+
+.settings-scroll-area::-webkit-scrollbar-thumb {
+  background: var(--muted-foreground);
+  border-radius: 10px;
+  opacity: 0.2;
+}
+
+/* Rarity Color Coding */
+.text-rarity-common {
+  color: var(--obsidian-gray);
+}
+
+.text-rarity-rare {
+  color: var(--cyber-mint);
+}
+
+.text-rarity-epic {
+  color: var(--epic-purple);
+}
+
+.text-rarity-legendary {
+  color: var(--warning-gold);
+}
+
+.text-rarity-mythic {
+  color: var(--mythic-magenta);
+}
+
+
+/* Gaming-Industrial HUD Utilities */
+
+.tech-hud {
+  transform: skewX(-12deg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+}
+
+.tech-hud>* {
+  transform: skewX(12deg);
+}
+
+.segmented-bar {
+  display: flex;
+  gap: 2px;
+}
+
+.segmented-bar-segment {
+  flex: 1;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  transition: background 0.3s ease;
+}
+
+.segmented-bar-segment.active {
+  background: var(--action-green);
+  box-shadow: 0 0 8px var(--action-green);
+}
+
+.carbon-fiber {
+  background-color: #151515;
+  background-image:
+    linear-gradient(45deg, #1a1a1a 25%, transparent 25%, transparent 75%, #1a1a1a 75%, #1a1a1a),
+    linear-gradient(45deg, #1a1a1a 25%, transparent 25%, transparent 75%, #1a1a1a 75%, #1a1a1a);
+  background-position: 0 0, 10px 10px;
+  background-size: 20px 20px;
+}
+
+@layer utilities {
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
-}
-
-/* Drawer keyboard handling */
-[data-vaul-drawer] {
-  max-height: 100dvh !important;
 }

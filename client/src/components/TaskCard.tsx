@@ -1,7 +1,7 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 import { Clock, Calendar, Hash, FileText, CheckCircle2, Paperclip, Download, Trash2, PartyPopper } from "lucide-react";
-import { motion } from "framer-motion";
+
 
 export type TaskType = "assignment" | "quiz";
 
@@ -36,15 +36,12 @@ export function TaskCard({
   const daysRemaining = Math.ceil((deadline.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
 
   return (
-    <motion.div
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      transition={{ type: "spring", stiffness: 400, damping: 17 }}
+    <div
       className={cn(
-        "group relative overflow-hidden rounded-xl sm:rounded-2xl border border-white/20 backdrop-blur-md p-5 sm:p-6 lg:p-8 transition-colors hover:border-primary/20 h-full flex flex-col shadow-xl",
+        "group relative overflow-hidden rounded-xl sm:rounded-2xl border border-border p-5 sm:p-6 lg:p-8 transition-colors hover:border-primary/20 h-full flex flex-col shadow-xl",
         completed
           ? "bg-green-500/10 border-green-500/20"
-          : "bg-card/60 hover:bg-card/80"
+          : "bg-card hover:bg-secondary"
       )}
       data-testid={`task-card-${id}`}
     >
@@ -166,6 +163,6 @@ export function TaskCard({
           style={{ width: `${Math.max(0, Math.min(100, 100 - (daysRemaining * 10)))}%` }}
         />
       </div>
-    </motion.div>
+    </div>
   );
 }

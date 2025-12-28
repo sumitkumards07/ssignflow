@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+
 import { Upload, FileText, Loader2, Sparkles, Check, X, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -180,11 +180,9 @@ export function QuizInterface() {
                         <div className="bg-[#1a1a1a] border-b border-zinc-800">
                             {/* Neon Progress Bar */}
                             <div className="h-1 bg-zinc-900 relative overflow-hidden">
-                                <motion.div
+                                <div
                                     className="h-full bg-gradient-to-r from-purple-600 via-purple-500 to-purple-400"
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${((quizState.currentIndex + 1) / quizState.questions.length) * 100}%` }}
-                                    transition={{ duration: 0.5 }}
+                                    style={{ width: `${((quizState.currentIndex + 1) / quizState.questions.length) * 100}%` }}
                                 />
                             </div>
 
@@ -209,13 +207,11 @@ export function QuizInterface() {
                     {/* Chat Area */}
                     <ScrollArea className="flex-1 px-6 py-4" ref={scrollRef}>
                         {isQuizComplete ? (
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.9 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                className="flex flex-col items-center justify-center py-12 text-center space-y-6"
+                            <div
+                                className="flex flex-col items-center justify-center py-8 sm:py-12 text-center space-y-6"
                             >
-                                <div className="w-24 h-24 rounded-full bg-purple-500/20 flex items-center justify-center border-4 border-purple-500">
-                                    <span className="text-4xl font-bold text-purple-400">
+                                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-purple-500/20 flex items-center justify-center border-4 border-purple-500">
+                                    <span className="text-fluid-3xl font-bold text-purple-400">
                                         {Math.round((quizState.score / quizState.questions.length) * 100)}%
                                     </span>
                                 </div>
@@ -228,13 +224,11 @@ export function QuizInterface() {
                                 <Button onClick={resetQuiz} className="bg-purple-600 hover:bg-purple-700 text-white rounded-full px-8">
                                     Start New Quiz
                                 </Button>
-                            </motion.div>
+                            </div>
                         ) : currentQuestion && (
                             <div className="space-y-6">
                                 {/* AI Question Bubble (Left) */}
-                                <motion.div
-                                    initial={{ opacity: 0, x: -20 }}
-                                    animate={{ opacity: 1, x: 0 }}
+                                <div
                                     className="flex justify-start"
                                 >
                                     <div className="max-w-[85%] bg-gradient-to-br from-zinc-800/80 to-zinc-900/80 backdrop-blur-xl p-5 rounded-3xl rounded-tl-md border border-zinc-700/50 shadow-2xl">
@@ -248,13 +242,11 @@ export function QuizInterface() {
                                             {currentQuestion.question}
                                         </p>
                                     </div>
-                                </motion.div>
+                                </div>
 
                                 {/* Answer Feedback (if answered) */}
                                 {quizState.isAnswered && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 10 }}
-                                        animate={{ opacity: 1, y: 0 }}
+                                    <div
                                         className="flex justify-start"
                                     >
                                         <div className={`max-w-[85%] p-4 rounded-2xl rounded-tl-md ${quizState.selectedAnswer === currentQuestion.correctAnswer
@@ -278,7 +270,7 @@ export function QuizInterface() {
                                                 <p className="text-sm text-zinc-300">{currentQuestion.explanation}</p>
                                             )}
                                         </div>
-                                    </motion.div>
+                                    </div>
                                 )}
                             </div>
                         )}
@@ -286,19 +278,17 @@ export function QuizInterface() {
 
                     {/* Answer Buttons (Bottom) */}
                     {currentQuestion && !isQuizComplete && (
-                        <div className="bg-[#1a1a1a] border-t border-zinc-800 p-6 space-y-3">
+                        <div className="bg-[#1a1a1a] border-t border-zinc-800 p-4 sm:p-6 space-y-3">
                             {currentQuestion.options.map((option, index) => {
                                 const isSelected = quizState.selectedAnswer === index;
                                 const isCorrect = index === currentQuestion.correctAnswer;
                                 const showResult = quizState.isAnswered;
 
                                 return (
-                                    <motion.button
+                                    <button
                                         key={index}
                                         onClick={() => handleAnswerSelect(index)}
                                         disabled={quizState.isAnswered}
-                                        whileHover={{ scale: quizState.isAnswered ? 1 : 1.02 }}
-                                        whileTap={{ scale: quizState.isAnswered ? 1 : 0.98 }}
                                         className={`w-full px-6 py-4 rounded-full text-left transition-all flex items-center justify-between ${showResult
                                             ? isCorrect
                                                 ? 'bg-green-500/20 border-2 border-green-500 text-green-300'
@@ -313,7 +303,7 @@ export function QuizInterface() {
                                         <span className="font-medium">{option}</span>
                                         {showResult && isCorrect && <Check className="w-5 h-5" />}
                                         {showResult && isSelected && !isCorrect && <X className="w-5 h-5" />}
-                                    </motion.button>
+                                    </button>
                                 );
                             })}
 

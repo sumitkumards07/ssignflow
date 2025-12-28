@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format, parseISO, isFuture, subDays, subHours, differenceInHours } from "date-fns";
-import { motion, AnimatePresence } from "framer-motion";
+
 import { Clock, CalendarClock, Plus, BookOpen, FileText, Bell, PartyPopper, Check } from "lucide-react";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { LocalNotifications } from "@capacitor/local-notifications";
@@ -227,6 +227,7 @@ export default function UpcomingPage() {
                         <h1 className="text-2xl font-bold flex items-center gap-2">
                             <CalendarClock className="w-7 h-7" style={{ color: 'var(--theme-primary)' }} />
                             Upcoming
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-cyan-500/20 text-cyan-400">💎 PRO</span>
                         </h1>
                         <p className="text-sm text-muted-foreground mt-1">
                             {upcomingAssignments.length} upcoming items
@@ -242,11 +243,9 @@ export default function UpcomingPage() {
 
             {/* Assignments List */}
             <div className="px-6 space-y-4">
-                <AnimatePresence>
+                <div>
                     {upcomingAssignments.length === 0 ? (
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
+                        <div
                             className="flex flex-col items-center justify-center py-16 text-center"
                         >
                             <div className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center mb-4">
@@ -256,22 +255,18 @@ export default function UpcomingPage() {
                             <p className="text-muted-foreground">
                                 No upcoming assignments or quizzes
                             </p>
-                        </motion.div>
+                        </div>
                     ) : (
                         upcomingAssignments.map((assignment, index) => (
-                            <motion.div
+                            <div
                                 key={assignment.id}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, x: -100 }}
-                                transition={{ delay: index * 0.1 }}
-                                className="bg-card border rounded-2xl p-4 hover:border-primary/40 transition-all"
+                                className="bg-card border rounded-2xl p-4 hover:border-primary/40 "
                                 style={{ borderColor: 'rgba(var(--theme-primary-rgb), 0.2)' }}
                             >
                                 <div className="flex items-start gap-3">
                                     <button
                                         onClick={() => confirmComplete(assignment.id)}
-                                        className="w-6 h-6 rounded-full border-2 mt-0.5 flex-shrink-0 hover:bg-primary/20 transition-colors flex items-center justify-center"
+                                        className="w-6 h-6 rounded-full border-2 mt-0.5 flex-shrink-0 hover:bg-primary/20  flex items-center justify-center"
                                         style={{ borderColor: 'var(--theme-primary)' }}
                                     >
                                         {assignment.completed && <Check className="w-4 h-4" style={{ color: 'var(--theme-primary)' }} />}
@@ -312,10 +307,10 @@ export default function UpcomingPage() {
                                         )}
                                     </div>
                                 </div>
-                            </motion.div>
+                            </div>
                         ))
                     )}
-                </AnimatePresence>
+                </div>
             </div>
 
             {/* Confirmation Dialog */}

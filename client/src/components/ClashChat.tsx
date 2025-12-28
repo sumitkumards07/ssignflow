@@ -1,71 +1,141 @@
 import { useState, useEffect, useRef } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Send, X, Bell, BellOff, Lock } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ProUpgradeModal } from "./ProUpgradeModal";
+import { Send, X, Bell, BellOff, MessageSquare } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { getMessages, sendMessage as sendChatMessage } from "@/lib/chatService";
+import type { ClashMessage } from "@/lib/types";
+import { ChatErrorBoundary } from "./ChatErrorBoundary";
 
-interface ClashMessage {
-    id: string;
-    userId: string;
-    content: string;
-    timestamp: string;
-    user?: {
-        username: string;
-        displayName: string | null;
-    };
-}
+import { ProUpgradeModal } from "./ProUpgradeModal";
 
 interface ClashChatProps {
     currentUser: any;
     onClose: () => void;
     hasGroups: boolean;
-    messages: ClashMessage[];
-    isLoading: boolean;
-    onMessageSent: () => void;
+    // Props made optional as component now self-manages
+    messages?: ClashMessage[];
+    isLoading?: boolean;
+    onMessageSent?: () => void;
     groupId?: string;
+    groupName?: string;
+    isGlobal?: boolean;
+    className?: string;
 }
 
-export function ClashChat({ currentUser, onClose, hasGroups, messages, isLoading, onMessageSent, groupId }: ClashChatProps) {
+function ClashChatInner({ currentUser, onClose, hasGroups, groupId, groupName, isGlobal, className }: ClashChatProps) {
+    // Early return with null for missing user - safe
     if (!currentUser) return null;
     const [input, setInput] = useState("");
+    const queryClient = useQueryClient(); // Add this line
     const scrollRef = useRef<HTMLDivElement>(null);
-    const queryClient = useQueryClient();
     const [notificationsEnabled, setNotificationsEnabled] = useState(currentUser?.clashChatNotifications ?? true);
     const [showProModal, setShowProModal] = useState(false);
-    const isPro = currentUser?.isPro;
 
-    // Scroll to bottom on new messages
-    useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    // INSTANT CACHE: Read from localStorage directly for zero-delay initial render
+    const getCachedMessages = (): ClashMessage[] => {
+        try {
+            const cacheKey = `chat-cache-${groupId}`;
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+                return JSON.parse(cached);
+            }
+        } catch (e) {
+            console.warn("Cache read failed", e);
         }
-    }, [messages, isLoading]);
-
-    // Format timestamp helper
-    const formatTimestamp = (timestamp: string) => {
-        if (!timestamp) return '...';
-        return new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        return [];
     };
 
-    // Send message mutation
+    // React Query with INSTANT localStorage data
+    const {
+        data: messages = getCachedMessages(),
+        isLoading,
+        error,
+        isFetching
+    } = useQuery({
+        queryKey: ['clash-messages', groupId],
+        queryFn: async () => {
+            const data = await getMessages(groupId || '');
+            // Save to localStorage for next instant load
+            try {
+                localStorage.setItem(`chat-cache-${groupId}`, JSON.stringify(data));
+            } catch (e) { /* ignore storage errors */ }
+            return data;
+        },
+        enabled: !!groupId,
+        refetchInterval: 2000,
+        staleTime: Infinity, // Never consider stale - we manage freshness ourselves
+        gcTime: 1000 * 60 * 60 * 24,
+        refetchOnMount: true,
+        placeholderData: getCachedMessages, // Show cached instantly while fetching
+    });
+
+    // Ensure we always have a safe array for rendering
+    const safeMessages = Array.isArray(messages) ? messages : [];
+
+    // Scroll to bottom when messages change (instant, no animation)
+    useEffect(() => {
+        if (scrollRef.current && safeMessages.length > 0) {
+            scrollRef.current.scrollIntoView({ behavior: "auto" });
+        }
+    }, [safeMessages.length]);
+
+    // Format timestamp helper - with try-catch to prevent crashes
+    const formatTimestamp = (timestamp: string | undefined | null): string => {
+        if (!timestamp) return '';
+        try {
+            const date = new Date(timestamp);
+            if (isNaN(date.getTime())) return '';
+            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        } catch {
+            return '';
+        }
+    };
+
+    // Send message mutation - FULLY SYNCHRONOUS optimistic update
     const sendMessageMutation = useMutation({
         mutationFn: async (content: string) => {
             if (!groupId) throw new Error("No group selected");
-            const res = await apiRequest("POST", "/api/clash/messages", { content, groupId });
-            if (!res.ok) {
-                const error = await res.json();
-                throw new Error(error.message || "Failed to send message");
+            await sendChatMessage(groupId, content);
+        },
+        onMutate: (newContent) => {
+            if (!groupId) return;
+            // SYNCHRONOUS: Don't await cancelQueries - just update immediately
+            queryClient.cancelQueries({ queryKey: ['clash-messages', groupId] });
+            const previousMessages = queryClient.getQueryData<ClashMessage[]>(['clash-messages', groupId]) || [];
+
+            const optimisticMessage: ClashMessage = {
+                id: `temp-${Date.now()}`,
+                content: newContent,
+                userId: currentUser.id,
+                groupId: groupId,
+                timestamp: new Date().toISOString(),
+                user: {
+                    id: currentUser.id,
+                    username: currentUser.username,
+                    displayName: currentUser.displayName
+                }
+            };
+
+            const newMessages = [...previousMessages, optimisticMessage];
+            queryClient.setQueryData<ClashMessage[]>(['clash-messages', groupId], newMessages);
+
+            // Also update localStorage for persistence
+            try {
+                localStorage.setItem(`chat-cache-${groupId}`, JSON.stringify(newMessages));
+            } catch (e) { /* ignore */ }
+
+            setInput(""); // Clear input immediately
+            return { previousMessages };
+        },
+        onError: (err, _, context) => {
+            if (context?.previousMessages) {
+                queryClient.setQueryData(['clash-messages', groupId], context.previousMessages);
             }
-            return res.json();
+            console.error("Send failed:", err);
         },
-        onSuccess: () => {
-            setInput(""); // Clear input on success
-            onMessageSent(); // Trigger refetch in parent
-        },
-        onError: (error: Error) => {
-            // Show error message to user
-            alert(error.message);
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['clash-messages', groupId] });
         },
     });
 
@@ -90,15 +160,14 @@ export function ClashChat({ currentUser, onClose, hasGroups, messages, isLoading
     };
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="flex flex-col h-[60vh] md:h-[500px] w-full bg-background/95 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden ring-1 ring-white/5 relative"
+        <div
+            className={cn(
+                "flex flex-col h-[60vh] md:h-[500px] w-full bg-background border border-border rounded-3xl shadow-2xl overflow-hidden relative",
+                className
+            )}
         >
-            {/* Access Control Overlay */}
             {!hasGroups && (
-                <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+                <div className="absolute inset-0 z-50 bg-background/80 flex flex-col items-center justify-center p-6 text-center">
                     <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
                         <span className="text-3xl">🔒</span>
                     </div>
@@ -106,129 +175,144 @@ export function ClashChat({ currentUser, onClose, hasGroups, messages, isLoading
                     <p className="text-muted-foreground mb-6 max-w-xs">
                         You need to be a member of a group to participate in the Clash Chat.
                     </p>
-                    <button onClick={onClose} className="px-6 py-2 bg-primary text-primary-foreground rounded-full font-medium hover:bg-primary/90 transition-colors">
+                    <button onClick={onClose} className="px-6 py-2 bg-primary text-primary-foreground rounded-full font-medium transition-colors">
                         Close Chat
                     </button>
                 </div>
             )}
 
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-gradient-to-r from-purple-500/10 via-background to-pink-500/10">
+            <div className="flex items-center justify-between p-4 border-b border-border bg-gradient-to-r from-purple-500/10 via-background to-pink-500/10 shrink-0">
                 <div className="flex items-center gap-3">
                     <div>
-                        <h3 className="font-bold text-lg leading-tight bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-400">Clash Chat</h3>
+                        <h3 className="font-bold text-lg leading-tight bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-amber-200">
+                            {groupId && groupId !== 'global' ? (groupName || 'Squad Chat') : 'Clash Chat'}
+                        </h3>
                         <p className="text-xs text-muted-foreground font-medium">
                             Logged in as: <span className="text-foreground">{currentUser?.displayName || currentUser?.username || 'Guest'}</span>
                         </p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button
-                        onClick={handleToggleNotifications}
-                        className={`p-2.5 rounded-full transition-all duration-300 ${notificationsEnabled
-                            ? 'bg-primary/20 text-primary hover:bg-primary/30 ring-1 ring-primary/20'
-                            : 'bg-secondary/50 text-muted-foreground hover:bg-secondary ring-1 ring-white/5'
-                            }`}
-                        title={notificationsEnabled ? "Mute Notifications" : "Enable Notifications"}
-                    >
-                        {notificationsEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
-                    </button>
-                    <button
-                        onClick={onClose}
-                        className="p-2.5 hover:bg-destructive/10 hover:text-destructive rounded-full transition-colors ring-1 ring-transparent hover:ring-destructive/20"
-                    >
-                        <X className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={handleToggleNotifications}
+                            className={cn("p-2.5 rounded-full transition-colors", notificationsEnabled ? 'bg-primary/20 text-primary' : 'bg-secondary text-muted-foreground')}
+                            title={notificationsEnabled ? "Mute Notifications" : "Enable Notifications"}
+                        >
+                            {notificationsEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                        </button>
+                        <button
+                            onClick={onClose}
+                            className="p-2.5 hover:bg-destructive/10 hover:text-destructive rounded-full transition-colors"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            {/* Messages Area */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-transparent to-background/50 scroll-smooth">
-                {isLoading && messages.length === 0 ? (
-                    <div className="flex justify-center items-center h-full">
-                        <div className="text-sm font-medium text-muted-foreground animate-pulse">Loading Chat...</div>
+            {/* Messages Area - STABLE & FAST (No Virtualization, No Animation) */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50 dark:bg-black/20 no-scrollbar hardware-accelerated">
+                {isLoading && safeMessages.length === 0 ? (
+                    <div className="flex flex-col gap-4 mt-auto">
+                        <div className="w-2/3 h-12 bg-muted rounded-2xl rounded-tl-none" />
+                        <div className="w-1/2 h-12 bg-muted rounded-2xl rounded-tr-none ml-auto" />
+                        <div className="w-3/4 h-12 bg-muted rounded-2xl rounded-tl-none" />
                     </div>
-                ) : messages.length === 0 ? (
-                    <div className="flex justify-center items-center h-full">
-                        <p className="text-muted-foreground italic">Start the conversation!</p>
+                ) : safeMessages.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-60">
+                        <MessageSquare className="w-12 h-12 text-muted-foreground mb-4" />
+                        <p className="text-sm font-medium">No chatter yet.</p>
+                        <p className="text-xs text-muted-foreground">Be the first to break silence.</p>
                     </div>
                 ) : (
-                    <AnimatePresence initial={false}>
-                        {messages.map((msg: any) => {
-                            const isMe = msg.userId === currentUser.id;
-                            const username = msg.user?.username || "Unknown";
-                            const displayName = msg.user?.displayName || username;
-
-                            // Highlight mentions
-                            const renderContent = (content: string) => {
-                                const parts = content.split(/(@\w+)/g);
-                                return parts.map((part, i) => {
-                                    if (part.startsWith('@')) {
-                                        return <span key={i} className="text-primary font-bold bg-primary/10 px-1 rounded">{part}</span>;
-                                    }
-                                    return part;
-                                });
-                            };
+                    <div className="flex flex-col justify-end min-h-0">
+                        {safeMessages.map((msg, index) => {
+                            if (!msg) return null; // Safety Check
+                            const isMe = msg.userId === currentUser?.id;
+                            const isNextSameUser = index < safeMessages.length - 1 && safeMessages[index + 1]?.userId === msg.userId;
 
                             return (
-                                <motion.div
-                                    key={msg.id}
-                                    initial={{ opacity: 0, y: 10, scale: 0.9 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                                    className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                                <div
+                                    key={msg.id || index}
+                                    className={cn(
+                                        "flex flex-col gap-1 mb-2 select-text",
+                                        isMe ? "items-end" : "items-start",
+                                        !isNextSameUser ? "mb-4" : ""
+                                    )}
                                 >
-                                    <span
-                                        onClick={() => setInput(prev => `${prev}@${username} `)}
-                                        className={`text-[10px] mb-1 px-1 cursor-pointer hover:underline ${isMe ? 'text-white/50' : 'text-muted-foreground'}`}
-                                    >
-                                        {displayName}
-                                    </span>
-                                    <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-md backdrop-blur-sm ${isMe
-                                        ? 'bg-gradient-to-br from-purple-600 to-pink-600 text-white rounded-tr-none shadow-purple-500/20'
-                                        : 'bg-secondary/80 text-foreground border border-white/5 rounded-tl-none shadow-black/5'
-                                        }`}>
-                                        <p className="leading-relaxed whitespace-pre-wrap break-words">{renderContent(msg.content)}</p>
-                                        <span className={`text-[10px] block text-right mt-1.5 font-medium ${isMe ? 'text-white/70' : 'text-muted-foreground'}`}>
-                                            {formatTimestamp(msg.timestamp)}
-                                        </span>
+                                    <div className="flex items-end gap-2 max-w-[85%]">
+                                        {!isMe && (
+                                            <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 flex items-center justify-center text-[10px] font-bold text-white shrink-0 mb-1">
+                                                {msg.user?.username?.[0]?.toUpperCase() || "?"}
+                                            </div>
+                                        )}
+                                        <div
+                                            className={cn(
+                                                "p-3 rounded-2xl text-sm font-medium shadow-sm break-words",
+                                                isMe
+                                                    ? "bg-primary text-primary-foreground rounded-tr-sm"
+                                                    : "bg-white dark:bg-zinc-800 text-foreground border border-border rounded-tl-sm"
+                                            )}
+                                        >
+                                            {msg.content}
+                                        </div>
                                     </div>
-                                </motion.div>
+                                    {!isNextSameUser && (
+                                        <span className="text-[9px] text-muted-foreground font-medium px-1 opacity-70">
+                                            {msg.user?.displayName || msg.user?.username || "Unknown"} • {formatTimestamp(msg.timestamp)}
+                                        </span>
+                                    )}
+                                </div>
                             );
                         })}
-                    </AnimatePresence>
+                        <div ref={scrollRef} />
+                    </div>
                 )}
             </div>
 
-            {/* Input */}
-            <div className="p-4 border-t border-white/10 bg-background/80 backdrop-blur-md">
-                <div className="flex gap-2 items-center bg-secondary/50 rounded-full p-1.5 border border-white/10 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all shadow-inner">
+            {/* Input Area */}
+            <div className="p-3 bg-background border-t border-border mt-auto relative z-10 shrink-0">
+                <form
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSend();
+                    }}
+                    className="flex gap-2 items-center"
+                >
                     <input
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                        placeholder="Type a message..."
-                        className="flex-1 bg-transparent px-4 py-2 text-sm outline-none placeholder:text-muted-foreground/70"
-                        disabled={sendMessageMutation.isPending || !hasGroups}
+                        placeholder={!hasGroups ? "Join a group to chat..." : (isGlobal ? "Broadcast to everyone..." : "Message squad...")}
+                        disabled={!hasGroups || sendMessageMutation.isPending}
+                        className="flex-1 bg-secondary/50 border-0 focus:ring-1 focus:ring-primary h-11 rounded-xl px-4 text-sm transition-all"
                     />
                     <button
-                        onClick={handleSend}
-                        disabled={!input.trim() || sendMessageMutation.isPending || !hasGroups}
-                        className={`w-9 h-9 flex items-center justify-center rounded-full transition-all duration-300 ${!input.trim() || sendMessageMutation.isPending || !hasGroups
-                            ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                            : 'bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg hover:shadow-purple-500/25 hover:scale-105 active:scale-95'
-                            }`}
-                    >
-                        {sendMessageMutation.isPending ? (
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ) : (
-                            <Send className="w-4 h-4 ml-0.5" />
+                        type="submit"
+                        disabled={!input.trim() || !hasGroups || sendMessageMutation.isPending}
+                        className={cn(
+                            "h-11 w-11 flex items-center justify-center rounded-xl transition-all shadow-sm active:scale-95",
+                            !input.trim() || !hasGroups
+                                ? "bg-muted text-muted-foreground cursor-not-allowed"
+                                : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/25"
                         )}
+                    >
+                        <Send className="w-5 h-5 ml-0.5" />
                     </button>
-                </div>
+                </form>
             </div>
             <ProUpgradeModal open={showProModal} onOpenChange={setShowProModal} />
-        </motion.div>
+        </div>
+    );
+}
+
+// Export wrapped in ErrorBoundary for crash protection
+export function ClashChat(props: ClashChatProps) {
+    return (
+        <ChatErrorBoundary>
+            <ClashChatInner {...props} />
+        </ChatErrorBoundary>
     );
 }

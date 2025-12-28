@@ -1,8 +1,33 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, FileText, Image as ImageIcon, Youtube, BookOpen, Clock, Check, Loader2, ArrowRight, Plus, BrainCircuit, MessageSquare, ChevronLeft, Mic, Send, Download, Sparkles, Calendar, X } from "lucide-react";
+
+function MeshBackground() {
+    return (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
+            <motion.div
+                animate={{
+                    scale: [1, 1.2, 1],
+                    x: [0, 50, 0],
+                    y: [0, -30, 0],
+                }}
+                transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                className="absolute top-[-20%] left-[-10%] w-[120%] h-[120%] bg-[radial-gradient(circle_at_50%_50%,rgba(99,102,241,0.15),transparent_50%)]"
+            />
+            <motion.div
+                animate={{
+                    scale: [1.2, 1, 1.2],
+                    x: [0, -50, 0],
+                    y: [0, 30, 0],
+                }}
+                transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+                className="absolute top-[-20%] right-[-10%] w-[120%] h-[120%] bg-[radial-gradient(circle_at_50%_50%,rgba(168,85,247,0.15),transparent_50%)]"
+            />
+        </div>
+    );
+}
+import { Upload, FileText, Image as ImageIcon, Youtube, BookOpen, Clock, Check, Loader2, ArrowRight, Plus, BrainCircuit, MessageSquare, ChevronLeft, Mic, Send, Download, Sparkles, Calendar, X, MoreHorizontal, Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -154,10 +179,10 @@ function FeatureChat({ featureId, context }: { featureId: string; context?: stri
                                 ))
                             )}
                             {isLoading && (
-                                <div className="flex justify-start">
-                                    <div className="bg-secondary rounded-lg sm:rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 flex items-center gap-2">
-                                        <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
-                                        <span className="text-xs sm:text-sm text-muted-foreground">Thinking...</span>
+                                <div className="flex justify-start w-full">
+                                    <div className="bg-secondary/50 rounded-lg sm:rounded-xl px-3 py-3 space-y-2 min-w-[120px] max-w-[85%]">
+                                        <div className="h-2.5 bg-foreground/10 rounded-full w-3/4" />
+                                        <div className="h-2.5 bg-foreground/10 rounded-full w-1/2" />
                                     </div>
                                 </div>
                             )}
@@ -200,17 +225,11 @@ export function StudyAssistant() {
     const { user } = useUser();
     const [showProModal, setShowProModal] = useState(false);
 
-    // Lock all features except Timetable (example) or lock all
+    // Lock logic
     const isFeatureLocked = (id: string) => {
-        // Free users can only use 'timetable' and 'courses'
-        // Pro users can use everything (solver, quiz, attendance)
-        // Modify this logic as per requirements.
-        if (!user?.isPro && (id === 'solver' || id === 'quiz' || id === 'attendance')) {
-            return true;
-        }
+        if (!user?.isPro && (id === 'solver' || id === 'quiz' || id === 'attendance')) return true;
         return false;
     };
-
 
     const features = [
         { id: "solver", label: "Solve Problem", icon: ImageIcon, color: "text-purple-500", bg: "bg-purple-500/10" },
@@ -220,27 +239,14 @@ export function StudyAssistant() {
         { id: "courses", label: "Find Courses", icon: Youtube, color: "text-red-500", bg: "bg-red-500/10" },
     ];
 
+    // Auto-scroll
     useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }, [messages]);
-
-    const handleBack = () => {
-        setActiveFeature(null);
-        setMessages([]);
-    };
 
     const handleSendMessage = async () => {
         if (!inputValue.trim()) return;
-
-        const userMsg: Message = {
-            id: Date.now().toString(),
-            role: "user",
-            content: inputValue,
-            timestamp: Date.now()
-        };
-
+        const userMsg: Message = { id: Date.now().toString(), role: "user", content: inputValue, timestamp: Date.now() };
         setMessages(prev => [...prev, userMsg]);
         setInputValue("");
         setIsLoading(true);
@@ -248,30 +254,13 @@ export function StudyAssistant() {
         try {
             const res = await apiRequest("POST", "/api/ai/generate", { prompt: userMsg.content });
             const data = await safeParseJson(res);
-
-            const aiMsg: Message = {
-                id: (Date.now() + 1).toString(),
-                role: "ai",
-                content: data.text,
-                timestamp: Date.now()
-            };
+            const aiMsg: Message = { id: (Date.now() + 1).toString(), role: "ai", content: data.text, timestamp: Date.now() };
             setMessages(prev => [...prev, aiMsg]);
         } catch (error) {
             console.error("Chat error:", error);
-            toast({
-                title: "Error",
-                description: "Failed to get response. Check your internet or API Key.",
-                variant: "destructive"
-            });
+            toast({ title: "Error", description: "Failed to get response.", variant: "destructive" });
         } finally {
             setIsLoading(false);
-        }
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            handleSendMessage();
         }
     };
 
@@ -279,229 +268,266 @@ export function StudyAssistant() {
         const doc = new jsPDF();
         const splitText = doc.splitTextToSize(content, 180);
         doc.text(splitText, 10, 10);
-
-        // Check if running on mobile (Capacitor)
         const isMobile = window.Capacitor?.isNativePlatform();
 
         if (isMobile) {
             try {
                 const { Filesystem, Directory } = await import("@capacitor/filesystem");
                 const { Share } = await import("@capacitor/share");
-
                 const base64Data = doc.output('datauristring').split(',')[1];
-
-                const savedFile = await Filesystem.writeFile({
-                    path: filename,
-                    data: base64Data,
-                    directory: Directory.Documents,
-                    recursive: true
-                });
-
-                await Share.share({
-                    title: 'Study Assistant PDF',
-                    text: 'Here is your PDF from Study Assistant',
-                    url: savedFile.uri,
-                    dialogTitle: 'Share PDF',
-                });
-
-                toast({
-                    title: "Ready to Share",
-                    description: "PDF created. Choose an app to save or view it.",
-                });
-            } catch (e) {
-                console.error("Mobile PDF Error:", e);
-                // Fallback or error toast
-                toast({
-                    title: "Error",
-                    description: "Failed to save PDF on device.",
-                    variant: "destructive"
-                });
-            }
+                const savedFile = await Filesystem.writeFile({ path: filename, data: base64Data, directory: Directory.Documents, recursive: true });
+                await Share.share({ title: 'PDF', url: savedFile.uri });
+            } catch (e) { toast({ title: "Error", description: "Failed to save PDF", variant: "destructive" }); }
         } else {
-            // Web fallback
             doc.save(filename);
-            toast({
-                title: "Downloaded",
-                description: "Response saved as PDF.",
-            });
+            toast({ title: "Downloaded", description: "Response saved as PDF." });
         }
     };
 
     const onFeatureClick = (id: string) => {
-        if (isFeatureLocked(id)) {
-            setShowProModal(true);
-            return;
-        }
+        if (isFeatureLocked(id)) { setShowProModal(true); return; }
         setActiveFeature(id);
     };
+
+    // --- Persistence Logic ---
+    useEffect(() => {
+        // Load messages if saved < 5 mins ago
+        const saved = localStorage.getItem("ai_chat_main");
+        const timestamp = localStorage.getItem("ai_chat_main_ts");
+        if (saved && timestamp) {
+            const age = Date.now() - parseInt(timestamp, 10);
+            if (age < 5 * 60 * 1000) { // 5 minutes
+                try {
+                    setMessages(JSON.parse(saved));
+                } catch (e) { console.error(e); }
+            } else {
+                // Expired
+                localStorage.removeItem("ai_chat_main");
+                localStorage.removeItem("ai_chat_main_ts");
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        if (messages.length > 0) {
+            localStorage.setItem("ai_chat_main", JSON.stringify(messages));
+            localStorage.setItem("ai_chat_main_ts", Date.now().toString());
+        }
+    }, [messages]);
 
     return (
         <div className="h-dvh flex flex-col bg-background text-foreground relative md:max-w-4xl md:mx-auto md:border-x md:border-border shadow-sm overflow-hidden">
             <ProUpgradeModal open={showProModal} onOpenChange={setShowProModal} />
-            {/* Header - Responsive */}
-            <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-border bg-background/95 backdrop-blur z-10 pt-safe shrink-0">
-                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                    {activeFeature || messages.length > 0 ? (
-                        <Button variant="ghost" size="icon" onClick={() => { setActiveFeature(null); setMessages([]); }} className="-ml-1 shrink-0">
-                            <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+
+            {/* Header */}
+            <div className={`flex items-center justify-between px-4 py-2 bg-background z-10 shrink-0 border-b border-border`}>
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                    {activeFeature && (
+                        <Button variant="ghost" size="icon" onClick={() => setActiveFeature(null)} className="-ml-2 shrink-0 rounded-full">
+                            <ChevronLeft className="w-6 h-6" />
                         </Button>
-                    ) : (
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                            <BrainCircuit className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-                        </div>
                     )}
-                    <span className="font-semibold text-base sm:text-lg truncate">
-                        {activeFeature ? features.find(f => f.id === activeFeature)?.label : (messages.length > 0 ? "Chat" : "AI Assistant")}
-                    </span>
+
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                            <BrainCircuit className="w-4 h-4 text-white" />
+                        </div>
+                        <span className="font-semibold text-lg tracking-tight">Flow AI</span>
+                    </div>
+
+                    {activeFeature && (
+                        <span className="font-semibold text-lg truncate animate-in fade-in slide-in-from-left-2 ml-2">
+                            / {features.find(f => f.id === activeFeature)?.label}
+                        </span>
+                    )}
                 </div>
+
                 <div className="flex gap-1 shrink-0">
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="rounded-full text-muted-foreground hover:text-destructive h-8 w-8 sm:h-9 sm:w-9"
-                        onClick={() => setMessages([])}
-                        title="Reset Chat"
+                        className="rounded-full text-muted-foreground hover:bg-secondary"
+                        onClick={() => { setMessages([]); localStorage.removeItem("ai_chat_main"); }}
                     >
-                        <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
+                        <MoreHorizontal className="w-5 h-5" />
                     </Button>
                 </div>
             </div>
 
-            {/* Main Content - Scrollable */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4">
-                <AnimatePresence mode="wait">
-                    {activeFeature ? (
-                        <motion.div
-                            key="feature"
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            className="min-h-full pb-20"
-                        >
-                            {activeFeature === "solver" && <SolverTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
-
-                            {activeFeature === "quiz" && <QuizInterface />}
-                            {activeFeature === "timetable" && <TimetableTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
-                            {activeFeature === "courses" && <CoursesTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
-                            {activeFeature === "attendance" && <AttendanceTab />}
-                        </motion.div>
-                    ) : messages.length > 0 ? (
-                        <div className="flex flex-col pb-20" ref={scrollRef}>
-                            <div className="space-y-4">
+            {/* Main Content Area - ZERO SCROLL (Empty state until chat) */}
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 scroll-smooth pb-[180px]" ref={scrollRef}>
+                {activeFeature ? (
+                    <div className="h-full">
+                        {/* Inject Tabs here */}
+                        {activeFeature === "solver" && <SolverTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
+                        {activeFeature === "quiz" && <QuizInterface />}
+                        {activeFeature === "timetable" && <TimetableTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
+                        {activeFeature === "courses" && <CoursesTab isLoading={isLoading} setIsLoading={setIsLoading} toast={toast} />}
+                        {activeFeature === "attendance" && <AttendanceTab />}
+                        {activeFeature === "chat" && (
+                            <div className="space-y-6">
+                                {messages.length === 0 && (
+                                    <div className="flex flex-col items-center justify-center pt-20 text-center space-y-4">
+                                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center backdrop-blur-3xl shadow-[0_0_50px_rgba(99,102,241,0.2)]">
+                                            <Sparkles className="w-10 h-10 text-indigo-400" />
+                                        </div>
+                                        <h3 className="text-xl font-medium text-white/90">How can I help you learn?</h3>
+                                    </div>
+                                )}
                                 {messages.map((msg) => (
                                     <div
                                         key={msg.id}
-                                        className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                                        className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                                     >
-                                        <div
-                                            className={`max-w-[90%] sm:max-w-[85%] rounded-2xl p-3 sm:p-4 ${msg.role === "user"
-                                                ? "bg-primary text-primary-foreground rounded-br-none"
-                                                : "bg-secondary text-secondary-foreground rounded-bl-none"
-                                                }`}
-                                        >
-                                            <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
-                                            {msg.role === "ai" && (
-                                                <div className="mt-2 pt-2 border-t border-black/10 flex justify-end">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-6 px-2 text-xs"
-                                                        onClick={() => downloadPDF(msg.content)}
-                                                    >
-                                                        <Download className="w-3 h-3 mr-1" />
-                                                        PDF
-                                                    </Button>
-                                                </div>
+                                        <div className={`max-w-[85%] p-4 rounded-2xl ${msg.role === 'user'
+                                            ? 'bg-primary text-primary-foreground rounded-tr-sm'
+                                            : 'bg-secondary border border-border text-secondary-foreground rounded-tl-sm'
+                                            }`}>
+                                            <div className="prose prose-invert text-sm leading-normal">
+                                                {msg.content}
+                                            </div>
+                                            {/* Parsing PDF download link for AI responses */}
+                                            {msg.role === 'ai' && msg.content.includes("Download PDF") && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => downloadPDF(msg.content)}
+                                                    className="mt-3 gap-2 border-primary/20 hover:bg-primary/10"
+                                                >
+                                                    <Download className="w-4 h-4" /> Save as PDF
+                                                </Button>
                                             )}
                                         </div>
                                     </div>
                                 ))}
                                 {isLoading && (
                                     <div className="flex justify-start">
-                                        <div className="bg-secondary rounded-2xl rounded-bl-none p-3 sm:p-4 flex items-center gap-2">
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                            <span className="text-sm text-muted-foreground">Thinking...</span>
+                                        <div className="bg-secondary/50 backdrop-blur-md border border-white/5 p-4 rounded-2xl rounded-tl-sm flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-primary/50 animate-bounce" />
+                                            <div className="w-2 h-2 rounded-full bg-primary/50 animate-bounce delay-75" />
+                                            <div className="w-2 h-2 rounded-full bg-primary/50 animate-bounce delay-150" />
                                         </div>
                                     </div>
                                 )}
                             </div>
+                        )}
+                    </div>
+                ) : (
+                    // MESH GRADIENT & ZERO SCROLL INITIAL STATE
+                    <div className="h-full flex flex-col justify-end pb-32 relative overflow-hidden">
+                        <MeshBackground />
+
+                        <div className="px-6 space-y-6 relative z-10">
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="space-y-2"
+                            >
+                                <h2 className="text-4xl font-black tracking-tighter text-white">
+                                    Ready to <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">Flow?</span>
+                                </h2>
+                                <p className="text-zinc-400 text-sm font-medium">I can help you solve problems, plan schedules, or explain complex concepts.</p>
+                            </motion.div>
+
+                            {/* Staggered Suggestion Chips */}
+                            {!inputValue && (
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="space-y-4"
+                                >
+                                    <h3 className="text-zinc-500 font-bold text-[10px] uppercase tracking-[0.2em] ml-1">Quick Actions</h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {[
+                                            { id: "solver", label: "Solve Problem", icon: ImageIcon, color: "text-purple-400", bg: "bg-purple-500/10" },
+                                            { id: "quiz", label: "Take Quiz", icon: BrainCircuit, color: "text-green-400", bg: "bg-green-500/10" },
+                                            { id: "attendance", label: "Attendance", icon: Calculator, color: "text-teal-400", bg: "bg-teal-500/10" },
+                                            { id: "timetable", label: "Study Plan", icon: Clock, color: "text-orange-400", bg: "bg-orange-500/10" },
+                                            { id: "explain", label: "Explain Concept", icon: Sparkles, color: "text-blue-400", bg: "bg-blue-500/10" },
+                                        ].map((chip, i) => (
+                                            <motion.button
+                                                key={chip.id}
+                                                initial={{ opacity: 0, scale: 0.9, x: -10 }}
+                                                animate={{ opacity: 1, scale: 1, x: 0 }}
+                                                transition={{ delay: i * 0.1 }}
+                                                onClick={() => onFeatureClick(chip.id)}
+                                                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 backdrop-blur-xl transition-all active:scale-95`}
+                                            >
+                                                <chip.icon className={`w-4 h-4 ${chip.color}`} />
+                                                <span className="text-sm font-bold text-zinc-200">{chip.label}</span>
+                                            </motion.button>
+                                        ))}
+                                    </div>
+                                </motion.div>
+                            )}
                         </div>
-                    ) : (
+                    </div>
+                )}
+            </div>
+
+            {/* Pinned Bottom Input Area */}
+            <div className="px-4 pb-[calc(1rem+env(safe-area-inset-bottom)+70px)] pt-2 bg-gradient-to-t from-background via-background/95 to-transparent relative z-30">
+                <AnimatePresence>
+                    {inputValue && (
                         <motion.div
-                            key="home"
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="h-full flex flex-col items-center justify-center p-2 sm:p-6 text-center pb-20"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 10 }}
+                            className="flex gap-2 mb-3 overflow-x-auto no-scrollbar"
                         >
-                            <div className="mb-4 sm:mb-5">
-                                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                                    <BrainCircuit className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
-                                </div>
-                                <h2 className="text-2xl sm:text-3xl font-bold mb-2">What can I help with?</h2>
-                                <p className="text-sm sm:text-base text-muted-foreground">AI ask anything</p>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full max-w-md">
-                                {features.map((feature) => (
-                                    <button
-                                        key={feature.id}
-                                        onClick={() => onFeatureClick(feature.id)}
-                                        className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-border hover:bg-secondary/50 transition-all ${feature.id === 'quiz' ? 'col-span-2' : ''} relative overflow-hidden`}
-                                    >
-                                        <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full ${feature.bg} flex items-center justify-center mb-1.5 sm:mb-2`}>
-                                            <feature.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${feature.color}`} />
-                                        </div>
-                                        <span className="font-medium text-xs sm:text-sm">{feature.label}</span>
-
-                                        {isFeatureLocked(feature.id) && (
-                                            <div className="absolute top-2 right-2">
-                                                <div className="bg-primary/10 p-0.5 rounded-full">
-                                                    <Sparkles className="w-3 h-3 text-primary" />
-                                                </div>
-                                            </div>
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
+                            {["Summarize this", "Explain like I'm 5", "Create examples"].map((action) => (
+                                <button
+                                    key={action}
+                                    onClick={() => setInputValue(action)}
+                                    className="whitespace-nowrap px-3 py-1.5 rounded-full bg-secondary/50 border border-border text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:bg-secondary transition-colors"
+                                >
+                                    {action}
+                                </button>
+                            ))}
                         </motion.div>
                     )}
                 </AnimatePresence>
-            </div>
 
-            {/* Chat Input */}
-            {!activeFeature && (
-                <div className="p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] border-t border-border bg-background">
-                    <div className="relative max-w-md mx-auto">
-                        <Input
-                            placeholder="Ask anything (e.g., 'What is AI?')..."
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            className="pr-24 h-12 rounded-full bg-secondary border-transparent focus:border-primary/50"
-                        />
-                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                            <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full text-muted-foreground">
-                                <Mic className="w-4 h-4" />
-                            </Button>
-                            <Button
-                                size="icon"
-                                onClick={() => {
-                                    if (!user?.isPro) {
-                                        setShowProModal(true);
-                                        return;
+                <div className="relative group">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-[2rem] blur-xl opacity-0 group-focus-within:opacity-20 transition-opacity duration-500" />
+                    <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[1.8rem] p-1.5 shadow-xl dark:shadow-2xl flex items-center ring-1 ring-black/5 dark:ring-white/5 overflow-hidden">
+                        {!activeFeature && (
+                            <div className="pl-2 pr-1">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="w-10 h-10 rounded-full hover:bg-zinc-100 dark:hover:bg-white/5 text-zinc-500 dark:text-zinc-400"
+                                >
+                                    <Plus className="w-5 h-5" />
+                                </Button>
+                            </div>
+                        )}
+                        <div className="flex-1 px-2 py-2">
+                            <textarea
+                                value={inputValue}
+                                onChange={(e) => setInputValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleSendMessage();
                                     }
-                                    handleSendMessage();
                                 }}
-                                disabled={!inputValue.trim() || isLoading}
-                                className="h-8 w-8 rounded-full bg-primary text-primary-foreground"
-                            >
-                                <ArrowRight className="w-4 h-4" />
-                            </Button>
+                                placeholder={activeFeature ? "Ask follow up..." : "Ask Flow AI anything..."}
+                                className="w-full bg-transparent border-0 focus:ring-0 p-0 text-[15px] font-medium placeholder:text-zinc-500 text-zinc-900 dark:text-zinc-100 resize-none h-6 flex items-center"
+                                style={{ minHeight: '24px' }}
+                            />
                         </div>
+                        <Button
+                            size="icon"
+                            onClick={handleSendMessage}
+                            disabled={!inputValue.trim() || isLoading}
+                            className={`h-10 w-10 shrink-0 rounded-full transition-all duration-300 ${inputValue.trim() ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/40 rotate-0' : 'bg-transparent text-zinc-500 -rotate-90'}`}
+                        >
+                            {inputValue.trim() ? <ArrowRight className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                        </Button>
                     </div>
                 </div>
-            )}
+            </div>
         </div>
     );
 }
@@ -1128,14 +1154,8 @@ function AttendanceTab() {
 
         setLoading(true);
         try {
-            const res = await fetch(`${getApiBaseUrl()}/api/ai/attendance`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ present, totalConducted, upcoming, required }),
-            });
-
+            const res = await apiRequest("POST", "/api/ai/attendance", { present, totalConducted, upcoming, required });
             const data = await safeParseJson(res);
-            if (!res.ok) throw new Error(data.message || "Failed to analyze");
             setResult(data.analysis);
         } catch (error) {
             // Fallback logic if AI fails

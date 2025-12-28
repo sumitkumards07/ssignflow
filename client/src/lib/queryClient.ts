@@ -34,9 +34,9 @@ export async function safeParseJson(res: Response): Promise<any> {
 
 // Get API base URL - use this for direct fetch calls (not using apiRequest)
 export function getApiBaseUrl(): string {
-  // Use environment variable for API base URL
-  // For Capacitor (mobile) apps, VITE_API_BASE_URL should be set to the server IP
-  return import.meta.env.VITE_API_BASE_URL || "";
+  // Use environment variable for API base URL, or fallback to the hardcoded AWS URL
+  // For Capacitor (mobile) apps, this is critical.
+  return import.meta.env.VITE_API_BASE_URL || "https://ywal432feojibun3d7jziamzbq0zwiew.lambda-url.us-east-1.on.aws";
 }
 
 export async function apiRequest(
@@ -55,48 +55,69 @@ export async function apiRequest(
     }
   }
 
-  try {
-    const baseUrl = getApiBaseUrl();
-    const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
+  const baseUrl = getApiBaseUrl();
+  const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
 
-    // Get token from localStorage
-    const userStr = localStorage.getItem("user");
-    let token = "";
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        token = user.apiToken || "";
-      } catch (e) {
-        console.error("Error parsing user from localStorage", e);
-      }
+  // Get token from localStorage
+  const userStr = localStorage.getItem("user");
+  let token = "";
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr);
+      token = user.apiToken || "";
+    } catch (e) {
+      console.error("Error parsing user from localStorage", e);
     }
-
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-
-    const res = await fetch(fullUrl, {
-      method,
-      headers,
-      body,
-    });
-
-    await throwIfResNotOk(res);
-    return res;
-  } catch (error) {
-    if (error instanceof TypeError && error.message.includes("fetch")) {
-      console.error("Network error:", error);
-      throw new Error("Unable to connect to server. Please check your internet connection.");
-    }
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error("Unknown error occurred while making request");
   }
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  // Exponential backoff retry logic for transient network errors (DNS, etc.)
+  const MAX_RETRIES = 3;
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(fullUrl, {
+        method,
+        headers,
+        body,
+      });
+
+      await throwIfResNotOk(res);
+      return res;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      // Only retry on network-level errors (DNS, connection refused, etc.)
+      const isNetworkError = error instanceof TypeError &&
+        (error.message.includes("fetch") ||
+          error.message.includes("network") ||
+          error.message.includes("Failed to fetch"));
+
+      if (!isNetworkError || attempt === MAX_RETRIES - 1) {
+        // Don't retry for non-network errors or final attempt
+        break;
+      }
+
+      // Exponential backoff: 1s, 2s, 4s
+      const delay = Math.pow(2, attempt) * 1000;
+      console.log(`[Retry] Network error, retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  // All retries exhausted
+  if (lastError instanceof TypeError && lastError.message.includes("fetch")) {
+    throw new Error("Unable to connect to server. Please check your internet connection and try again.");
+  }
+  throw lastError || new Error("Unknown error occurred while making request");
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -193,7 +214,8 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      staleTime: 1000 * 60 * 5, // 5 minutes stale time
+      gcTime: 1000 * 60 * 60 * 24, // 24 hours cache time
       retry: false,
     },
     mutations: {

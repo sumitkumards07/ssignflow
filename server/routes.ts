@@ -2,11 +2,12 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import passport from "./auth";
 import { storage } from "./storage";
-import { insertTaskSchema } from "@shared/schema";
+import { insertTaskSchema, insertPomodoroSessionSchema } from "@shared/schema";
 import { randomUUID } from "crypto";
 import multer from "multer";
 import { callAI } from "./utils";
 import { sendMulticastNotification } from "./firebase";
+import { sessionQueue } from "./queue";
 // pdf-parse is dynamically imported in the upload route to avoid loading it at server startup
 
 // Profanity filter utility
@@ -33,6 +34,11 @@ function containsProfanity(text: string): boolean {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+  });
+
   // Add CORS headers for mobile app
   app.use("/api", async (req, res, next) => {
     // Log API Key status once (or on every request for debugging)
@@ -60,7 +66,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     res.header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Content-Length, Accept-Ranges");
+    res.header("Access-Control-Expose-Headers", "Content-Length, Content-Type, ETag, Content-Disposition");
     res.header("Access-Control-Allow-Credentials", "true");
 
     // Token Authentication Middleware
@@ -102,45 +109,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/updates/check", async (req, res) => {
     try {
       const currentVersion = req.query.version as string;
+      const latestUpdate = await storage.getLatestAppVersion();
 
-      // Read package.json to get latest version
-      const fs = await import("fs");
-      const path = await import("path");
-      const packagePath = path.resolve(process.cwd(), "package.json");
-      const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf-8"));
-      const latestVersion = packageJson.version;
+      if (!latestUpdate) {
+        return res.json({ updateAvailable: false });
+      }
 
-      // Simple version comparison (assumes semver format)
-      // We need to ensure we don't 'upgrade' to an older version (downgrade)
-      // Basic string comparison works for simple versions (1.0.20 > 1.0.19)
-      // But for robustness, we should ideally use semver.
-      // For now, let's implement a simple splitter.
-
+      // Version Comparison (SemVer-ish)
       const parseVersion = (v: string) => v.split('.').map(Number);
       const [cMajor, cMinor, cPatch] = parseVersion(currentVersion || "0.0.0");
-      const [lMajor, lMinor, lPatch] = parseVersion(latestVersion || "0.0.0");
+      const [lMajor, lMinor, lPatch] = parseVersion(latestUpdate.versionName || "0.0.0");
 
       let isUpdateAvailable = false;
       if (lMajor > cMajor) isUpdateAvailable = true;
       else if (lMajor === cMajor && lMinor > cMinor) isUpdateAvailable = true;
       else if (lMajor === cMajor && lMinor === cMinor && lPatch > cPatch) isUpdateAvailable = true;
 
-      // Also ensure we treat inequality as no-update if strictly older
-
-      if (!isUpdateAvailable) {
-        return res.json({ updateAvailable: false, currentVersion: latestVersion });
+      // Also check versionCode if available (more reliable for Android)
+      if (latestUpdate.versionCode > 0 && req.query.versionCode) {
+        const currentCode = parseInt(req.query.versionCode as string);
+        if (latestUpdate.versionCode > currentCode) isUpdateAvailable = true;
       }
 
-      // Return update manifest
+      if (!isUpdateAvailable) {
+        return res.json({ updateAvailable: false, currentVersion: latestUpdate.versionName });
+      }
+
       res.json({
         updateAvailable: true,
-        latestVersion,
+        latestVersion: latestUpdate.versionName,
         currentVersion,
-        updateUrl: `${process.env.VITE_API_BASE_URL || ""}/api/updates/download/${latestVersion}`,
-        releaseNotes: "Bug fixes and improvements",
+        updateUrl: latestUpdate.apkUrl, // This can be a remote URL or our local download endpoint
+        releaseNotes: latestUpdate.releaseNotes,
         critical: false,
-        minRequiredVersion: "1.0.0",
-        size: 0 // Will be calculated dynamically
+        size: 0 // Optional
       });
     } catch (error: any) {
       console.error("Update check error:", error);
@@ -148,514 +150,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/updates/download/:version", async (req, res) => {
+  // Admin: Push New Update (supports File Upload or URL)
+  app.post("/api/admin/updates", upload.single("bundle"), async (req, res) => {
+    const user = req.user as any;
+    if (!req.isAuthenticated() || (user.role !== "admin" && user.username !== "sumitkumar")) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
     try {
-      const { version } = req.params;
+      const { versionCode, versionName, apkUrl, releaseNotes } = req.body;
       const fs = await import("fs");
       const path = await import("path");
 
-      // Path to update bundle (will be created by build script)
-      const bundlePath = path.resolve(process.cwd(), `updates/bundle-${version}.zip`);
+      let finalApkUrl = apkUrl;
 
-      if (!fs.existsSync(bundlePath)) {
-        return res.status(404).json({ message: "Update bundle not found" });
+      // Handle File Upload
+      if (req.file) {
+        // Ensure updates directory exists
+        const updatesDir = path.resolve(process.cwd(), "updates");
+        if (!fs.existsSync(updatesDir)) {
+          fs.mkdirSync(updatesDir, { recursive: true });
+        }
+
+        const fileName = `bundle-${versionName}.zip`;
+        const filePath = path.join(updatesDir, fileName);
+
+        fs.writeFileSync(filePath, req.file.buffer);
+        console.log(`[OTA] Saved update bundle to ${filePath}`);
+
+        // Set URL to our download endpoint
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+        const host = req.headers['x-forwarded-host'] || req.headers.host || req.get('host');
+        finalApkUrl = `${protocol}://${host}/api/updates/download/${versionName}`;
       }
 
-      // Stream the bundle file
-      res.setHeader("Content-Type", "application/zip");
-      res.setHeader("Content-Disposition", `attachment; filename=bundle-${version}.zip`);
-
-      const fileStream = fs.createReadStream(bundlePath);
-      fileStream.pipe(res);
-    } catch (error: any) {
-      console.error("Update download error:", error);
-      res.status(500).json({ message: "Failed to download update", error: error.message });
-    }
-  });
-
-  // Stripe Payment Routes
-  const { default: stripeRouter } = await import("./stripe");
-  app.use("/api/payments", stripeRouter);
-
-  // Google OAuth routes removed
-  // Local Auth Routes only
-
-  app.get("/api/auth/me", (req, res) => {
-    if (req.user) {
-      res.json(req.user);
-    } else {
-      res.status(401).json({ message: "Not authenticated" });
-    }
-  });
-
-  app.post("/api/auth/logout", (req, res) => {
-    req.logout((err) => {
-      if (err) {
-        return res.status(500).json({ message: "Logout failed" });
-      }
-      req.session.destroy((err) => {
-        if (err) console.error("Session destroy error:", err);
-        res.json({ message: "Logged out successfully" });
-      });
-    });
-  });
-
-  // Local Auth Routes
-  app.post("/api/register", async (req, res) => {
-    try {
-      const { username, password } = req.body;
-      if (!username || !password) {
-        return res.status(400).json({ message: "Username and password are required" });
+      if (!versionCode || !versionName || !finalApkUrl) {
+        return res.status(400).json({ message: "Missing required fields (versionCode, versionName, and either details or file)" });
       }
 
-      const existingUser = await storage.getUserByUsername(username);
-      if (existingUser) {
-        // Generate suggestions
-        const suggestions = [
-          `${username}${Math.floor(Math.random() * 1000)}`,
-          `${username}_${new Date().getFullYear()}`,
-          `${username}${Math.floor(Math.random() * 100)}`
-        ];
-        return res.status(400).json({
-          message: "Username already exists",
-          suggestions
-        });
-      }
-
-      const user = await storage.createUser({
-        username,
-        password,
-        role: "user",
-        displayName: username,
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
+      await storage.createAppVersion({
+        versionCode: parseInt(versionCode),
+        versionName,
+        apkUrl: finalApkUrl,
+        releaseNotes
       });
 
-      req.login(user, (err) => {
-        if (err) return res.status(500).json({ message: "Login failed after registration" });
+      // Send Push Notification
+      const users = await storage.getAllUsers();
+      const tokens = users.map(u => u.pushToken).filter(t => t) as string[];
 
-        // Explicitly save session before response
-        req.session.save(async (err) => {
-          if (err) {
-            console.error("Session save error:", err);
-            return res.status(500).json({ message: "Session save failed" });
-          }
-          return res.json(user);
-        });
-      });
+      if (tokens.length > 0) {
+        try {
+          await sendMulticastNotification(tokens, "Update Available", `Version ${versionName} is now available.`);
+        } catch (error) {
+          // ignore push errors
+        }
+      }
+
+      res.json({ success: true, url: finalApkUrl });
     } catch (error: any) {
+      console.error("Failed to push update:", error);
       res.status(500).json({ message: error.message });
     }
-  });
-
-  app.post("/api/login", passport.authenticate("local"), (req, res) => {
-    // Explicitly save session before response
-    req.session.save((err) => {
-      if (err) {
-        console.error("Session save error:", err);
-        return res.status(500).json({ message: "Session save failed" });
-      }
-      res.json(req.user);
-    });
-  });
-
-  // Admin routes
-  app.get("/api/admin/users", async (req, res) => {
-    const user = req.user as any;
-    console.log(`Admin check for user: ${user?.username}, role: ${user?.role}`);
-
-    if (!req.isAuthenticated() || (user.role !== "admin" && user.username !== "sumitkumar")) {
-      console.log("Admin access denied");
-      return res.status(403).json({ message: "Forbidden" });
-    }
-    const users = await storage.getAllUsers();
-    const tasks = await storage.getAllTasks();
-
-    const usersWithStats = users.map(user => {
-      const userTasks = tasks.filter(t => t.userId === user.id);
-      return {
-        ...user,
-        taskCount: userTasks.length,
-        completedTaskCount: userTasks.filter(t => t.completed).length
-      };
-    });
-
-    res.json(usersWithStats);
-  });
-
-  app.get("/api/tasks", async (req, res) => {
-    try {
-      const tasks = await storage.getTasks((req.user as any).id);
-      res.setHeader("Content-Type", "application/json");
-      res.status(200).json(tasks);
-    } catch (error: any) {
-      console.error("Error fetching tasks:", error);
-      res.setHeader("Content-Type", "application/json");
-      res.status(500).json({
-        message: error.message || "Failed to fetch tasks",
-        error: "SERVER_ERROR"
-      });
-    }
-  });
-
-  app.post("/api/tasks", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    try {
-      const result = insertTaskSchema.safeParse(req.body);
-      if (!result.success) {
-        res.status(400).json({
-          message: "Invalid request data",
-          errors: result.error.errors
-        });
-        return;
-      }
-
-      const task = await storage.createTask({
-        ...result.data,
-        userId: (req.user as any).id
-      } as any);
-      res.setHeader("Content-Type", "application/json");
-      res.status(201).json({
-        success: true,
-        ...task
-      });
-    } catch (error: any) {
-      console.error("Error creating task:", error);
-      res.setHeader("Content-Type", "application/json");
-      res.status(500).json({
-        message: error.message || "Failed to create task",
-        error: "SERVER_ERROR"
-      });
-    }
-  });
-
-  app.patch("/api/tasks/:id", async (req, res) => {
-    try {
-      const id = req.params.id;
-      if (!id) {
-        res.status(400).json({ message: "Task ID is required" });
-        return;
-      }
-
-      const updatedTask = await storage.updateTask(id, req.body);
-      if (!updatedTask) {
-        res.setHeader("Content-Type", "application/json");
-        res.status(404).json({
-          message: "Task not found",
-          error: "NOT_FOUND"
-        });
-        return;
-      }
-      res.setHeader("Content-Type", "application/json");
-      res.status(200).json({
-        success: true,
-        ...updatedTask
-      });
-    } catch (error: any) {
-      console.error("Error updating task:", error);
-      res.setHeader("Content-Type", "application/json");
-      res.status(500).json({
-        message: error.message || "Failed to update task",
-        error: "SERVER_ERROR"
-      });
-    }
-  });
-
-  app.delete("/api/tasks/:id", async (req, res) => {
-    try {
-      const id = req.params.id;
-      if (!id) {
-        res.status(400).json({ message: "Task ID is required" });
-        return;
-      }
-
-      await storage.deleteTask(id);
-      res.sendStatus(204);
-    } catch (error: any) {
-      console.error("Error deleting task:", error);
-      res.status(500).json({
-        message: error.message || "Failed to delete task",
-        error: "SERVER_ERROR"
-      });
-    }
-  });
-
-  // Feedback Routes
-  app.post("/api/feedback", async (req, res) => {
-    try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ message: "Not authenticated" });
-      }
-
-      const { content } = req.body;
-      if (!content) {
-        return res.status(400).json({ message: "Content is required" });
-      }
-
-      const feedback = await storage.createFeedback({
-        userId: (req.user as any).id,
-        content
-      });
-
-      res.status(201).json(feedback);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.get("/api/admin/feedback", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== "admin") {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-    const feedback = await storage.getAllFeedback();
-    res.json(feedback);
-  });
-
-  // Analytics Routes
-  app.post("/api/analytics/sync", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-
-    const { totalTime, todayTime, date } = req.body;
-
-    try {
-      await storage.updateUserStats(
-        (req.user as any).id,
-        totalTime,
-        todayTime,
-        date
-      );
-      res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.get("/api/analytics/leaderboard", async (req, res) => {
-    try {
-      const leaderboard = await storage.getLeaderboard();
-      // Filter sensitive data
-      const safeLeaderboard = leaderboard.map(u => ({
-        id: u.id,
-        username: u.username,
-        displayName: u.displayName,
-        totalFocusTime: u.totalFocusTime || 0,
-        todayFocusTime: u.todayFocusTime || 0,
-        lastFocusDate: u.lastFocusDate
-      }));
-      res.json(safeLeaderboard);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  // Group Routes
-  app.post("/api/groups", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    try {
-      const { name } = req.body;
-      if (!name) {
-        return res.status(400).json({ message: "Group name is required" });
-      }
-      const group = await storage.createGroup(name, (req.user as any).id);
-      res.status(201).json(group);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.post("/api/groups/join", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    try {
-      const { code } = req.body;
-      if (!code) {
-        return res.status(400).json({ message: "Group code is required" });
-      }
-      const group = await storage.getGroupByCode(code);
-      if (!group) {
-        return res.status(404).json({ message: "Group not found" });
-      }
-      await storage.joinGroup(group.id, (req.user as any).id);
-      res.json({ message: "Joined group successfully", group });
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.get("/api/groups", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    try {
-      const groups = await storage.getUserGroups((req.user as any).id);
-      res.json(groups);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.get("/api/groups/:id", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    try {
-      const group = await storage.getGroup(req.params.id);
-      if (!group) {
-        return res.status(404).json({ message: "Group not found" });
-      }
-      const members = await storage.getGroupMembers(req.params.id);
-
-      // Filter sensitive data
-      const safeMembers = members.map(u => ({
-        id: u.id,
-        username: u.username,
-        displayName: u.displayName,
-        totalFocusTime: u.totalFocusTime || 0,
-        todayFocusTime: u.todayFocusTime || 0,
-        lastFocusDate: u.lastFocusDate
-      }));
-
-      res.json({ group, members: safeMembers });
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.delete("/api/groups/:id", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    try {
-      const group = await storage.getGroup(req.params.id);
-      if (!group) {
-        return res.status(404).json({ message: "Group not found" });
-      }
-
-      // Only creator or admin can delete
-      if (group.createdBy !== (req.user as any).id && (req.user as any).role !== "admin") {
-        return res.status(403).json({ message: "Only the group creator can delete this group" });
-      }
-
-      await storage.deleteGroup(req.params.id);
-      res.json({ message: "Group deleted successfully" });
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.delete("/api/groups/:id/members/:userId", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    try {
-      const group = await storage.getGroup(req.params.id);
-      if (!group) {
-        return res.status(404).json({ message: "Group not found" });
-      }
-
-      // Only creator or admin can remove members
-      if (group.createdBy !== (req.user as any).id && (req.user as any).role !== "admin") {
-        return res.status(403).json({ message: "Only the group creator can remove members" });
-      }
-
-      // Cannot remove the creator
-      if (req.params.userId === group.createdBy) {
-        return res.status(400).json({ message: "Cannot remove the group creator" });
-      }
-
-      await storage.removeGroupMember(req.params.id, req.params.userId);
-      res.json({ message: "Member removed successfully" });
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  // Admin Routes
-  app.get("/api/admin/tasks", async (req, res) => {
-    const user = req.user as any;
-    if (!req.isAuthenticated() || (user.role !== "admin" && user.username !== "sumitkumar")) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-    const tasks = await storage.getAllTasks();
-    res.json(tasks);
-  });
-
-  app.post("/api/admin/notifications", async (req, res) => {
-    const user = req.user as any;
-    if (!req.isAuthenticated() || (user.role !== "admin" && user.username !== "sumitkumar")) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-    const { title, body } = req.body;
-
-    // Save to DB
-    await storage.createNotification(title, body);
-
-    // Send Push Notification (Broadcast)
-    const users = await storage.getAllUsers();
-    const tokens = users.map(u => u.pushToken).filter(t => t) as string[];
-
-    if (tokens.length > 0) {
-      try {
-        await sendMulticastNotification(tokens, title, body);
-      } catch (error) {
-        console.error("Firebase notification error:", error);
-        // Don't fail the request if push fails
-      }
-    }
-
-    res.json({ success: true, message: "Notification created and queued for sending" });
-  });
-
-  // Register Push Token Route
-  app.post("/api/notifications/register", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    const { token } = req.body;
-    if (!token) return res.status(400).json({ message: "Token required" });
-
-    // Update user with push token
-    // We need to add updatePushToken to storage interface
-    await storage.updatePushToken((req.user as any).id, token);
-    res.json({ success: true });
-  });
-
-  app.post("/api/admin/updates", async (req, res) => {
-    const user = req.user as any;
-    if (!req.isAuthenticated() || (user.role !== "admin" && user.username !== "sumitkumar")) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-    const { versionCode, versionName, apkUrl, releaseNotes } = req.body;
-
-    if (!versionCode || !versionName || !apkUrl) {
-      return res.status(400).json({ message: "Missing required fields" });
-    }
-
-    await storage.createAppVersion({
-      versionCode: parseInt(versionCode),
-      versionName,
-      apkUrl,
-      releaseNotes
-    });
-
-    // Send Push Notification about update
-    const users = await storage.getAllUsers();
-    const tokens = users.map(u => u.pushToken).filter(t => t) as string[];
-
-    if (tokens.length > 0) {
-      try {
-        await sendMulticastNotification(tokens, "Update Available", `Version ${versionName} is now available.`);
-      } catch (error) {
-        console.error("Firebase update notification error:", error);
-        // Don't fail the request if push fails
-      }
-    }
-
-    res.json({ success: true });
   });
 
   app.get("/api/updates", async (req, res) => {
@@ -663,21 +219,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (update) {
       res.json(update);
     } else {
-      res.json({
-        versionCode: 1,
-        versionName: "1.0.0",
-        apkUrl: "",
-        releaseNotes: "No updates available"
-      });
+      res.json(null); // Return null if no updates defined yet
     }
   });
 
   // Admin Seeding is now handled in storage.seed() called from index.ts
 
-  const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
-  });
+  // Admin Seeding is now handled in storage.seed() called from index.ts
 
   app.post("/api/quiz/generate", (req, res, next) => {
     upload.single("pdf")(req, res, (err) => {

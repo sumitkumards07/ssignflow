@@ -1,9 +1,18 @@
 import { Link, useLocation } from "wouter";
 import { ListTodo, Timer, BrainCircuit, Calendar, Settings, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Haptics, ImpactStyle } from "@capacitor/haptics";
 
 export function BottomNav() {
   const [location] = useLocation();
+
+  const handleNavClick = async () => {
+    try {
+      await Haptics.impact({ style: ImpactStyle.Light });
+    } catch (e) {
+      // Ignore haptics error on web
+    }
+  };
 
   const navItems = [
     { icon: ListTodo, label: "Todo", path: "/todo" },
@@ -14,8 +23,8 @@ export function BottomNav() {
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur-xl" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0.5rem)' }}>
-      <div className="mx-auto max-w-md flex h-20 items-center justify-around px-0.5">
+    <div className="fixed bottom-0 left-0 right-0 z-[100] border-t border-border bg-background/80 dark:bg-zinc-900/80 backdrop-blur-xl pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
+      <div className="mx-auto max-w-md flex h-[4rem] items-start pt-2 justify-around px-2">
         {navItems.map((item) => {
           const isActive = location === item.path;
           const Icon = item.icon;
@@ -24,32 +33,53 @@ export function BottomNav() {
           return (
             <Link key={item.label} href={item.path || "/"}>
               <div
+                onClick={handleNavClick}
+                onMouseEnter={() => {
+                  if (item.path === "/analytics") {
+                    import("@/lib/queryClient").then(({ queryClient, apiRequest }) => {
+                      queryClient.prefetchQuery({
+                        queryKey: ["leaderboard"],
+                        queryFn: async () => {
+                          const res = await apiRequest("GET", "/api/analytics/leaderboard");
+                          return res.json();
+                        },
+                        staleTime: 1000 * 60 * 5
+                      });
+                    });
+                  }
+                }}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-1 min-w-[46px] py-2 transition-all cursor-pointer",
-                  isActive ? "text-primary" : "text-muted-foreground hover:text-primary/70",
-                  isHighlight && !isActive && "relative"
+                  "flex flex-col items-center justify-center gap-1 min-w-[48px] cursor-pointer",
+                  isActive ? "text-primary dark:text-white" : "text-zinc-500",
+                  isHighlight && "relative -top-3"
                 )}
                 data-testid={`nav-${item.label.toLowerCase()}`}
               >
                 {isHighlight ? (
                   <div className={cn(
-                    "relative p-2 rounded-xl transition-all",
+                    "relative p-3 rounded-full",
                     isActive
-                      ? "bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30"
-                      : "bg-gradient-to-br from-purple-500/20 to-pink-500/20"
+                      ? "bg-gradient-to-br from-orange-500 to-amber-600 shadow-[0_0_20px_rgba(249,115,22,0.4)]"
+                      : "bg-gradient-to-br from-zinc-800 to-zinc-700 border border-white/10"
                   )}>
-                    <Icon className="h-6 w-6" />
-                    {!isActive && (
-                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse" />
-                    )}
+                    <Icon className="h-6 w-6 text-white" />
                   </div>
                 ) : (
-                  <Icon className={cn("h-7 w-7", isActive && "fill-current/20")} />
+                  <>
+                    <div className={cn("relative p-1 rounded-xl", isActive && "bg-primary/10 dark:bg-white/5")}>
+                      <Icon className={cn(
+                        "h-6 w-6",
+                        isActive ? "fill-primary dark:fill-white text-primary dark:text-white" : "stroke-[1.5px]"
+                      )} />
+                    </div>
+                    <span className={cn(
+                      "text-[10px] font-medium",
+                      isActive ? "text-primary dark:text-white" : "text-zinc-600 dark:text-zinc-500"
+                    )}>
+                      {item.label}
+                    </span>
+                  </>
                 )}
-                <span className={cn(
-                  "text-[8px] font-medium",
-                  isHighlight && isActive && "text-purple-500 font-bold"
-                )}>{item.label}</span>
               </div>
             </Link>
           );
@@ -58,3 +88,4 @@ export function BottomNav() {
     </div>
   );
 }
+

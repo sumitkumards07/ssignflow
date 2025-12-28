@@ -1,74 +1,83 @@
-import React from "react";
+import React, { useState } from "react";
 import { BottomNav } from "@/components/layout/BottomNav";
-import { Moon, Sun, Monitor, Info, Linkedin, ExternalLink, Bell, BrainCircuit, LogOut, User, MessageSquare, Volume2, Palette, Play, Shield } from "lucide-react";
+import { Moon, Sun, Monitor, Info, Linkedin, ExternalLink, Bell, BrainCircuit, LogOut, User, MessageSquare, Volume2, Palette, Play, Shield, Crown, Flame, ChevronRight, Upload as UploadIcon, Download, Vibrate, Check, X, Camera, Music, Code, Heart, Coffee, RefreshCw } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { useThemeColor, themeColors } from "@/components/theme-color-provider";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { alarmSounds, previewAlarm, getSelectedAlarm, setAlarmSound, setSoundsEnabled, areSoundsEnabled } from "@/lib/sounds";
+import { alarmSounds, getSelectedAlarm, setAlarmSound, setSoundsEnabled, areSoundsEnabled } from "@/lib/sounds";
 import { backupData, restoreData } from "@/lib/backup";
-import { Database, Download, Upload as UploadIcon } from "lucide-react";
 import { registerPlugin } from '@capacitor/core';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Label } from "@/components/ui/label";
 
 const UpdatePlugin = registerPlugin<any>('UpdatePlugin');
 
+// --- Types & Constants ---
 const colorThemes = [
-  { id: "orange", name: "Orange Flame", color: "#ff6b35", description: "Warm and energetic" },
-  { id: "purple", name: "Purple Dream", color: "#a855f7", description: "Creative and modern" },
-  { id: "blue", name: "Ocean Blue", color: "#3b82f6", description: "Calm and focused" },
-  { id: "green", name: "Forest Green", color: "#10b981", description: "Fresh and natural" },
-  { id: "rose", name: "Rose Pink", color: "#f43f5e", description: "Vibrant and bold" },
-  { id: "teal", name: "Teal Mint", color: "#14b8a6", description: "Cool and balanced" }
+  { id: "orange", name: "Safety Orange", color: "#FF9500", description: "Focus flagship" },
+  { id: "blue", name: "System Blue", color: "#007AFF", description: "Analytics professional" },
+  { id: "green", name: "Success Green", color: "#34C759", description: "Mission accomplished" },
+  { id: "red", name: "Destructive Red", color: "#FF3B30", description: "Stop / Warnings" },
+  { id: "indigo", name: "Intel Indigo", color: "#5856D6", description: "Neutral / Settings" },
+  { id: "yellow", name: "Warning Gold", color: "#FFCC00", description: "Level Alerts" },
+  { id: "purple", name: "Epic Purple", color: "#AF52DE", description: "Elite items" },
+  { id: "magenta", name: "Mythic Magenta", color: "#FF2D55", description: "Legendary/Mythic" },
+  { id: "mint", name: "Cyber Mint", color: "#00D1FF", description: "Rare tactical" },
+  { id: "gray", name: "Obsidian Gray", color: "#1C1C1E", description: "Common neutrality" },
+  { id: "teal", name: "Prismatic Teal", color: "#30B0C7", description: "Seasonal milestones" },
+  { id: "rose", name: "Lava Rose", color: "#FF5E3A", description: "Hardcore mode" },
 ];
 
 export default function Settings() {
   const { theme, setTheme } = useTheme();
   const { themeColor, setThemeColor } = useThemeColor();
   const { toast } = useToast();
-  const [user, setUser] = React.useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("user") || "{}");
-    } catch (e) {
-      return {};
-    }
-  });
+
+  // State
+  const [user, setUser] = React.useState(JSON.parse(localStorage.getItem("user") || "{}"));
   const [selectedAlarm, setSelectedAlarm] = React.useState(getSelectedAlarm());
   const [soundsEnabled, setSounds] = React.useState(areSoundsEnabled());
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [newName, setNewName] = useState(user.displayName || "");
+  const [isThemeSheetOpen, setIsThemeSheetOpen] = useState(false);
+  const [isAppearanceSheetOpen, setIsAppearanceSheetOpen] = useState(false);
+  const [isSoundSheetOpen, setIsSoundSheetOpen] = useState(false);
 
-  // Fetch fresh user data on mount
-  React.useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const { apiRequest } = await import("@/lib/queryClient");
-        const res = await apiRequest("GET", "/api/auth/me");
-        if (res.ok) {
-          const freshUser = await res.json();
-          setUser(freshUser);
-          localStorage.setItem("user", JSON.stringify(freshUser));
-        }
-      } catch (e) {
-        console.error("Failed to fetch fresh user data", e);
-      }
-    };
-    fetchUser();
-  }, []);
+  // --- Handlers ---
 
-  const handleUserChange = (key: string, value: string) => {
-    const newUser = { ...user, [key]: value };
-    setUser(newUser);
-    localStorage.setItem("user", JSON.stringify(newUser));
-  };
+  const handleSaveProfile = async () => {
+    if (!newName.trim()) return;
 
-  const handleAlarmChange = (alarmId: string) => {
-    setAlarmSound(alarmId);
-    setSelectedAlarm(alarmId);
+    // Optimistic update
+    const updatedUser = { ...user, displayName: newName };
+    setUser(updatedUser);
+    localStorage.setItem("user", JSON.stringify(updatedUser));
+
+    // Sync to server (Fire & Forget)
+    try {
+      const { apiRequest } = await import("@/lib/queryClient");
+      await apiRequest("PATCH", "/api/auth/me", { displayName: newName });
+    } catch (e) { console.error(e) }
+
+    setIsEditingProfile(false);
+    toast({ title: "Profile Updated", description: "Your name has been changed." });
   };
 
   const handleSoundsToggle = (enabled: boolean) => {
@@ -86,312 +95,349 @@ export default function Settings() {
       title: "Theme Updated",
       description: `Switched to ${colorThemes.find(t => t.id === colorId)?.name}`
     });
+    setIsThemeSheetOpen(false);
   };
 
-  const checkForUpdates = async () => {
-    try {
-      const { apiRequest } = await import("@/lib/queryClient");
-      const res = await apiRequest("GET", "/api/updates");
-      const data = await res.json();
+  const handleAlarmSelect = (soundId: string) => {
+    setAlarmSound(soundId);
+    setSelectedAlarm(soundId);
 
-      // Current version code (should match build.gradle)
-      const currentVersionCode = 1;
-
-      if (data.versionCode > currentVersionCode) {
-        toast({
-          title: "Update Available",
-          description: `Version ${data.versionName} is available.`,
-          action: <Button size="sm" onClick={() => UpdatePlugin.startUpdate({ apkUrl: data.apkUrl })}>Update</Button>
-        });
-      } else {
-        toast({ title: "Up to Date", description: "You are on the latest version." });
-      }
-    } catch (e) {
-      console.error(e);
-      toast({ title: "Error", description: "Failed to check for updates", variant: "destructive" });
-    }
+    // Preview
+    const audio = new Audio(`/sounds/${soundId}.mp3`);
+    audio.play().catch(e => console.error(e));
   };
+
+
+  const CandyIcon = ({ icon: Icon, bg }: { icon: any, bg: string }) => (
+    <div className={`w-8 h-8 rounded-[8px] flex items-center justify-center shrink-0 ${bg} shadow-sm`}>
+      <Icon className={`w-4 h-4 text-white`} />
+    </div>
+  );
+
+  const SectionTitle = ({ children }: { children: React.ReactNode }) => (
+    <h3 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider pl-4 mb-2 mt-6">
+      {children}
+    </h3>
+  );
+
+  const SettingsRow = ({
+    icon: Icon,
+    bg,
+    label,
+    value,
+    onClick,
+    isDestructive = false
+  }: { icon: any, bg: string, label: string, value?: string | React.ReactNode, onClick?: () => void, isDestructive?: boolean }) => (
+    <div
+      onClick={onClick}
+      className={`flex items-center justify-between p-4 ${onClick ? 'cursor-pointer active:bg-secondary/50' : ''} transition-colors border-b border-border/40 last:border-0`}
+    >
+      <div className="flex items-center gap-3">
+        <CandyIcon icon={Icon} bg={bg} />
+        <span className={`text-[16px] font-medium ${isDestructive ? 'text-red-500' : 'text-foreground'}`}>
+          {label}
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        {typeof value === 'string' ? (
+          <span className="text-[15px] text-muted-foreground">{value}</span>
+        ) : value}
+        {onClick && <ChevronRight className="w-4 h-4 text-muted-foreground/40" />}
+      </div>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-background pb-24 text-foreground">
-      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border/50 pt-safe">
-        <div className="flex items-center justify-center py-4">
-          <div className="rounded-full bg-secondary px-6 py-2">
-            <h1 className="text-sm font-bold tracking-wide uppercase">Settings</h1>
-          </div>
-        </div>
+    <div className="min-h-screen bg-background text-foreground pb-[calc(6rem+env(safe-area-inset-bottom))] transition-colors duration-300">
+
+      {/* Header */}
+      <header className="pt-14 px-5 pb-4 bg-background/80 backdrop-blur-md sticky top-0 z-10 hidden md:block">
+        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+      </header>
+      {/* Mobile Header (Manual Padding) */}
+      <div className="h-14 md:hidden block"></div>
+      <header className="px-5 pb-2 md:hidden block">
+        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
       </header>
 
-      <main className="mx-auto max-w-md space-y-8 px-4 pt-8">
-        {/* Theme Color Selection */}
-        <section className="space-y-4">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Theme Color</h2>
-          <Card>
-            <CardContent className="p-4">
-              <Select value={themeColor} onValueChange={(val) => handleThemeColorChange(val)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select Theme Color" />
-                </SelectTrigger>
-                <SelectContent>
-                  {colorThemes.map((colorTheme) => (
-                    <SelectItem key={colorTheme.id} value={colorTheme.id}>
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded-full" style={{ backgroundColor: colorTheme.color }} />
-                        {colorTheme.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </Card>
-        </section>
+      <main className="mx-auto max-w-lg px-5">
 
-        <section className="space-y-4">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Appearance</h2>
-          <div className="overflow-hidden rounded-3xl border border-border bg-card">
-            <div className="flex items-center justify-between p-5 border-b border-border">
-              <div className="flex items-center gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 text-indigo-500 dark:bg-indigo-500/20 dark:text-indigo-400">
-                  <Moon className="h-5 w-5" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-sm">Dark Mode</span>
-                  <span className="text-xs text-muted-foreground">Easy on the eyes</span>
-                </div>
-              </div>
-              <Switch
-                checked={theme === 'dark'}
-                onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Sounds</h2>
-
-          <div className="overflow-hidden rounded-3xl border border-border bg-card">
-            {/* Sound Effects Toggle */}
-            <div className="flex items-center justify-between p-5 border-b border-border">
-              <div className="flex items-center gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-green-500 dark:bg-green-500/20 dark:text-green-400">
-                  <Volume2 className="h-5 w-5" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-sm">Sound Effects</span>
-                  <span className="text-xs text-muted-foreground">Enable app sounds</span>
-                </div>
-              </div>
-              <Switch checked={soundsEnabled} onCheckedChange={handleSoundsToggle} />
-            </div>
-
-            {/* Alarm Sound Selection */}
-            <div className="p-5">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pink-100 text-pink-500 dark:bg-pink-500/20 dark:text-pink-400">
-                  <Bell className="h-5 w-5" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-sm">Alarm Sound</span>
-                  <span className="text-xs text-muted-foreground">Choose your wake-up sound</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Select value={selectedAlarm} onValueChange={(val) => handleAlarmChange(val)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select Alarm Sound" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {alarmSounds.map((alarm) => (
-                      <SelectItem key={alarm.id} value={alarm.id}>
-                        {alarm.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => previewAlarm(selectedAlarm)}
-                  title="Preview Sound"
-                >
-                  <Play className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <div className="space-y-6 pb-24">
-          <section className="space-y-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <User className="w-5 h-5" />
-              Profile
+        {/* 1. Profile Hero Card */}
+        <div
+          onClick={() => setIsEditingProfile(true)}
+          className="flex items-center gap-4 py-4 mb-6 cursor-pointer active:opacity-70 transition-opacity"
+        >
+          <Avatar className="w-[70px] h-[70px] border-2 border-border shadow-sm">
+            <AvatarImage src={user?.avatar} />
+            <AvatarFallback className="text-2xl bg-secondary text-primary font-bold">
+              {user?.displayName?.charAt(0).toUpperCase() || "U"}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-[22px] font-semibold text-foreground truncate leading-tight">
+              {user?.displayName || "User"}
             </h2>
-            <Card>
-              <CardContent className="pt-6 space-y-4">
-                <div className="flex items-center gap-4">
-                  <Avatar className="w-16 h-16 border-2 border-primary/10">
-                    <AvatarImage src={user?.avatar} />
-                    <AvatarFallback className="text-lg bg-primary/5 text-primary">
-                      {user?.displayName?.charAt(0) || "U"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 space-y-1">
-                    <h3 className="font-medium text-lg">{user?.displayName || "User"}</h3>
-                    <p className="text-sm text-muted-foreground">{user?.email || "No email"}</p>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary capitalize">
-                      {user?.role || "user"}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 pt-2">
-                  <div className="grid gap-2">
-                    <Label htmlFor="name">Display Name</Label>
-                    <Input
-                      id="name"
-                      defaultValue={user?.displayName}
-                      onChange={(e) => handleUserChange("displayName", e.target.value)}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="avatar">Avatar URL</Label>
-                    <Input
-                      id="avatar"
-                      defaultValue={user?.avatar}
-                      placeholder="https://..."
-                      onChange={(e) => handleUserChange("avatar", e.target.value)}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </section>
-
-          {/* Admin Dashboard Link - Only visible to admins */}
-          {user?.role === "admin" && (
-            <section className="space-y-4">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Administration</h2>
-              <div className="overflow-hidden rounded-3xl border border-border bg-card">
-                <a
-                  href="/admin"
-                  className="flex w-full items-center justify-between p-5 transition-colors hover:bg-secondary/30"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400">
-                      <Shield className="h-5 w-5" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="font-bold text-sm">Admin Dashboard</span>
-                      <span className="text-xs text-muted-foreground">Manage users and view stats</span>
-                    </div>
-                  </div>
-                  <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                </a>
-              </div>
-            </section>
-          )}
+            <p className="text-[15px] text-muted-foreground truncate mt-0.5">
+              {user?.isPro ? "Pro Member" : "Free Plan"} • {user?.email || "No email"}
+            </p>
+          </div>
+          <div className="bg-secondary p-2 rounded-full">
+            <ChevronRight className="w-5 h-5 text-muted-foreground" />
+          </div>
         </div>
 
-
-
-        <section className="space-y-4">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Data Management</h2>
-          <div className="overflow-hidden rounded-3xl border border-border bg-card">
-            <div className="flex flex-col gap-4 p-5 border-b border-border">
-              <div className="flex items-center gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-500 dark:bg-blue-500/20 dark:text-blue-400">
-                  <Database className="h-5 w-5" />
+        {/* 2. Pro Banner */}
+        {!user?.isPro && (
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 p-[1px] shadow-lg mb-8">
+            <div className="bg-background rounded-2xl p-4 flex items-center justify-between relative overflow-hidden backdrop-blur-3xl bg-opacity-95">
+              <div className="flex items-center gap-4 relative z-10">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-300 to-amber-500 flex items-center justify-center shadow-md">
+                  <Crown className="w-6 h-6 text-black fill-white" />
                 </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-sm">Backup & Restore</span>
-                  <span className="text-xs text-muted-foreground">Save data to device storage</span>
+                <div>
+                  <h3 className="font-bold text-foreground text-lg">AssignFlow <span className="text-amber-500">PRO</span></h3>
+                  <p className="text-xs text-muted-foreground">Unlock AI, Stats & Unlimited Habits</p>
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <Button variant="outline" onClick={() => backupData()} className="w-full">
-                  <UploadIcon className="w-4 h-4 mr-2" />
-                  Backup
-                </Button>
-                <Button variant="outline" onClick={() => restoreData()} className="w-full">
-                  <Download className="w-4 h-4 mr-2" />
-                  Restore
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Backup saves your data to the Documents folder. Restore loads it back.
-              </p>
-              {localStorage.getItem('last_backup_time') && (
-                <p className="text-[10px] text-muted-foreground mt-2 pt-2 border-t border-border">
-                  Last backup: {new Date(localStorage.getItem('last_backup_time')!).toLocaleString()}
-                </p>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">About</h2>
-          <div className="overflow-hidden rounded-3xl border border-border bg-card">
-            <div className="flex w-full items-center justify-between border-b border-border p-5">
-              <div className="flex items-center gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">
-                  <Info className="h-5 w-5" />
-                </div>
-                <span className="font-bold text-sm">Version</span>
-              </div>
-              <span className="text-sm font-mono text-muted-foreground bg-secondary/50 px-2 py-1 rounded-md">v1.0.0</span>
-            </div>
-
-            <div className="p-5 border-b border-border">
-              <Button variant="outline" className="w-full" onClick={checkForUpdates}>
-                Check for Updates
+              <Button size="sm" className="bg-foreground text-background hover:bg-foreground/90 font-bold rounded-full h-9 px-5">
+                Upgrade
               </Button>
             </div>
-
-            <a
-              href="https://www.linkedin.com/in/sumit-kumar-9159a636b"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex w-full items-center justify-between p-5 transition-colors hover:bg-secondary/30"
-            >
-              <div className="flex items-center gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
-                  <Linkedin className="h-5 w-5" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-sm">Developer</span>
-                  <span className="text-xs text-muted-foreground">Sumit Kumar</span>
-                </div>
-              </div>
-              <ExternalLink className="h-4 w-4 text-muted-foreground" />
-            </a>
-
-
           </div>
-        </section>
+        )}
 
-        <div className="pt-4 pb-8">
-          <Button
-            variant="destructive"
-            className="w-full"
-            onClick={() => {
-              localStorage.removeItem("user");
-              localStorage.setItem("logged_out", "true");
-              window.location.href = "/login";
-            }}
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            Log Out
-          </Button>
+        {/* 3. Settings Sections */}
+        <div className="space-y-6">
+
+          {/* --- GENERAL --- */}
+          <section>
+            <SectionTitle>General</SectionTitle>
+            <div className="bg-card border border-border/50 rounded-2xl overflow-hidden shadow-sm">
+              {/* Theme */}
+              <SettingsRow
+                icon={Palette}
+                bg="bg-system-blue"
+                label="Appearance"
+                value={theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System'}
+                onClick={() => setIsAppearanceSheetOpen(true)}
+              />
+
+              {/* Accent Color */}
+              <SettingsRow
+                icon={Flame}
+                bg="bg-safety-orange"
+                label="Accent Color"
+                value={
+                  <div className="w-5 h-5 rounded-full border border-border/50 shadow-inner" style={{ backgroundColor: colorThemes.find(t => t.id === themeColor)?.color || themeColors[themeColor as keyof typeof themeColors].primary }} />
+                }
+                onClick={() => setIsThemeSheetOpen(true)}
+              />
+
+              {/* Sounds */}
+              <div className="flex items-center justify-between p-4 border-b border-border/40">
+                <div className="flex items-center gap-3">
+                  <CandyIcon icon={Volume2} bg="bg-mythic-magenta" />
+                  <span className="text-[16px] font-medium">Sound Effects</span>
+                </div>
+                <Switch checked={soundsEnabled} onCheckedChange={handleSoundsToggle} />
+              </div>
+
+              {/* Alarm Sound */}
+              <SettingsRow
+                icon={Music}
+                bg="bg-intel-indigo"
+                label="Alarm Sound"
+                value={selectedAlarm.charAt(0).toUpperCase() + selectedAlarm.slice(1)}
+                onClick={() => setIsSoundSheetOpen(true)}
+              />
+            </div>
+          </section>
+
+          {/* --- DATA & SECURITY --- */}
+          <section>
+            <SectionTitle>Data</SectionTitle>
+            <div className="bg-card border border-border/50 rounded-2xl overflow-hidden shadow-sm">
+              <SettingsRow icon={UploadIcon} bg="bg-cyber-mint" label="Export Data" onClick={() => backupData()} />
+              <SettingsRow icon={Download} bg="bg-prismatic-teal" label="Import Data" onClick={() => restoreData()} />
+            </div>
+          </section>
+
+          {/* --- SUPPORT --- */}
+          <section>
+            <SectionTitle>Support</SectionTitle>
+            <div className="bg-card border border-border/50 rounded-2xl overflow-hidden shadow-sm">
+              <SettingsRow icon={MessageSquare} bg="bg-success-green" label="Contact Support" onClick={() => window.open('mailto:support@assignflow.com')} />
+              <SettingsRow
+                icon={Heart}
+                bg="bg-red-500"
+                label="Support Development"
+                onClick={() => window.open('upi://pay?pa=8950013181@ybl&pn=AssignFlow&cu=INR')}
+              />
+              <SettingsRow
+                icon={Linkedin}
+                bg="bg-blue-600"
+                label="Developer"
+                value="Sumit Kumar"
+                onClick={() => window.open('https://www.linkedin.com/in/sumit-kumar-9159a636b?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app')}
+              />
+              <SettingsRow
+                icon={RefreshCw}
+                bg="bg-cyan-500"
+                label="Check for Updates"
+                onClick={async () => {
+                  toast({ title: "Checking for updates..." });
+                  const { updateService } = await import("@/services/UpdateService");
+                  try {
+                    const info = await updateService.checkForUpdate();
+                    if (info?.updateAvailable) {
+                      if (confirm(`New version ${info.version} available. Update now?`)) {
+                        await updateService.performUpdate(info);
+                      }
+                    } else {
+                      toast({ title: "Up to date", description: "You have the latest version." });
+                    }
+                  } catch (e) {
+                    toast({ title: "Update check failed", variant: "destructive" });
+                  }
+                }}
+              />
+              <SettingsRow icon={Info} bg="bg-purple-500" label="Version" value="1.0.30" />
+            </div>
+          </section>
+
+          {/* --- LOG OUT --- */}
+          <div className="pt-2">
+            <Button
+              variant="outline"
+              className="w-full h-12 text-red-500 hover:text-red-600 hover:bg-red-500/10 border-red-200 dark:border-red-900/30 rounded-xl text-[16px]"
+              onClick={() => {
+                localStorage.removeItem("user");
+                window.location.href = "/login";
+              }}
+            >
+              Log Out
+            </Button>
+            <p className="text-center text-muted-foreground/60 text-xs mt-6">
+              Made with ❤️ in India
+            </p>
+          </div>
+
         </div>
       </main>
 
       <BottomNav />
+
+      {/* --- DIALOGS & SHEETS --- */}
+
+      {/* Edit Profile Dialog */}
+      <Dialog open={isEditingProfile} onOpenChange={setIsEditingProfile}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Profile</DialogTitle>
+            <DialogDescription>Update your display name visible to others.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="name" className="text-right mb-2 block">Display Name</Label>
+            <Input
+              id="name"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Enter your name"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditingProfile(false)}>Cancel</Button>
+            <Button onClick={handleSaveProfile}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sound Selection Sheet */}
+      <Sheet open={isSoundSheetOpen} onOpenChange={setIsSoundSheetOpen}>
+        <SheetContent side="bottom" className="h-[50vh] rounded-t-[2.5rem] border-t border-border/50 pb-safe">
+          <SheetHeader className="mb-6">
+            <SheetTitle className="apple-header text-xl">Alarm Sound</SheetTitle>
+          </SheetHeader>
+          <div className="settings-scroll-area space-y-3 pb-8">
+            {alarmSounds.map((sound) => (
+              <button
+                key={sound.id}
+                onClick={() => handleAlarmSelect(sound.id)}
+                className={`
+                            w-full flex items-center justify-between p-4 rounded-2xl border transition-all
+                            ${selectedAlarm === sound.id ? 'border-orange-500 bg-orange-500/5' : 'border-border bg-card' /* removed hover to prevent lag */}
+                        `}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedAlarm === sound.id ? 'bg-orange-500 text-white' : 'bg-secondary text-muted-foreground'}`}>
+                    <Play className="w-4 h-4" />
+                  </div>
+                  <span className="font-bold text-[16px] capitalize text-foreground">{sound.name}</span>
+                </div>
+                {selectedAlarm === sound.id && <Check className="w-5 h-5 text-orange-500" />}
+              </button>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Appearance Sheet */}
+      <Sheet open={isAppearanceSheetOpen} onOpenChange={setIsAppearanceSheetOpen}>
+        <SheetContent side="bottom" className="h-[40vh] rounded-t-[2.5rem] border-t border-border/50 pb-safe">
+          <SheetHeader className="mb-6">
+            <SheetTitle className="apple-header text-xl">Appearance</SheetTitle>
+          </SheetHeader>
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { id: 'light', label: 'Light', icon: Sun, bg: 'bg-[#F2F2F7]' },
+              { id: 'dark', label: 'Dark', icon: Moon, bg: 'bg-[#1C1C1E]' },
+              { id: 'system', label: 'System', icon: Monitor, bg: 'bg-gradient-to-br from-[#F2F2F7] to-[#1C1C1E]' }
+            ].map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => { setTheme(opt.id as any); setIsAppearanceSheetOpen(false); }}
+                className={`flex flex-col items-center gap-3 p-4 rounded-2xl border-2 transition-all ${theme === opt.id ? 'border-orange-500 bg-orange-500/5' : 'border-border bg-card'}`}
+              >
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${opt.bg} shadow-sm`}>
+                  <opt.icon className={`w-6 h-6 ${opt.id === 'light' ? 'text-orange-500' : opt.id === 'dark' ? 'text-white' : 'text-foreground'}`} />
+                </div>
+                <span className="text-xs font-black uppercase tracking-widest">{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Theme Color Selection Sheet */}
+      <Sheet open={isThemeSheetOpen} onOpenChange={setIsThemeSheetOpen}>
+        <SheetContent side="bottom" className="h-[60vh] rounded-t-[2.5rem] border-t border-border/50 pb-safe overflow-y-auto no-scrollbar">
+          <SheetHeader className="mb-6">
+            <SheetTitle className="apple-header text-xl">Accent Color</SheetTitle>
+          </SheetHeader>
+          <div className="settings-scroll-area grid grid-cols-2 gap-4 pb-8">
+            {colorThemes.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => handleThemeColorChange(t.id)}
+                className={`
+                            relative flex flex-col p-5 rounded-[2rem] border-2 transition-all text-left
+                            ${themeColor === t.id ? 'border-orange-500 bg-orange-500/5' : 'border-border bg-card'}
+                        `}
+              >
+                <div className="w-10 h-10 rounded-full mb-4 shadow-xl border-4 border-white/20" style={{ backgroundColor: t.color }} />
+                <span className="font-black text-xs uppercase tracking-widest text-foreground">{t.name}</span>
+                <span className="text-[10px] text-muted-foreground mt-1">{t.description}</span>
+                {themeColor === t.id && (
+                  <div className="absolute top-4 right-4 w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center text-white">
+                    <Check className="w-4 h-4" />
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
+
     </div>
   );
 }

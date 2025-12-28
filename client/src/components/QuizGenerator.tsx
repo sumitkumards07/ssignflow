@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+
 import { Upload, FileText, Check, X, Loader2, BrainCircuit, RefreshCw } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -189,135 +189,125 @@ export function QuizGenerator({ trigger }: { trigger?: React.ReactNode }) {
                 </DialogHeader>
 
                 <div className="mt-4">
-                    <AnimatePresence mode="wait">
-                        {quiz.length === 0 ? (
-                            <motion.div
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -10 }}
-                                className="space-y-6"
+                    {quiz.length === 0 ? (
+                        <div
+                            className="space-y-6"
+                        >
+                            <div
+                                className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-secondary/30 transition-colors"
+                                onClick={() => fileInputRef.current?.click()}
                             >
-                                <div
-                                    className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-secondary/30 transition-colors"
-                                    onClick={() => fileInputRef.current?.click()}
-                                >
-                                    <input
-                                        type="file"
-                                        ref={fileInputRef}
-                                        onChange={handleFileChange}
-                                        accept=".pdf"
-                                        className="hidden"
-                                    />
-                                    {file ? (
-                                        <>
-                                            <FileText className="w-12 h-12 text-primary mb-4" />
-                                            <p className="font-medium text-lg">{file.name}</p>
-                                            <p className="text-sm text-muted-foreground mt-1">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Upload className="w-12 h-12 text-muted-foreground mb-4" />
-                                            <p className="font-medium text-lg">Upload PDF</p>
-                                            <p className="text-sm text-muted-foreground mt-1">Generate a quiz from your documents</p>
-                                        </>
-                                    )}
-                                </div>
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleFileChange}
+                                    accept=".pdf"
+                                    className="hidden"
+                                />
+                                {file ? (
+                                    <>
+                                        <FileText className="w-12 h-12 text-primary mb-4" />
+                                        <p className="font-medium text-lg">{file.name}</p>
+                                        <p className="text-sm text-muted-foreground mt-1">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Upload className="w-12 h-12 text-muted-foreground mb-4" />
+                                        <p className="font-medium text-lg">Upload PDF</p>
+                                        <p className="text-sm text-muted-foreground mt-1">Generate a quiz from your documents</p>
+                                    </>
+                                )}
+                            </div>
 
-                                <Button
-                                    onClick={generateQuiz}
-                                    disabled={!file || isLoading}
-                                    className="w-full h-12 text-lg rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
-                                >
-                                    {isLoading ? (
-                                        <>
-                                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                            Generating Quiz...
-                                        </>
-                                    ) : (
-                                        "Generate Quiz"
-                                    )}
-                                </Button>
-                            </motion.div>
-                        ) : showScore ? (
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.9 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                className="flex flex-col items-center justify-center py-8 text-center space-y-6"
+                            <Button
+                                onClick={generateQuiz}
+                                disabled={!file || isLoading}
+                                className="w-full h-12 text-lg rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
                             >
-                                <div className="relative">
-                                    <div className="w-32 h-32 rounded-full border-8 border-secondary flex items-center justify-center">
-                                        <span className="text-4xl font-bold">{Math.round((score / quiz.length) * 100)}%</span>
-                                    </div>
+                                {isLoading ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                        Generating Quiz...
+                                    </>
+                                ) : (
+                                    "Generate Quiz"
+                                )}
+                            </Button>
+                        </div>
+                    ) : showScore ? (
+                        <div
+                            className="flex flex-col items-center justify-center py-8 text-center space-y-6"
+                        >
+                            <div className="relative">
+                                <div className="w-32 h-32 rounded-full border-8 border-secondary flex items-center justify-center">
+                                    <span className="text-4xl font-bold">{Math.round((score / quiz.length) * 100)}%</span>
                                 </div>
-                                <div>
-                                    <h3 className="text-2xl font-bold mb-2">Quiz Completed!</h3>
-                                    <p className="text-muted-foreground">You got {score} out of {quiz.length} questions correct.</p>
-                                </div>
-                                <Button onClick={resetQuiz} className="w-full rounded-xl" variant="outline">
-                                    <RefreshCw className="w-4 h-4 mr-2" />
-                                    Start New Quiz
-                                </Button>
-                            </motion.div>
-                        ) : (
-                            <motion.div
-                                key={currentQuestion}
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                className="space-y-6"
-                            >
-                                <div className="flex items-center justify-between text-sm text-muted-foreground">
-                                    <span>Question {currentQuestion + 1}/{quiz.length}</span>
-                                    <span>Score: {score}</span>
-                                </div>
-                                <Progress value={((currentQuestion + 1) / quiz.length) * 100} className="h-2" />
+                            </div>
+                            <div>
+                                <h3 className="text-2xl font-bold mb-2">Quiz Completed!</h3>
+                                <p className="text-muted-foreground">You got {score} out of {quiz.length} questions correct.</p>
+                            </div>
+                            <Button onClick={resetQuiz} className="w-full rounded-xl" variant="outline">
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                                Start New Quiz
+                            </Button>
+                        </div>
+                    ) : (
+                        <div
+                            key={currentQuestion}
+                            className="space-y-6"
+                        >
+                            <div className="flex items-center justify-between text-sm text-muted-foreground">
+                                <span>Question {currentQuestion + 1}/{quiz.length}</span>
+                                <span>Score: {score}</span>
+                            </div>
+                            <Progress value={((currentQuestion + 1) / quiz.length) * 100} className="h-2" />
 
-                                <h3 className="text-lg font-semibold leading-relaxed">
-                                    {quiz[currentQuestion].question}
-                                </h3>
+                            <h3 className="text-lg font-semibold leading-relaxed">
+                                {quiz[currentQuestion].question}
+                            </h3>
 
-                                <div className="space-y-3">
-                                    {quiz[currentQuestion].options.map((option, index) => (
-                                        <button
-                                            key={index}
-                                            onClick={() => handleAnswerSelect(index)}
-                                            disabled={isAnswerChecked}
-                                            className={cn(
-                                                "w-full p-4 rounded-xl text-left transition-all border-2",
-                                                isAnswerChecked
-                                                    ? index === quiz[currentQuestion].correctAnswer
-                                                        ? "bg-green-500/10 border-green-500 text-green-500"
-                                                        : index === selectedAnswer
-                                                            ? "bg-red-500/10 border-red-500 text-red-500"
-                                                            : "border-border opacity-50"
-                                                    : selectedAnswer === index
-                                                        ? "border-primary bg-primary/5"
-                                                        : "border-border hover:border-primary/50 hover:bg-secondary/50"
+                            <div className="space-y-3">
+                                {quiz[currentQuestion].options.map((option, index) => (
+                                    <button
+                                        key={index}
+                                        onClick={() => handleAnswerSelect(index)}
+                                        disabled={isAnswerChecked}
+                                        className={cn(
+                                            "w-full p-4 rounded-xl text-left transition-all border-2",
+                                            isAnswerChecked
+                                                ? index === quiz[currentQuestion].correctAnswer
+                                                    ? "bg-green-500/10 border-green-500 text-green-500"
+                                                    : index === selectedAnswer
+                                                        ? "bg-red-500/10 border-red-500 text-red-500"
+                                                        : "border-border opacity-50"
+                                                : selectedAnswer === index
+                                                    ? "border-primary bg-primary/5"
+                                                    : "border-border hover:border-primary/50 hover:bg-secondary/50"
+                                        )}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <span>{option}</span>
+                                            {isAnswerChecked && index === quiz[currentQuestion].correctAnswer && (
+                                                <Check className="w-5 h-5 text-green-500" />
                                             )}
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <span>{option}</span>
-                                                {isAnswerChecked && index === quiz[currentQuestion].correctAnswer && (
-                                                    <Check className="w-5 h-5 text-green-500" />
-                                                )}
-                                                {isAnswerChecked && index === selectedAnswer && index !== quiz[currentQuestion].correctAnswer && (
-                                                    <X className="w-5 h-5 text-red-500" />
-                                                )}
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
+                                            {isAnswerChecked && index === selectedAnswer && index !== quiz[currentQuestion].correctAnswer && (
+                                                <X className="w-5 h-5 text-red-500" />
+                                            )}
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
 
-                                <Button
-                                    onClick={isAnswerChecked ? nextQuestion : checkAnswer}
-                                    disabled={selectedAnswer === null}
-                                    className="w-full h-12 rounded-xl text-lg"
-                                >
-                                    {isAnswerChecked ? (currentQuestion === quiz.length - 1 ? "Finish Quiz" : "Next Question") : "Check Answer"}
-                                </Button>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                            <Button
+                                onClick={isAnswerChecked ? nextQuestion : checkAnswer}
+                                disabled={selectedAnswer === null}
+                                className="w-full h-12 rounded-xl text-lg"
+                            >
+                                {isAnswerChecked ? (currentQuestion === quiz.length - 1 ? "Finish Quiz" : "Next Question") : "Check Answer"}
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </DialogContent>
         </Dialog>

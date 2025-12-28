@@ -22,6 +22,10 @@ export const users = pgTable("users", {
   isPro: boolean("is_pro").default(false),
   proExpiresAt: text("pro_expires_at"), // ISO timestamp
   stripeSubscriptionId: text("stripe_subscription_id"),
+  createdAt: text("created_at").default(sql`now()`), // ISO timestamp for free trial
+  // Gamification & Tiers
+  rankTier: text("rank_tier").default("Bronze"), // Bronze, Silver, Gold...
+  rankPoints: integer("rank_points").default(0),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -37,6 +41,8 @@ export const insertUserSchema = createInsertSchema(users).pick({
   avatar: true,
   clashChatNotifications: true,
   isPro: true,
+  rankTier: true,
+  rankPoints: true,
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -165,3 +171,45 @@ export const insertAppVersionSchema = createInsertSchema(appVersions).pick({
 
 export type InsertAppVersion = z.infer<typeof insertAppVersionSchema>;
 export type AppVersion = typeof appVersions.$inferSelect;
+
+export const pomodoroSessions = pgTable("pomodoro_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  duration: integer("duration").notNull(), // Minutes
+  startedAt: text("started_at").notNull(),
+  endedAt: text("ended_at").notNull(),
+  verified: boolean("verified").default(false),
+  clientHash: text("client_hash"),
+  createdAt: text("created_at").default(new Date().toISOString()),
+});
+
+export const insertPomodoroSessionSchema = createInsertSchema(pomodoroSessions).pick({
+  userId: true,
+  duration: true,
+  startedAt: true,
+  endedAt: true,
+  clientHash: true,
+  verified: true,
+});
+
+export type InsertPomodoroSession = z.infer<typeof insertPomodoroSessionSchema>;
+export type PomodoroSession = typeof pomodoroSessions.$inferSelect;
+
+export const rankHistory = pgTable("rank_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  seasonId: text("season_id").notNull(),
+  finalRank: text("final_rank"),
+  finalPoints: integer("final_points"),
+  recordedAt: text("recorded_at").default(new Date().toISOString()),
+});
+
+export const insertRankHistorySchema = createInsertSchema(rankHistory).pick({
+  userId: true,
+  seasonId: true,
+  finalRank: true,
+  finalPoints: true,
+});
+
+export type InsertRankHistory = z.infer<typeof insertRankHistorySchema>;
+export type RankHistory = typeof rankHistory.$inferSelect;

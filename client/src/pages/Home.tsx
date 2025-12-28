@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { TaskCard, TaskProps } from "@/components/TaskCard";
 import { AddTaskDrawer } from "@/components/AddTaskDrawer";
 import { useLocation } from "wouter";
-import { motion, AnimatePresence } from "framer-motion";
+
 import { Task } from "@shared/schema";
 
 import { getTasksFromStorage } from "@/lib/utils";
@@ -117,47 +117,34 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="mx-auto max-w-md px-5 pt-6">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={location} // Re-animate on tab change
-            variants={container}
-            initial="hidden"
-            animate="show"
-            className="space-y-5"
-          >
-            {displayedTasks.length === 0 ? (
-              <motion.div
-                variants={item}
-                className="flex flex-col items-center justify-center py-16 text-center opacity-50"
-              >
-                <div className="mb-6 rounded-full bg-secondary/50 p-8">
-                  <span className="text-5xl">🎉</span>
-                </div>
-                <p className="text-xl font-medium">No tasks found</p>
-                <p className="text-base text-muted-foreground mt-1">You're all caught up!</p>
-              </motion.div>
-            ) : (
-              displayedTasks.map((task) => (
-                <motion.div
-                  key={task.id}
-                  layout
-                  variants={item}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.2 }}
-                  className="h-full"
-                >
-                  <TaskCard
-                    {...task}
-                    type={task.type as "assignment" | "quiz"}
-                    deadline={new Date(task.deadline)}
-                    onComplete={(id) => setTaskToComplete(id)}
-                    onDelete={(id) => setTaskToDelete(id)}
-                  />
-                </motion.div>
-              ))
-            )}
-          </motion.div>
-        </AnimatePresence>
+
+        <div className="space-y-5">
+          {displayedTasks.length === 0 ? (
+            <div
+              className="flex flex-col items-center justify-center py-16 text-center opacity-50"
+            >
+              <div className="mb-6 rounded-full bg-secondary/50 p-8">
+                <span className="text-5xl">🎉</span>
+              </div>
+              <p className="text-xl font-medium">No tasks found</p>
+              <p className="text-base text-muted-foreground mt-1">You're all caught up!</p>
+            </div>
+          ) : displayedTasks.map((task) => (
+            <div
+              key={task.id}
+              className="h-full"
+            >
+              <TaskCard
+                {...task}
+                type={task.type as "assignment" | "quiz"}
+                deadline={new Date(task.deadline)}
+                onComplete={(id) => setTaskToComplete(id)}
+                onDelete={(id) => setTaskToDelete(id)}
+              />
+            </div>
+          ))}
+        </div>
+
       </main>
 
       {/* Add Task Drawer */}

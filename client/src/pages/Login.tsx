@@ -180,9 +180,15 @@ export default function Login() {
                         }}
                         disabled={isLoading}
                     >
+                        {isRegistering ? "Already have an account? Sign In" : "Don't have an account? Create One"}
                     </Button>
                     <div className="absolute top-4 right-4 text-xs text-muted-foreground opacity-50">
-                        v1.0.10
+                        v1.0.23
+                    </div>
+                    <div className="mt-4 text-center">
+                        <span className="text-amber-500 font-mono text-xs border border-amber-500/30 px-2 py-1 rounded bg-amber-500/10">
+                            BUILD: {new Date().toISOString().split('T')[0]} (V30)
+                        </span>
                     </div>
                 </CardContent>
             </Card>

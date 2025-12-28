@@ -11,11 +11,17 @@ mkdir deploy_package
 echo "3. Copying dist files..."
 cp -r dist/* deploy_package/
 
+echo "3b. Copying OTA updates..."
+mkdir -p deploy_package/updates
+cp -r updates/* deploy_package/updates/
+
+
 echo "4. Creating backend-only package.json..."
+VERSION=$(node -p "require('./package.json').version")
 cat > deploy_package/package.json <<EOF
 {
   "name": "assignflow-lambda",
-  "version": "1.0.0",
+  "version": "${VERSION}",
   "type": "module",
   "dependencies": {
     "connect-pg-simple": "^10.0.0",

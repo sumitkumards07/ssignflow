@@ -43,14 +43,11 @@ export function SplashScreen({ onComplete }: { onComplete: () => void }) {
                 zIndex: 9999,
             }}
         >
-            <div className="animate-pulse">
+            <div>
                 <img
                     src="/logo.png"
                     alt="AssignFlow Logo"
                     className="w-32 h-32 object-contain"
-                    style={{
-                        animation: 'fadeIn 0.6s ease-in-out'
-                    }}
                 />
             </div>
         </div>

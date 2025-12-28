@@ -4,6 +4,7 @@ import session from "express-session";
 import passport from "./auth";
 import { registerRoutes } from "./routes";
 import { storage } from "./storage";
+import { startWorker } from "./worker";
 
 import { log } from "./utils";
 import path from "path";
@@ -11,6 +12,8 @@ import fs from "fs";
 // Imports cleaned up
 import { serveStatic } from "./utils"; // Import the one from utils which uses process.cwd()
 import pgSession from "connect-pg-simple";
+import serverless from "serverless-http";
+import { setupWebSocket } from "./ws-server";
 
 // Export app for Lambda
 export const app = express();
@@ -135,6 +138,14 @@ export async function initApp(startListening = true) {
 
   const server = await registerRoutes(app);
 
+  // Setup WebSocket Server
+  setupWebSocket(server);
+
+  // Start background worker
+  if (process.env.NODE_ENV !== "test") {
+    startWorker();
+  }
+
   // Schedule daily cleanup of old messages (7 days retention)
   setInterval(async () => {
     try {
@@ -182,7 +193,8 @@ export async function initApp(startListening = true) {
 }
 
 // Start immediately if not imported module or simple dev check
-if (process.env.NODE_ENV !== "lambda") {
+// Start immediately if not imported module or simple dev check
+if (process.env.NODE_ENV !== "lambda" && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
   // Check if we should autostart? 
   // For now, always start unless NODE_ENV=lambda
   (async () => {
@@ -191,4 +203,38 @@ if (process.env.NODE_ENV !== "lambda") {
 }
 
 // server.listen done above in initApp if needed
+
+// server.listen done above in initApp if needed
+
+// server.listen done above in initApp if needed
+
+let lambdaHandler: any;
+let initError: any;
+
+export const handler = async (event: any, context: any) => {
+  if (initError) {
+    console.error("Previous Init Error:", initError);
+    return {
+      statusCode: 500,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Previous Init Error", error: initError.message, stack: initError.stack })
+    };
+  }
+
+  if (!lambdaHandler) {
+    try {
+      await initApp(false); // Initialize routes, but do not listen
+      lambdaHandler = serverless(app);
+    } catch (err: any) {
+      console.error("Init failed:", err);
+      initError = err;
+      return {
+        statusCode: 500,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "Init Failed", error: err.message, stack: err.stack })
+      };
+    }
+  }
+  return lambdaHandler(event, context);
+};
 
